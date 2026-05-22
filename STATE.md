@@ -1,6 +1,6 @@
 # STATE.md — Printeoo Prototype Progress
 **Last Updated:** 2026-05-23  
-**Status Keseluruhan:** 🔴 Belum Dimulai  
+**Status Keseluruhan:** 🟡 Dalam Progress  
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
 > Ini adalah memori kerja AI antar sesi. Jangan hapus entry yang sudah selesai.
@@ -11,14 +11,14 @@
 
 | Fase | Task | Selesai | Progress |
 |---|---|---|---|
-| 0 — Setup | 3 | 0 | 0% |
+| 0 — Setup | 3 | 1 | 33% |
 | 1 — Foundation | 4 | 0 | 0% |
 | 2 — Core Pages | 6 | 0 | 0% |
 | 3 — Production | 3 | 0 | 0% |
 | 4 — Display & Audio | 2 | 0 | 0% |
 | 5 — Supporting Pages | 3 | 0 | 0% |
 | 6 — Polish & Integration | 3 | 0 | 0% |
-| **Total** | **24** | **0** | **0%** |
+| **Total** | **24** | **1** | **4%** |
 
 ---
 
@@ -29,23 +29,23 @@
 ### FASE 0 — SETUP STRUKTUR
 
 #### TASK-001 — Buat struktur folder dan file kosong
-**Status:** `[ ]` Belum dikerjakan  
+**Status:** `[x]` Selesai  
 **Estimasi:** 10 menit  
 **Deskripsi:**  
 Buat semua file dan folder sesuai struktur di CLAUDE.md. File boleh kosong dulu, yang penting struktur ada.
 
 **Checklist:**
-- [ ] Buat folder `/prototype`
-- [ ] Buat folder `/prototype/pages`
-- [ ] Buat file `/prototype/index.html` (boilerplate saja)
-- [ ] Buat file `/prototype/style.css` (kosong + komentar section)
-- [ ] Buat file `/prototype/app.js` (kosong + komentar section)
-- [ ] Buat file `/prototype/data.js` (kosong + komentar section)
-- [ ] Buat semua file di `/prototype/pages/` (13 file html, boleh kosong)
+- [x] Buat folder `/prototype`
+- [x] Buat folder `/prototype/pages`
+- [x] Buat file `/prototype/index.html` (boilerplate saja)
+- [x] Buat file `/prototype/style.css` (kosong + komentar section)
+- [x] Buat file `/prototype/app.js` (kosong + komentar section)
+- [x] Buat file `/prototype/data.js` (kosong + komentar section)
+- [x] Buat semua file di `/prototype/pages/` (13 file html, boleh kosong)
 
 **Output yang diharapkan:** Struktur folder lengkap, semua file ada meski kosong.  
-**Progress Terakhir:** —  
-**Catatan:** —
+**Progress Terakhir:** 2026-05-23 — Struktur folder dan semua file kosong/boilerplate sudah dibuat.  
+**Catatan:** Selesai sesuai TASK-001; belum ada implementasi fitur.
 
 ---
 
@@ -707,13 +707,13 @@ Pastikan data dummy mendukung flow demo yang menarik untuk Yanuar.
 | Sesi | Tanggal | Task Dikerjakan | Task Selesai | Catatan |
 |---|---|---|---|---|
 | 1 | 2026-05-23 | Setup awal, tulis CLAUDE.md & STATE.md | CLAUDE.md, STATE.md | Belum mulai coding prototype |
+| 2 | 2026-05-23 | TASK-001 — Buat struktur folder dan file kosong | TASK-001 | Struktur `/prototype`, `/prototype/pages`, 4 file utama, dan 13 page HTML sudah dibuat |
 
 ---
 
 ## NEXT TASK
 
-**Task berikutnya yang harus dikerjakan: TASK-001**
+**Task berikutnya yang harus dikerjakan: TASK-002**
 
 Instruksi untuk AI:
-> Baca CLAUDE.md dulu, lalu kerjakan TASK-001: buat struktur folder dan semua file kosong sesuai spesifikasi di CLAUDE.md. Setelah selesai, update STATE.md: ubah status TASK-001 menjadi `[x]` dan catat di tabel Catatan Sesi.
-
+> Baca CLAUDE.md dulu, lalu kerjakan TASK-002: isi `prototype/data.js` dengan semua dummy data yang dibutuhkan prototype. Setelah selesai, update STATE.md: ubah status TASK-002 menjadi `[x]` dan catat di tabel Catatan Sesi.
