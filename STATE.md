@@ -681,7 +681,7 @@ Pastikan data dummy mendukung flow demo yang menarik untuk Yanuar.
 
 | ID | Ditemukan di Task | Deskripsi | Status | Solusi |
 |---|---|---|---|---|
-| — | — | Belum ada bug tercatat | — | — |
+| BUG-001 | Post TASK-019 | Sidebar hilang saat navigasi antar halaman — class `hidden` menempel setelah dari fullscreen route | ✅ Fixed | Root cause: `classList.toggle("hidden", undefined)` tidak reliable. Fix: ganti toggle dengan `classList.add/remove` yang eksplisit di `updateShellVisibility`. |
 
 ---
 
@@ -726,6 +726,7 @@ Pastikan data dummy mendukung flow demo yang menarik untuk Yanuar.
 | 18 | 2026-05-23 | TASK-017 — HR & Payroll Preview | TASK-017 | HR preview selesai: tabel karyawan, tab preview, overlay lock absensi/payroll, highlight upah pemasangan variable |
 | 19 | 2026-05-23 | TASK-018 — Finance Preview | TASK-018 | Finance preview selesai: P&L dummy, metric cards, SVG chart, locked report cards, callout otomatisasi |
 | 20 | 2026-05-23 | TASK-019 — Integrasi antar halaman & konsistensi data | TASK-019 | Dashboard metrics live, overdue filter, production link, inventory alert, queue sync, breadcrumb, dan data status terhubung |
+| 21 | 2026-05-23 | BUG-001 — Fix sidebar hilang setelah navigasi dari fullscreen route | BUG-001 | Root cause ditemukan via DevTools: `classList.toggle` dengan `undefined` tidak reliable. Fix: ganti dengan `add/remove` eksplisit di `updateShellVisibility`. |
 
 ---
 

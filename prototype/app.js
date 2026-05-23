@@ -72,6 +72,9 @@ const ROLE_DEFAULT_ROUTES = {
   display: "#/display-production",
 };
 
+
+const NO_SIDEBAR_ROUTES = ["display-production", "display-queue", "login", "pricing"];
+
 // Routing
 function parseHash() {
   const rawHash = window.location.hash.replace(/^#\/?/, "");
@@ -121,6 +124,7 @@ async function handleRoute() {
   }
 
   updateShellVisibility(config.fullScreen);
+  applySidebarState();
   updateBreadcrumb(config.title, params);
   updateSidebar(APP_STATE.currentRole);
   syncRoleSwitcher();
@@ -170,11 +174,54 @@ function updateShellVisibility(isFullScreen) {
   const header = document.getElementById("header");
   const app = document.getElementById("app");
 
-  shell.classList.toggle("app-shell", !isFullScreen);
-  shell.classList.toggle("block", isFullScreen);
-  sidebar.classList.toggle("hidden", isFullScreen);
-  header.classList.toggle("hidden", isFullScreen);
-  app.classList.toggle("page", !isFullScreen);
+  if (isFullScreen) {
+    shell.classList.remove("app-shell");
+    shell.classList.add("block");
+    sidebar.classList.add("hidden");
+    header.classList.add("hidden");
+    app.classList.remove("page");
+  } else {
+    shell.classList.add("app-shell");
+    shell.classList.remove("block");
+    sidebar.classList.remove("hidden");
+    header.classList.remove("hidden");
+    app.classList.add("page");
+  }
+}
+
+const SIDEBAR_STATE_KEY = "printeoo_sidebar_state";
+
+function getSidebarState() {
+  return localStorage.getItem(SIDEBAR_STATE_KEY) || "open";
+}
+
+function setSidebarState(state) {
+  localStorage.setItem(SIDEBAR_STATE_KEY, state);
+  applySidebarState();
+}
+
+function routeHidesSidebar() {
+  return NO_SIDEBAR_ROUTES.includes(APP_STATE.currentRoute);
+}
+
+function applySidebarState() {
+  const shell = document.getElementById("app-shell");
+  const sidebar = document.getElementById("sidebar");
+  const floatingToggle = document.getElementById("sidebar-toggle-floating");
+  const inlineToggle = document.getElementById("sidebar-toggle");
+  if (!shell || !sidebar || !floatingToggle || !inlineToggle) return;
+
+  const hiddenForRoute = routeHidesSidebar();
+  const state = hiddenForRoute ? "closed" : getSidebarState();
+  const isOpen = state !== "closed";
+
+  sidebar.classList.toggle("sidebar--open", isOpen && !hiddenForRoute);
+  sidebar.classList.toggle("sidebar--closed", !isOpen || hiddenForRoute);
+  shell.classList.toggle("app-shell--sidebar-closed", !isOpen || hiddenForRoute);
+  shell.classList.toggle("app-shell--no-sidebar", hiddenForRoute);
+  floatingToggle.classList.toggle("hidden", hiddenForRoute || isOpen);
+  inlineToggle.textContent = isOpen ? "←" : "☰";
+  inlineToggle.setAttribute("aria-label", isOpen ? "Tutup sidebar" : "Buka sidebar");
 }
 
 function updateBreadcrumb(title, params = {}) {
@@ -1920,6 +1967,14 @@ function setupEventHandlers() {
     setRole(event.target.value);
   });
 
+  document.getElementById("sidebar-toggle").addEventListener("click", () => {
+    setSidebarState(getSidebarState() === "closed" ? "open" : "closed");
+  });
+
+  document.getElementById("sidebar-toggle-floating").addEventListener("click", () => {
+    setSidebarState("open");
+  });
+
   document.addEventListener("submit", (event) => {
     const form = event.target.closest("[data-action='login']");
     const orderForm = event.target.closest("#order-new-form");
@@ -2297,5 +2352,6 @@ window.updateSidebar = updateSidebar;
 
 document.addEventListener("DOMContentLoaded", () => {
   setupEventHandlers();
+  applySidebarState();
   handleRoute();
 });

@@ -9,10 +9,13 @@
 <body>
   <div id="app-shell" class="app-shell">
     <aside id="sidebar" class="sidebar" aria-label="Navigasi utama">
-      <a class="sidebar-logo" href="#/dashboard" aria-label="Printeoo Dashboard">
-        <span class="brand-mark" aria-hidden="true">P</span>
-        <span>Printeoo</span>
-      </a>
+      <div class="sidebar-header">
+        <a class="sidebar-logo" href="#/dashboard" aria-label="Printeoo Dashboard">
+          <span class="brand-mark" aria-hidden="true">P</span>
+          <span>Printeoo</span>
+        </a>
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Tutup sidebar">☰</button>
+      </div>
       <nav id="sidebar-nav" class="sidebar-nav"></nav>
       <div id="sidebar-footer" class="sidebar-footer"></div>
     </aside>
@@ -38,6 +41,7 @@
   </div>
 
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
+  <button id="sidebar-toggle-floating" class="sidebar-toggle-floating" type="button" aria-label="Buka sidebar">☰</button>
 
   <script src="data.js"></script>
   <script src="app.js"></script>
