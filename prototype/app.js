@@ -1,6 +1,6 @@
 // App state
 const ROLE_USERS = {
-  owner: { name: "Ahmad Fauzi", role: "owner", label: "Owner" },
+  owner: { name: "Yanuar Firnandy", role: "owner", label: "Owner" },
   branch_manager: { name: "Novi Rahma", role: "branch_manager", label: "Branch Manager" },
   cashier: { name: "Siti Aminah", role: "cashier", label: "Kasir" },
   operator: { name: "Eko Pramono", role: "operator", label: "Operator" },

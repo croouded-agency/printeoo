@@ -147,7 +147,7 @@
       ],
       timeline: [
         { at: addDays(createdOffset, 10, 0), status: "created", user: "Siti Aminah", note: "Order dibuat dari kasir" },
-        ...(status !== "draft" ? [{ at: addDays(createdOffset, 10, 20), status: "confirmed", user: "Ahmad Fauzi", note: "SPK dikonfirmasi" }] : []),
+        ...(status !== "draft" ? [{ at: addDays(createdOffset, 10, 20), status: "confirmed", user: "Yanuar Firnandy", note: "SPK dikonfirmasi" }] : []),
         ...(statuses.indexOf(status) >= statuses.indexOf("printing") ? [{ at: addDays(Math.min(deadlineOffset, -1), 9, 30), status: "printing", user: "Eko Pramono", note: "Masuk proses cetak" }] : []),
       ],
     };
@@ -184,7 +184,7 @@
   });
 
   const employees = [
-    { id: "EMP-001", name: "Ahmad Fauzi", role: "owner", position: "Owner", contractType: "bulanan", branchId: "BR-SBY-PUSAT", salary: 12000000, phone: "0812-1111-2233" },
+    { id: "EMP-001", name: "Yanuar Firnandy", role: "owner", position: "Owner", contractType: "bulanan", branchId: "BR-SBY-PUSAT", salary: 12000000, phone: "0812-1111-2233" },
     { id: "EMP-002", name: "Siti Aminah", role: "cashier", position: "Kasir", contractType: "bulanan", branchId: "BR-SBY-PUSAT", salary: 4200000, phone: "0813-2222-3344" },
     { id: "EMP-003", name: "Dimas Pratama", role: "designer", position: "Desainer", contractType: "bulanan", branchId: "BR-SBY-PUSAT", salary: 5200000, phone: "0821-3333-4455" },
     { id: "EMP-004", name: "Maya Lestari", role: "designer", position: "Desainer", contractType: "freelance", branchId: "BR-SBY-BARAT", salary: 3500000, phone: "0857-4444-5566" },
@@ -229,17 +229,17 @@
   ];
 
   const incomingLog = [
-    { id: "INC-001", itemId: "MAT-001", itemName: "Flexi China 340gr", batchId: "BATCH-20260515-001", qty: 8, unit: "roll", supplier: "UD Sumber Grafika", pricePerUnit: 650000, totalPrice: 5200000, receivedDate: addDays(-8), receivedBy: "Ahmad Fauzi", notes: "Kondisi baik, tidak ada kerusakan" },
+    { id: "INC-001", itemId: "MAT-001", itemName: "Flexi China 340gr", batchId: "BATCH-20260515-001", qty: 8, unit: "roll", supplier: "UD Sumber Grafika", pricePerUnit: 650000, totalPrice: 5200000, receivedDate: addDays(-8), receivedBy: "Yanuar Firnandy", notes: "Kondisi baik, tidak ada kerusakan" },
     { id: "INC-002", itemId: "MAT-002", itemName: "Flexi Korea 440gr", batchId: "BATCH-20260518-001", qty: 4, unit: "roll", supplier: "PT Media Visual Prima", pricePerUnit: 980000, totalPrice: 3920000, receivedDate: addDays(-5), receivedBy: "Siti Aminah", notes: "" },
-    { id: "INC-003", itemId: "MAT-007", itemName: "Tinta Magenta Epson", batchId: "BATCH-20260511-001", qty: 2, unit: "liter", supplier: "Inkindo Surabaya", pricePerUnit: 185000, totalPrice: 370000, receivedDate: addDays(-12), receivedBy: "Ahmad Fauzi", notes: "Order ulang karena stok menipis" },
+    { id: "INC-003", itemId: "MAT-007", itemName: "Tinta Magenta Epson", batchId: "BATCH-20260511-001", qty: 2, unit: "liter", supplier: "Inkindo Surabaya", pricePerUnit: 185000, totalPrice: 370000, receivedDate: addDays(-12), receivedBy: "Yanuar Firnandy", notes: "Order ulang karena stok menipis" },
     { id: "INC-004", itemId: "MAT-003", itemName: "Art Paper 150gr", batchId: "BATCH-20260510-001", qty: 20, unit: "rim", supplier: "Toko Kertas Surabaya", pricePerUnit: 72000, totalPrice: 1440000, receivedDate: addDays(-13), receivedBy: "Siti Aminah", notes: "" },
-    { id: "INC-005", itemId: "MAT-011", itemName: "Laminasi Doff 32cm", batchId: "BATCH-20260508-001", qty: 5, unit: "roll", supplier: "UD Sumber Grafika", pricePerUnit: 225000, totalPrice: 1125000, receivedDate: addDays(-15), receivedBy: "Ahmad Fauzi", notes: "Stok laminasi menipis setelah promo bulan lalu" },
+    { id: "INC-005", itemId: "MAT-011", itemName: "Laminasi Doff 32cm", batchId: "BATCH-20260508-001", qty: 5, unit: "roll", supplier: "UD Sumber Grafika", pricePerUnit: 225000, totalPrice: 1125000, receivedDate: addDays(-15), receivedBy: "Yanuar Firnandy", notes: "Stok laminasi menipis setelah promo bulan lalu" },
     { id: "INC-006", itemId: "MAT-006", itemName: "Tinta Cyan Epson", batchId: "BATCH-20260505-001", qty: 3, unit: "liter", supplier: "Inkindo Surabaya", pricePerUnit: 185000, totalPrice: 555000, receivedDate: addDays(-18), receivedBy: "Siti Aminah", notes: "" },
-    { id: "INC-007", itemId: "MAT-004", itemName: "Art Carton 260gr", batchId: "BATCH-20260503-001", qty: 12, unit: "rim", supplier: "Toko Kertas Surabaya", pricePerUnit: 96000, totalPrice: 1152000, receivedDate: addDays(-20), receivedBy: "Ahmad Fauzi", notes: "" },
+    { id: "INC-007", itemId: "MAT-004", itemName: "Art Carton 260gr", batchId: "BATCH-20260503-001", qty: 12, unit: "rim", supplier: "Toko Kertas Surabaya", pricePerUnit: 96000, totalPrice: 1152000, receivedDate: addDays(-20), receivedBy: "Yanuar Firnandy", notes: "" },
     { id: "INC-008", itemId: "MAT-014", itemName: "Rangka X-Banner 60x160", batchId: "BATCH-20260501-001", qty: 15, unit: "pcs", supplier: "Toko Alat Reklame", pricePerUnit: 42000, totalPrice: 630000, receivedDate: addDays(-22), receivedBy: "Siti Aminah", notes: "Pembelian rutin bulanan" },
-    { id: "INC-009", itemId: "MAT-010", itemName: "Vinyl Outdoor Glossy", batchId: "BATCH-20260428-001", qty: 4, unit: "roll", supplier: "PT Media Visual Prima", pricePerUnit: 740000, totalPrice: 2960000, receivedDate: addDays(-25), receivedBy: "Ahmad Fauzi", notes: "" },
+    { id: "INC-009", itemId: "MAT-010", itemName: "Vinyl Outdoor Glossy", batchId: "BATCH-20260428-001", qty: 4, unit: "roll", supplier: "PT Media Visual Prima", pricePerUnit: 740000, totalPrice: 2960000, receivedDate: addDays(-25), receivedBy: "Yanuar Firnandy", notes: "" },
     { id: "INC-010", itemId: "MAT-009", itemName: "Tinta Black Epson", batchId: "BATCH-20260425-001", qty: 4, unit: "liter", supplier: "Inkindo Surabaya", pricePerUnit: 175000, totalPrice: 700000, receivedDate: addDays(-28), receivedBy: "Siti Aminah", notes: "" },
-    { id: "INC-011", itemId: "MAT-005", itemName: "Ivory 230gr", batchId: "BATCH-20260420-001", qty: 10, unit: "rim", supplier: "CV Kertas Jaya", pricePerUnit: 105000, totalPrice: 1050000, receivedDate: addDays(-33), receivedBy: "Ahmad Fauzi", notes: "Untuk produksi undangan musim nikah" },
+    { id: "INC-011", itemId: "MAT-005", itemName: "Ivory 230gr", batchId: "BATCH-20260420-001", qty: 10, unit: "rim", supplier: "CV Kertas Jaya", pricePerUnit: 105000, totalPrice: 1050000, receivedDate: addDays(-33), receivedBy: "Yanuar Firnandy", notes: "Untuk produksi undangan musim nikah" },
     { id: "INC-012", itemId: "MAT-015", itemName: "Stand Roll Banner 85x200", batchId: "BATCH-20260415-001", qty: 8, unit: "pcs", supplier: "Toko Alat Reklame", pricePerUnit: 175000, totalPrice: 1400000, receivedDate: addDays(-38), receivedBy: "Siti Aminah", notes: "" },
   ];
 
@@ -339,7 +339,7 @@
       id: "OPN-001",
       name: "Opname Awal Mei 2026",
       date: addDays(-22),
-      createdBy: "Ahmad Fauzi",
+      createdBy: "Yanuar Firnandy",
       status: "approved",
       approvedAt: addDays(-22),
       notes: "Opname rutin bulanan",
@@ -367,7 +367,7 @@
       id: "OPN-002",
       name: "Opname Pasca Proyek Billboard Pakuwon",
       date: addDays(-10),
-      createdBy: "Ahmad Fauzi",
+      createdBy: "Yanuar Firnandy",
       status: "approved",
       approvedAt: addDays(-10),
       notes: "Cek stok setelah penyelesaian proyek besar billboard Pakuwon Mall",
@@ -386,8 +386,8 @@
   ];
 
   const adjustmentLog = [
-    { id: "ADJ-001", opnameId: "OPN-001", itemId: "MAT-002", itemName: "Flexi Korea 440gr", oldStock: 5, newStock: 4, diff: -1, unit: "roll", adjustedAt: addDays(-22), adjustedBy: "Ahmad Fauzi" },
-    { id: "ADJ-002", opnameId: "OPN-002", itemId: "MAT-007", itemName: "Tinta Magenta Epson", oldStock: 0.75, newStock: 0.5, diff: -0.25, unit: "liter", adjustedAt: addDays(-10), adjustedBy: "Ahmad Fauzi" },
+    { id: "ADJ-001", opnameId: "OPN-001", itemId: "MAT-002", itemName: "Flexi Korea 440gr", oldStock: 5, newStock: 4, diff: -1, unit: "roll", adjustedAt: addDays(-22), adjustedBy: "Yanuar Firnandy" },
+    { id: "ADJ-002", opnameId: "OPN-002", itemId: "MAT-007", itemName: "Tinta Magenta Epson", oldStock: 0.75, newStock: 0.5, diff: -0.25, unit: "liter", adjustedAt: addDays(-10), adjustedBy: "Yanuar Firnandy" },
   ];
 
   const purchaseOrders = [
@@ -398,7 +398,7 @@
       createdAt: addDays(0, 9, 15),
       expectedAt: addDays(2, 15, 0),
       notes: "Prioritas untuk stok tinta magenta yang menipis.",
-      createdBy: "Ahmad Fauzi",
+      createdBy: "Yanuar Firnandy",
       sentAt: addDays(0, 9, 40),
       receivedAt: null,
       items: [
@@ -428,7 +428,7 @@
       createdAt: addDays(-4, 10, 30),
       expectedAt: addDays(-2, 15, 0),
       notes: "Stok display untuk kebutuhan roll banner kampus.",
-      createdBy: "Ahmad Fauzi",
+      createdBy: "Yanuar Firnandy",
       sentAt: addDays(-4, 11, 0),
       receivedAt: addDays(-2, 14, 10),
       items: [
@@ -458,7 +458,7 @@
       createdAt: addDays(-7, 10, 0),
       expectedAt: addDays(-3, 15, 0),
       notes: "Dibatalkan karena supplier tidak bisa kirim Flexi Korea minggu ini.",
-      createdBy: "Ahmad Fauzi",
+      createdBy: "Yanuar Firnandy",
       sentAt: addDays(-7, 10, 20),
       receivedAt: null,
       items: [
