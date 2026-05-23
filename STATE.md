@@ -18,7 +18,8 @@
 | 4 — Display & Audio | 2 | 2 | 100% |
 | 5 — Supporting Pages | 3 | 3 | 100% |
 | 6 — Polish & Integration | 3 | 1 | 33% |
-| **Total** | **24** | **19** | **79%** |
+| 7 — Inventory Fully Functional | 7 | 1 | 14% |
+| **Total** | **31** | **20** | **65%** |
 
 ---
 
@@ -675,6 +676,335 @@ Pastikan data dummy mendukung flow demo yang menarik untuk Yanuar.
 
 ---
 
+### FASE 7 — INVENTORY FULLY FUNCTIONAL
+
+> Konteks: Halaman inventory.html saat ini adalah preview read-only (TASK-016).
+> Fase ini mengupgrade inventory menjadi fully functional dengan 7 sub-fitur.
+> Semua fitur bekerja in-memory + localStorage (konsisten dengan arsitektur prototype).
+> Referensi PRD: M07.1 sampai M07.2b, M07.3, M07.4, M07.10.
+
+---
+
+#### TASK-023 — Inventory: Catat Penerimaan Barang (Incoming)
+**Status:** `[x]` Selesai
+**Estimasi:** 60 menit
+**Depends on:** TASK-016 (inventory preview sudah ada sebagai base)
+**File yang diubah:** `prototype/pages/inventory.html`, `prototype/data.js`
+
+**Deskripsi:**
+Upgrade tombol "+ Catat Penerimaan" dari disabled menjadi functional.
+User bisa mencatat barang masuk dari supplier, stok otomatis bertambah.
+
+**Checklist:**
+- [ ] Tombol "+ Catat Penerimaan" di header inventory → buka modal form
+- [ ] Form modal "Penerimaan Barang":
+  - Dropdown pilih bahan (dari APP_DATA.inventory)
+  - Input qty diterima + satuan (auto-fill dari bahan dipilih)
+  - Input nomor batch (auto-generate: BATCH-[YYYYMMDD]-[3digit] atau input manual)
+  - Input nama supplier (text, autocomplete dari supplier yang pernah ada)
+  - Input harga beli per satuan (Rp)
+  - Date picker tanggal terima (default: hari ini)
+  - Input catatan opsional
+- [ ] Submit → update stok bahan di APP_DATA.inventory (qty bertambah)
+- [ ] Submit → tambah entry ke APP_DATA.incomingLog:
+  ```
+  { id, itemId, itemName, batchId, qty, unit, supplier, pricePerUnit, receivedDate, receivedBy, notes }
+  ```
+- [ ] Simpan APP_DATA.incomingLog ke localStorage key: `printeoo_incoming_log`
+- [ ] Setelah submit: showToast "Penerimaan berhasil dicatat. Stok [nama bahan] bertambah [qty] [satuan]."
+- [ ] Tabel inventory di halaman utama refresh: stok terbaru tampil, status badge update
+- [ ] Tab baru "Riwayat Penerimaan" di halaman inventory:
+  - Tabel: Tanggal | Bahan | Qty | Batch | Supplier | Harga/Satuan | Dicatat oleh
+  - Filter: by bahan, by tanggal range
+  - Sort: terbaru di atas
+- [ ] Data incomingLog di data.js: isi 10+ entry dummy historis
+
+**Output yang diharapkan:** Klik "+ Catat Penerimaan" → form muncul → submit → stok bertambah → riwayat tercatat.
+
+---
+
+#### TASK-024 — Inventory: Stok Opname (Audit Trail)
+**Status:** `[ ]` Belum dikerjakan
+**Estimasi:** 75 menit
+**Depends on:** TASK-023
+**File yang diubah:** `prototype/pages/inventory.html`, `prototype/data.js`
+
+**Deskripsi:**
+Upgrade tombol "Stok Opname" menjadi functional.
+User input hitungan fisik → sistem kalkulasi selisih → approval → stok di-adjust.
+
+**Flow yang harus diimplementasi:**
+```
+Buat Sesi Opname → Input Stok Fisik per Bahan → Review Selisih → Approve & Adjust
+```
+
+**Checklist:**
+- [ ] Tombol "Stok Opname" → buka halaman/section Stok Opname (bisa dalam halaman yang sama, toggle view)
+- [ ] **Step 1 — Buat Sesi Opname:**
+  - Tombol "Mulai Opname Baru"
+  - Input: nama sesi (contoh: "Opname Mei 2026"), tanggal, catatan
+  - Sistem generate tabel opname: semua bahan aktif + stok sistem saat ini
+  - Status sesi: `draft`
+- [ ] **Step 2 — Input Stok Fisik:**
+  - Tabel dengan kolom: Nama Bahan | Stok Sistem | Stok Fisik (input) | Selisih (auto)
+  - Kolom "Stok Fisik": input number per baris (editable)
+  - Kolom "Selisih": auto-kalkulasi (Stok Fisik − Stok Sistem), tampilkan hijau jika 0, merah jika negatif, oranye jika positif
+  - Tombol "Simpan Draft" → save progress ke localStorage
+  - Tombol "Selesai Input, Minta Approval"
+- [ ] **Step 3 — Review & Approval:**
+  - Tampilkan ringkasan: berapa bahan yang cocok, berapa yang ada selisih
+  - List bahan dengan selisih (highlight merah/oranye)
+  - Input alasan adjustment (textarea, wajib jika ada selisih)
+  - Tombol "Approve & Adjust Stok"
+- [ ] **Step 4 — Setelah Approval:**
+  - Stok di APP_DATA.inventory di-update ke angka fisik
+  - Entry adjustment ditambah ke APP_DATA.adjustmentLog:
+    ```
+    { id, sessionId, sessionName, itemId, oldQty, newQty, diff, reason, approvedBy, approvedAt }
+    ```
+  - showToast "Stok opname selesai. X bahan disesuaikan."
+- [ ] Tab "Riwayat Opname": list semua sesi opname yang pernah dilakukan
+  - Kolom: Nama Sesi | Tanggal | Total Bahan | Ada Selisih | Status | Dicatat oleh
+  - Klik → lihat detail sesi (semua bahan + selisih + alasan)
+- [ ] Data dummy: 2 sesi opname historis di APP_DATA.opnameSessions
+
+**Output yang diharapkan:** Flow 4 step berjalan, stok ter-adjust, riwayat tersimpan dan bisa dilihat.
+
+---
+
+#### TASK-025 — Inventory: Laporan Penggunaan Material
+**Status:** `[ ]` Belum dikerjakan
+**Estimasi:** 60 menit
+**Depends on:** TASK-023
+**File yang diubah:** `prototype/pages/inventory.html`, `prototype/data.js`
+
+**Deskripsi:**
+Upgrade tombol "Lihat Laporan Penggunaan" menjadi functional.
+Menampilkan analitik pemakaian bahan: per periode, per produk, per SPK, termasuk waste.
+
+**Checklist:**
+- [ ] Tombol "Lihat Laporan Penggunaan" → toggle ke view laporan (dalam halaman yang sama)
+- [ ] **Header laporan:** filter periode (Minggu Ini / Bulan Ini / Bulan Lalu / Custom range)
+- [ ] **Section 1 — Ringkasan Penggunaan:**
+  - Card metrics: Total Pemakaian (nilai Rp), Total Waste (nilai Rp), Waste Rate (%)
+  - Tabel: Nama Bahan | Qty Dipakai | Qty Waste | Waste Rate | Nilai Pemakaian
+  - Sort by: qty dipakai terbanyak (default)
+- [ ] **Section 2 — Penggunaan per SPK:**
+  - Tabel: No. SPK | Produk | Bahan yang Dipakai | Total Qty | Total Nilai | Tanggal
+  - Filter by bahan
+  - Klik nomor SPK → navigate ke detail SPK
+- [ ] **Section 3 — Trend Chart:**
+  - SVG bar chart: pemakaian harian selama periode yang dipilih
+  - Toggle: tampilkan usage vs waste
+- [ ] Data usage di data.js: extend APP_DATA.usageLog dengan 30+ entry dummy
+  - Setiap entry: { spkId, itemId, itemName, qtyUsed, qtyWaste, wasteCategory, usedAt, operatorId }
+
+**Output yang diharapkan:** Laporan terisi data, filter periode berfungsi, chart tampil.
+
+---
+
+#### TASK-026 — Inventory: Generate & Scan QR Label
+**Status:** `[ ]` Belum dikerjakan
+**Estimasi:** 90 menit
+**Depends on:** TASK-023
+**File yang diubah:** `prototype/pages/inventory.html`, `prototype/data.js`
+
+**Deskripsi:**
+Implementasi fitur QR label untuk material tracking sesuai M07.2b di PRD.
+Dua arah: generate QR saat penerimaan, scan QR saat input usage di SPK.
+
+**Checklist — Generate QR:**
+- [ ] Di tabel inventory: tambah kolom "QR" dengan tombol ikon QR per baris
+- [ ] Klik ikon QR → modal "Label QR Bahan"
+- [ ] Modal berisi:
+  - Preview label (HTML/CSS div yang mirip label stiker 50×30mm):
+    ```
+    ┌─────────────────────────────┐
+    │  P  PRINTEOO                │
+    │     ████████                │
+    │     ████████  Flexi China   │
+    │     ████████  Batch: xxx    │
+    │               Masuk: tgl   │
+    │               5 Roll        │
+    └─────────────────────────────┘
+    ```
+  - QR code: generate pakai pure JS (gunakan library qrcode.js via CDN — ini boleh karena critical untuk fitur ini)
+    CDN: `https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js`
+  - Data yang di-encode: `printeoo://scan?b={batchId}&t=demo&item={itemName}`
+  - Dropdown pilih batch (jika bahan punya multiple batch)
+  - Tombol "Cetak Label" → window.print() dengan CSS print yang hanya tampilkan label
+  - Tombol "Download PNG" → canvas.toBlob() → download
+- [ ] Di riwayat penerimaan: tombol "Cetak Label" per entry penerimaan
+
+**Checklist — Scan QR (di halaman Input Order Baru & Detail SPK):**
+- [ ] Di `pages/order-new.html` section material / di `pages/order-detail.html` tab Material:
+  - Tombol "📷 Scan QR Bahan" di samping dropdown pilih bahan
+  - Klik → buka modal scanner
+- [ ] Modal scanner:
+  - Tampilkan area kamera (gunakan getUserMedia API)
+  - Jika kamera tidak tersedia: tampilkan input manual "Masukkan Batch ID"
+  - Saat QR ter-detect: parse data, tutup modal, auto-fill form:
+    - Nama bahan (dari itemName di QR data)
+    - Batch ID
+  - Gunakan library html5-qrcode via CDN:
+    `https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js`
+- [ ] Fallback jika browser tidak support kamera:
+  - Input text "Masukkan kode batch" + tombol "Cari"
+  - Cari di APP_DATA.inventory.batches → auto-fill jika ketemu
+- [ ] Simulasi demo (untuk presentasi tanpa kamera):
+  - Tombol "🎯 Simulasi Scan" → auto-fill dengan batch dummy yang ada di data
+  - Ini harus selalu muncul di bawah area kamera sebagai fallback demo
+
+**Output yang diharapkan:**
+- Klik ikon QR di tabel → modal label dengan QR code generated → bisa cetak
+- Klik "Scan QR Bahan" di form usage → kamera aktif (atau simulasi) → auto-fill bahan
+
+---
+
+#### TASK-027 — Inventory: Waste Tracking per SPK
+**Status:** `[ ]` Belum dikerjakan
+**Estimasi:** 60 menit
+**Depends on:** TASK-025, TASK-026
+**File yang diubah:** `prototype/pages/inventory.html`, `prototype/pages/order-detail.html`, `prototype/data.js`
+
+**Deskripsi:**
+Operator bisa mencatat waste (bahan terbuang) per SPK saat proses produksi.
+Waste ter-track ke inventory dan laporan.
+
+**Checklist — Input Waste di Detail SPK:**
+- [ ] Di `pages/order-detail.html`: tambah sub-section "Material & Waste" di kolom Info Pesanan
+  - Hanya muncul saat status SPK = printing, finishing, atau sesudahnya
+  - Tabel usage yang sudah dicatat (dari APP_DATA.usageLog)
+  - Tombol "+ Catat Pemakaian & Waste"
+- [ ] Modal "Catat Pemakaian Material":
+  - Dropdown pilih bahan (atau hasil scan QR dari TASK-026)
+  - Input qty dipakai (number)
+  - Input qty waste (number, bisa 0)
+  - Dropdown kategori waste: Gagal Cetak / Trim Sisa / Kerusakan Bahan / Setup Loss / Lainnya
+  - Catatan waste (textarea, opsional)
+  - Submit → update usageLog + kurangi stok
+- [ ] Validasi: qty dipakai + qty waste tidak boleh melebihi stok available bahan tersebut
+  - Jika melebihi: warning "Stok tidak cukup. Available: X [satuan]" tapi tidak block
+
+**Checklist — Waste Dashboard di Inventory:**
+- [ ] Section "Laporan Waste" di halaman inventory (atau tab terpisah)
+- [ ] Metric cards:
+  - Total Waste Bulan Ini (qty dan nilai Rp)
+  - Waste Rate Keseluruhan (%)
+  - Bahan dengan Waste Tertinggi
+- [ ] Tabel waste: Tanggal | SPK | Bahan | Qty Waste | Kategori | Nilai Rp | Operator
+- [ ] Filter: by bahan, by kategori, by periode
+- [ ] Bar chart SVG: waste per hari selama 7 hari terakhir
+- [ ] Data dummy: 20+ entry waste di APP_DATA.usageLog (field qtyWaste > 0)
+
+**Output yang diharapkan:** Operator input waste dari SPK → tercatat → muncul di laporan waste inventory.
+
+---
+
+#### TASK-028 — Inventory: Purchase Order (PO) ke Supplier
+**Status:** `[ ]` Belum dikerjakan
+**Estimasi:** 75 menit
+**Depends on:** TASK-023
+**File yang diubah:** `prototype/pages/inventory.html`, `prototype/data.js`
+
+**Deskripsi:**
+Fitur buat PO ke supplier saat stok menipis, track status PO sampai barang diterima.
+
+**Checklist:**
+- [ ] Tab "Purchase Order" di halaman inventory
+- [ ] **Daftar PO:**
+  - Tabel: No. PO | Supplier | Items | Total Nilai | Tgl Dibuat | Status | Aksi
+  - Status badge: Draft / Dikirim / Partial / Diterima / Dibatalkan
+  - Tombol "+ Buat PO Baru"
+  - Filter by status, by supplier
+- [ ] **Form Buat PO Baru (modal atau halaman dalam):**
+  - Input nama/pilih supplier (autocomplete)
+  - Nomor PO: auto-generate PO-[YYYYMMDD]-[3digit]
+  - Tanggal PO, estimasi tanggal terima
+  - Tabel items PO:
+    - Baris: Bahan | Qty Order | Satuan | Harga Satuan | Subtotal
+    - Tombol "+ Tambah Bahan" (dropdown bahan dari catalog)
+    - Tombol hapus per baris
+  - Total nilai PO (auto-kalkulasi)
+  - Catatan ke supplier
+  - Tombol "Simpan Draft" dan "Kirim PO"
+- [ ] **Detail PO:**
+  - Semua info PO
+  - Status timeline (Draft → Dikirim → Diterima)
+  - Jika status = Dikirim: tombol "Catat Penerimaan" → pre-fill form incoming (TASK-023) dengan data dari PO
+  - Partial receiving: bisa terima sebagian qty, sisa masih "menunggu"
+- [ ] **Alert otomatis:**
+  - Di halaman inventory utama: jika ada bahan dengan stok < minimum → tampilkan tombol "Buat PO" di baris tersebut
+  - Klik → buka form PO dengan bahan tersebut sudah ter-pre-fill
+- [ ] Data dummy: 5+ PO dengan berbagai status di APP_DATA.purchaseOrders
+
+**Output yang diharapkan:** Buat PO → kirim → catat penerimaan dari PO → stok bertambah. Flow end-to-end bisa didemonstrasikan.
+
+---
+
+#### TASK-029 — Inventory: Traceability per SPK
+**Status:** `[ ]` Belum dikerjakan
+**Estimasi:** 60 menit
+**Depends on:** TASK-025, TASK-027
+**File yang diubah:** `prototype/pages/inventory.html`, `prototype/pages/order-detail.html`, `prototype/data.js`
+
+**Deskripsi:**
+Fitur trace dua arah: dari SPK → lihat material apa yang dipakai dari batch mana,
+dan dari batch material → lihat SPK mana yang menggunakannya.
+
+**Checklist — Trace dari SPK (di order-detail.html):**
+- [ ] Di section "Material & Waste" order detail: setiap baris usage tampilkan:
+  - Nama bahan + qty + batch ID yang digunakan
+  - Link "Lihat Batch" → buka modal batch detail
+- [ ] Modal Batch Detail:
+  - Info batch: nama bahan, batch ID, tanggal masuk, supplier, qty awal, qty tersisa
+  - Tabel "SPK yang menggunakan batch ini":
+    - Kolom: No. SPK | Produk | Qty Dipakai | Tanggal | Operator
+  - Ini adalah traceability dari material ke semua order yang memakai batch tersebut
+
+**Checklist — Trace dari Inventory (di inventory.html):**
+- [ ] Di tabel inventory utama: kolom "Batch" dengan badge jumlah batch aktif per bahan
+  - Contoh: "3 batch" → klik → expand atau buka modal daftar batch
+- [ ] Modal "Batch Bahan [nama bahan]":
+  - Tabel batch: Batch ID | Masuk | Supplier | Qty Awal | Qty Terpakai | Qty Tersisa | Status
+  - Status batch: Aktif / Habis
+  - Per batch: tombol "Lihat Penggunaan" → modal trace
+- [ ] Modal "Penggunaan Batch [batchId]":
+  - Info batch di atas
+  - Tabel: semua SPK yang menggunakan batch ini
+  - Kolom: No. SPK | Customer | Produk | Qty Dipakai | Qty Waste | Tanggal | Operator
+  - Klik No. SPK → navigate ke detail SPK
+  - Di bawah tabel: "Total terpakai: X [satuan] dari Y [satuan] awal (Z% terpakai)"
+- [ ] Section "Scan Batch" di inventory:
+  - Input "Cari Batch ID" atau tombol scan QR
+  - Enter batch ID → langsung buka modal penggunaan batch tersebut
+  - Ini simulasi flow: gudang scan QR di bahan fisik → langsung lihat history lengkapnya
+
+**Data yang dibutuhkan di data.js:**
+- [ ] `APP_DATA.batches`: array batch per item
+  ```js
+  {
+    batchId: 'BATCH-20260501-001',
+    itemId: 'INV-001',
+    itemName: 'Flexi China 340gr',
+    qtyInitial: 10,
+    qtyRemaining: 7,
+    supplier: 'UD Sumber Grafika',
+    receivedDate: offset(-22),
+    pricePerUnit: 85000,
+    status: 'aktif'
+  }
+  ```
+- [ ] Setiap entry di APP_DATA.usageLog harus punya field `batchId` yang link ke batch di atas
+- [ ] Minimal 3 batch per bahan yang sering dipakai, dengan usage log yang variatif
+
+**Output yang diharapkan:**
+- Dari SPK → klik bahan → lihat dari batch mana → lihat semua SPK yang pakai batch itu
+- Dari inventory → klik batch → lihat semua SPK yang pernah pakai batch ini
+- Scan/input batch ID → langsung dapat history lengkap
+
+---
+
 ## BUGS & ISSUES
 
 *Catat di sini setiap bug yang ditemukan saat development.*
@@ -727,12 +1057,24 @@ Pastikan data dummy mendukung flow demo yang menarik untuk Yanuar.
 | 19 | 2026-05-23 | TASK-018 — Finance Preview | TASK-018 | Finance preview selesai: P&L dummy, metric cards, SVG chart, locked report cards, callout otomatisasi |
 | 20 | 2026-05-23 | TASK-019 — Integrasi antar halaman & konsistensi data | TASK-019 | Dashboard metrics live, overdue filter, production link, inventory alert, queue sync, breadcrumb, dan data status terhubung |
 | 21 | 2026-05-23 | BUG-001 — Fix sidebar hilang setelah navigasi dari fullscreen route | BUG-001 | Root cause ditemukan via DevTools: `classList.toggle` dengan `undefined` tidak reliable. Fix: ganti dengan `add/remove` eksplisit di `updateShellVisibility`. |
+| 22 | 2026-05-23 | TASK-023 — Inventory: Catat Penerimaan Barang | TASK-023 | Button "+ Catat Penerimaan" functional, modal form lengkap, tab Stok & Riwayat, incomingLog dummy 12 entry, persist ke localStorage, loadStoredInventory() saat init. |
 
 ---
 
 ## NEXT TASK
 
-**Task berikutnya yang harus dikerjakan: TASK-020**
+**Task berikutnya yang harus dikerjakan: TASK-024**
+
+Urutan eksekusi Fase 7 (ikuti urutan ini, jangan loncat):
+1. **TASK-023** — Incoming (foundation data untuk task lain)
+2. **TASK-024** — Stok Opname (depends on stok yang accurate)
+3. **TASK-025** — Laporan Penggunaan (needs usageLog structure)
+4. **TASK-026** — QR Generate & Scan (needs batch data)
+5. **TASK-027** — Waste Tracking (needs usageLog + QR scan)
+6. **TASK-028** — Purchase Order (bisa paralel setelah TASK-023)
+7. **TASK-029** — Traceability (depends on semua di atas)
+
+Setelah Fase 7 selesai, lanjutkan ke TASK-020, TASK-021, TASK-022 (polish, demo script, final QA) — karena inventory yang fully functional harus masuk ke final QA.
 
 Instruksi untuk AI:
-> Baca CLAUDE.md dulu, lalu kerjakan TASK-020: lakukan polish visual dan microcopy di seluruh prototype, pastikan tampilan demo rapi, empty/loading states jelas, dan Bahasa Indonesia konsisten. Setelah selesai, update STATE.md: ubah status TASK-020 menjadi `[x]` dan catat di tabel Catatan Sesi.
+> Baca CLAUDE.md dulu, lalu kerjakan TASK-023: upgrade tombol "+ Catat Penerimaan" di inventory.html dari disabled menjadi functional, lengkap dengan modal form, update stok, incomingLog, tab riwayat, dan data dummy. Setelah selesai, update STATE.md: ubah status TASK-023 menjadi `[x]` dan catat di tabel Catatan Sesi.

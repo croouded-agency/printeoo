@@ -198,6 +198,21 @@
     { id: "SCAN-003", batchId: "f8b1e04c-60ac-4a89-a2a1-397aa493c2ee", scannedAt: addDays(0, 10, 15), userId: "EMP-006", spkNumber: orders[24].spkNumber, action: "usage_input" },
   ];
 
+  const incomingLog = [
+    { id: "INC-001", itemId: "MAT-001", itemName: "Flexi China 340gr", batchId: "BATCH-20260515-001", qty: 8, unit: "roll", supplier: "UD Sumber Grafika", pricePerUnit: 650000, totalPrice: 5200000, receivedDate: addDays(-8), receivedBy: "Ahmad Fauzi", notes: "Kondisi baik, tidak ada kerusakan" },
+    { id: "INC-002", itemId: "MAT-002", itemName: "Flexi Korea 440gr", batchId: "BATCH-20260518-001", qty: 4, unit: "roll", supplier: "PT Media Visual Prima", pricePerUnit: 980000, totalPrice: 3920000, receivedDate: addDays(-5), receivedBy: "Siti Aminah", notes: "" },
+    { id: "INC-003", itemId: "MAT-007", itemName: "Tinta Magenta Epson", batchId: "BATCH-20260511-001", qty: 2, unit: "liter", supplier: "Inkindo Surabaya", pricePerUnit: 185000, totalPrice: 370000, receivedDate: addDays(-12), receivedBy: "Ahmad Fauzi", notes: "Order ulang karena stok menipis" },
+    { id: "INC-004", itemId: "MAT-003", itemName: "Art Paper 150gr", batchId: "BATCH-20260510-001", qty: 20, unit: "rim", supplier: "Toko Kertas Surabaya", pricePerUnit: 72000, totalPrice: 1440000, receivedDate: addDays(-13), receivedBy: "Siti Aminah", notes: "" },
+    { id: "INC-005", itemId: "MAT-011", itemName: "Laminasi Doff 32cm", batchId: "BATCH-20260508-001", qty: 5, unit: "roll", supplier: "UD Sumber Grafika", pricePerUnit: 225000, totalPrice: 1125000, receivedDate: addDays(-15), receivedBy: "Ahmad Fauzi", notes: "Stok laminasi menipis setelah promo bulan lalu" },
+    { id: "INC-006", itemId: "MAT-006", itemName: "Tinta Cyan Epson", batchId: "BATCH-20260505-001", qty: 3, unit: "liter", supplier: "Inkindo Surabaya", pricePerUnit: 185000, totalPrice: 555000, receivedDate: addDays(-18), receivedBy: "Siti Aminah", notes: "" },
+    { id: "INC-007", itemId: "MAT-004", itemName: "Art Carton 260gr", batchId: "BATCH-20260503-001", qty: 12, unit: "rim", supplier: "Toko Kertas Surabaya", pricePerUnit: 96000, totalPrice: 1152000, receivedDate: addDays(-20), receivedBy: "Ahmad Fauzi", notes: "" },
+    { id: "INC-008", itemId: "MAT-014", itemName: "Rangka X-Banner 60x160", batchId: "BATCH-20260501-001", qty: 15, unit: "pcs", supplier: "Toko Alat Reklame", pricePerUnit: 42000, totalPrice: 630000, receivedDate: addDays(-22), receivedBy: "Siti Aminah", notes: "Pembelian rutin bulanan" },
+    { id: "INC-009", itemId: "MAT-010", itemName: "Vinyl Outdoor Glossy", batchId: "BATCH-20260428-001", qty: 4, unit: "roll", supplier: "PT Media Visual Prima", pricePerUnit: 740000, totalPrice: 2960000, receivedDate: addDays(-25), receivedBy: "Ahmad Fauzi", notes: "" },
+    { id: "INC-010", itemId: "MAT-009", itemName: "Tinta Black Epson", batchId: "BATCH-20260425-001", qty: 4, unit: "liter", supplier: "Inkindo Surabaya", pricePerUnit: 175000, totalPrice: 700000, receivedDate: addDays(-28), receivedBy: "Siti Aminah", notes: "" },
+    { id: "INC-011", itemId: "MAT-005", itemName: "Ivory 230gr", batchId: "BATCH-20260420-001", qty: 10, unit: "rim", supplier: "CV Kertas Jaya", pricePerUnit: 105000, totalPrice: 1050000, receivedDate: addDays(-33), receivedBy: "Ahmad Fauzi", notes: "Untuk produksi undangan musim nikah" },
+    { id: "INC-012", itemId: "MAT-015", itemName: "Stand Roll Banner 85x200", batchId: "BATCH-20260415-001", qty: 8, unit: "pcs", supplier: "Toko Alat Reklame", pricePerUnit: 175000, totalPrice: 1400000, receivedDate: addDays(-38), receivedBy: "Siti Aminah", notes: "" },
+  ];
+
   const dashboard = {
     revenueToday: 4750000,
     revenueYesterday: 4100000,
@@ -265,6 +280,7 @@
     inventory,
     materialBatches,
     scanLogs,
+    incomingLog,
     dashboard,
     branches,
     queueNumbers,

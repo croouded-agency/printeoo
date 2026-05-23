@@ -1,21 +1,23 @@
 <section class="inventory-page" data-page="inventory">
   <div class="page-header">
     <div>
-      <div class="flex items-center gap-3 flex-wrap">
-        <h1 class="page-title">Inventaris & Gudang</h1>
-        <span class="badge badge-confirmed">Tersedia di Tier Studio ke atas</span>
-      </div>
-      <p class="page-subtitle">Preview stok bahan baku, batch, dan traceability material.</p>
+      <h1 class="page-title">Inventaris & Gudang</h1>
+      <p class="page-subtitle">Kelola stok bahan baku dan catat penerimaan dari supplier.</p>
     </div>
     <div class="flex gap-3 flex-wrap">
-      <button class="btn-secondary" type="button" disabled title="Fitur ini aktif di tier Studio">+ Catat Penerimaan</button>
-      <button class="btn-secondary" type="button" disabled title="Fitur ini aktif di tier Studio">Stok Opname</button>
-      <button class="btn-secondary" type="button" disabled title="Fitur ini aktif di tier Studio">Lihat Laporan Penggunaan</button>
+      <button class="btn-primary" type="button" data-action="open-incoming-modal">+ Catat Penerimaan</button>
+      <button class="btn-secondary" type="button" disabled title="Tersedia di TASK-024">Stok Opname</button>
+      <button class="btn-secondary" type="button" disabled title="Tersedia di TASK-025">Lihat Laporan Penggunaan</button>
     </div>
   </div>
 
   <div id="inventory-alert"></div>
-  <div id="inventory-table"></div>
 
-  <section class="preview-feature-grid mt-6" aria-label="Preview fitur inventaris"></section>
+  <div class="tabs mb-4">
+    <button class="tab-button active" type="button" data-inv-tab="stok">Stok Bahan</button>
+    <button class="tab-button" type="button" data-inv-tab="incoming">Riwayat Penerimaan</button>
+  </div>
+
+  <div id="inventory-tab-content"></div>
+  <div id="inventory-modal-root"></div>
 </section>

@@ -35,6 +35,7 @@ const APP_STATE = {
 window.APP_STATE = APP_STATE;
 
 loadStoredOrders();
+loadStoredInventory();
 
 const ROUTES = {
   login: { page: "login", title: "Login", fullScreen: true },
@@ -322,7 +323,7 @@ function initPage(route) {
   }
 
   if (route === "inventory") {
-    renderInventoryPreview();
+    renderInventoryPage();
   }
 
   if (route === "hr") {
@@ -1697,19 +1698,31 @@ function enableQueueAudio() {
   speakQueue("Audio antrian aktif");
 }
 
-function renderInventoryPreview() {
+function renderInventoryPage(activeTab = "stok") {
   const alertEl = document.getElementById("inventory-alert");
-  const tableEl = document.getElementById("inventory-table");
-  const featureGrid = document.querySelector(".preview-feature-grid");
+  const tabContent = document.getElementById("inventory-tab-content");
+  if (!alertEl || !tabContent) return;
+
   const inventory = window.APP_DATA?.inventory || [];
-  if (!alertEl || !tableEl || !featureGrid) return;
+
+  document.querySelectorAll("[data-inv-tab]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.invTab === activeTab);
+  });
 
   const lowStock = inventory.filter((item) => item.stock <= item.minStock);
   alertEl.innerHTML = lowStock.length
-    ? `<div class="dashboard-alert"><strong>${lowStock.length} bahan hampir habis.</strong><span>Segera lakukan pembelian.</span></div>`
+    ? `<div class="dashboard-alert"><strong>${lowStock.length} bahan menipis.</strong> <span>Segera lakukan pembelian.</span></div>`
     : "";
 
-  tableEl.innerHTML = `
+  if (activeTab === "stok") {
+    tabContent.innerHTML = renderInventoryStokTab(inventory);
+  } else {
+    tabContent.innerHTML = renderInventoryIncomingTab();
+  }
+}
+
+function renderInventoryStokTab(inventory) {
+  return `
     <div class="data-table">
       <table>
         <thead>
@@ -1729,7 +1742,7 @@ function renderInventoryPreview() {
               <tr>
                 <td><strong>${item.name}</strong><div class="text-xs text-muted">${item.supplier}</div></td>
                 <td>${item.category}</td>
-                <td>${item.stock}</td>
+                <td><strong>${item.stock}</strong></td>
                 <td>${item.unit}</td>
                 <td>${item.minStock}</td>
                 <td><span class="badge ${status.className}">${status.label}</span></td>
@@ -1740,20 +1753,192 @@ function renderInventoryPreview() {
       </table>
     </div>
   `;
+}
 
-  featureGrid.innerHTML = [
-    ["QR", "Scan QR Bahan", "Operator scan label fisik bahan untuk auto-fill batch dan qty usage."],
-    ["WS", "Laporan Waste", "Pantau bahan terbuang per SPK, operator, dan kategori waste."],
-    ["PO", "Purchase Order", "Buat PO supplier dan tracking partial receiving dari gudang."],
-    ["TR", "Traceability per SPK", "Lacak penggunaan material sampai batch asal dan supplier."],
-  ].map(([icon, title, description]) => `
-    <article class="card preview-feature-card">
-      <div class="preview-icon">${icon}</div>
-      <h2>${title}</h2>
-      <p>${description}</p>
-      <span class="badge badge-printing">Segera Hadir</span>
-    </article>
-  `).join("");
+function renderInventoryIncomingTab() {
+  const log = [...(window.APP_DATA?.incomingLog || [])].sort(
+    (a, b) => new Date(b.receivedDate) - new Date(a.receivedDate)
+  );
+
+  if (!log.length) {
+    return `<div class="card empty-state"><p class="text-muted">Belum ada penerimaan dicatat.</p></div>`;
+  }
+
+  return `
+    <div class="data-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Bahan</th>
+            <th>Qty</th>
+            <th>Batch ID</th>
+            <th>Supplier</th>
+            <th>Harga/Satuan</th>
+            <th>Total</th>
+            <th>Dicatat Oleh</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${log.map((entry) => `
+            <tr>
+              <td>${formatDate(new Date(entry.receivedDate))}</td>
+              <td><strong>${entry.itemName}</strong></td>
+              <td>${entry.qty} ${entry.unit}</td>
+              <td><code class="text-xs text-muted">${entry.batchId}</code></td>
+              <td>${entry.supplier}</td>
+              <td>${formatCurrency(entry.pricePerUnit)}</td>
+              <td><strong>${formatCurrency(entry.totalPrice)}</strong></td>
+              <td>${entry.receivedBy}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openIncomingModal() {
+  const root = document.getElementById("inventory-modal-root");
+  if (!root) return;
+
+  const inventory = window.APP_DATA?.inventory || [];
+  const suppliers = [...new Set(inventory.map((i) => i.supplier))];
+  const today = new Date().toISOString().split("T")[0];
+
+  root.innerHTML = `
+    <div class="modal-overlay" id="incoming-modal">
+      <div class="modal-box" style="max-width:560px">
+        <div class="modal-header">
+          <h2 class="modal-title">Catat Penerimaan Barang</h2>
+          <button class="modal-close" type="button" data-action="close-incoming-modal" aria-label="Tutup">×</button>
+        </div>
+        <form id="incoming-form" novalidate>
+          <div class="form-group">
+            <label class="form-label" for="incoming-item">Bahan *</label>
+            <select class="form-select" id="incoming-item" name="itemId" required>
+              <option value="">-- Pilih Bahan --</option>
+              ${inventory.map((item) => `
+                <option value="${item.id}"
+                  data-unit="${item.unit}"
+                  data-supplier="${item.supplier}"
+                  data-stock="${item.stock}">
+                  ${item.name} (stok: ${item.stock} ${item.unit})
+                </option>
+              `).join("")}
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="incoming-qty">Qty Diterima *</label>
+              <input class="form-input" id="incoming-qty" name="qty" type="number" min="0.01" step="0.01" required placeholder="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="incoming-unit">Satuan</label>
+              <input class="form-input" id="incoming-unit" type="text" readonly placeholder="(auto-fill)">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="incoming-batch">Nomor Batch *</label>
+            <input class="form-input" id="incoming-batch" name="batchId" type="text" required placeholder="BATCH-YYYYMMDD-001">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="incoming-supplier">Supplier *</label>
+            <input class="form-input" id="incoming-supplier" name="supplier" type="text" required list="incoming-supplier-list" placeholder="Nama supplier">
+            <datalist id="incoming-supplier-list">
+              ${suppliers.map((s) => `<option value="${s}">`).join("")}
+            </datalist>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="incoming-price">Harga/Satuan (Rp) *</label>
+              <input class="form-input" id="incoming-price" name="pricePerUnit" type="number" min="0" required placeholder="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="incoming-date">Tanggal Terima *</label>
+              <input class="form-input" id="incoming-date" name="receivedDate" type="date" value="${today}" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="incoming-notes">Catatan</label>
+            <textarea class="form-input" id="incoming-notes" name="notes" rows="2" placeholder="Kondisi barang, keterangan lain (opsional)"></textarea>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" type="button" data-action="close-incoming-modal">Batal</button>
+            <button class="btn-primary" type="submit">Simpan Penerimaan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("incoming-batch").value = generateBatchId();
+
+  document.getElementById("incoming-item").addEventListener("change", (e) => {
+    const opt = e.target.selectedOptions[0];
+    if (opt && opt.value) {
+      document.getElementById("incoming-unit").value = opt.dataset.unit || "";
+      if (!document.getElementById("incoming-supplier").value) {
+        document.getElementById("incoming-supplier").value = opt.dataset.supplier || "";
+      }
+    } else {
+      document.getElementById("incoming-unit").value = "";
+    }
+  });
+}
+
+function generateBatchId() {
+  const d = new Date();
+  const date = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const seq = String((window.APP_DATA?.incomingLog?.length || 0) + 1).padStart(3, "0");
+  return `BATCH-${date}-${seq}`;
+}
+
+function submitIncomingForm(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+
+  if (!data.itemId || !data.qty || !data.batchId || !data.supplier || !data.receivedDate) {
+    showToast("Mohon lengkapi semua field wajib.", "error");
+    return;
+  }
+
+  const inventory = window.APP_DATA?.inventory || [];
+  const item = inventory.find((i) => i.id === data.itemId);
+  if (!item) return;
+
+  const qty = parseFloat(data.qty);
+  const pricePerUnit = parseFloat(data.pricePerUnit) || 0;
+
+  item.stock = Math.round((item.stock + qty) * 100) / 100;
+  if (item.stock > item.minStock) item.status = "safe";
+
+  if (!window.APP_DATA.incomingLog) window.APP_DATA.incomingLog = [];
+  const entry = {
+    id: `INC-${String(window.APP_DATA.incomingLog.length + 1).padStart(3, "0")}`,
+    itemId: data.itemId,
+    itemName: item.name,
+    batchId: data.batchId,
+    qty,
+    unit: item.unit,
+    supplier: data.supplier,
+    pricePerUnit,
+    totalPrice: qty * pricePerUnit,
+    receivedDate: new Date(data.receivedDate).toISOString(),
+    receivedBy: APP_STATE.currentUser.name,
+    notes: data.notes || "",
+  };
+  window.APP_DATA.incomingLog.push(entry);
+
+  localStorage.setItem("printeoo:incoming_log", JSON.stringify(window.APP_DATA.incomingLog));
+  const stockMap = {};
+  inventory.forEach((i) => { stockMap[i.id] = i.stock; });
+  localStorage.setItem("printeoo:inventory_stocks", JSON.stringify(stockMap));
+
+  const root = document.getElementById("inventory-modal-root");
+  if (root) root.innerHTML = "";
+
+  showToast(`Penerimaan dicatat. Stok ${item.name} bertambah ${qty} ${item.unit}.`, "success");
+  renderInventoryPage("incoming");
 }
 
 function getInventoryStatus(item) {
@@ -1978,6 +2163,7 @@ function setupEventHandlers() {
   document.addEventListener("submit", (event) => {
     const form = event.target.closest("[data-action='login']");
     const orderForm = event.target.closest("#order-new-form");
+    const incomingForm = event.target.closest("#incoming-form");
 
     if (form) {
       event.preventDefault();
@@ -1987,6 +2173,12 @@ function setupEventHandlers() {
 
     if (orderForm) {
       submitNewOrder(event);
+      return;
+    }
+
+    if (incomingForm) {
+      event.preventDefault();
+      submitIncomingForm(incomingForm);
     }
   });
 
@@ -1998,6 +2190,7 @@ function setupEventHandlers() {
     const productionFilterButton = event.target.closest("[data-production-filter]");
     const productionCard = event.target.closest("[data-production-spk]");
     const hrTabButton = event.target.closest("[data-hr-tab]");
+    const invTabButton = event.target.closest("[data-inv-tab]");
     const dashboardFilter = event.target.closest("[data-dashboard-filter]");
 
     if (customerOption) {
@@ -2007,6 +2200,11 @@ function setupEventHandlers() {
 
     if (hrTabButton) {
       renderHrPreview(hrTabButton.dataset.hrTab);
+      return;
+    }
+
+    if (invTabButton) {
+      renderInventoryPage(invTabButton.dataset.invTab);
       return;
     }
 
@@ -2045,6 +2243,17 @@ function setupEventHandlers() {
     if (actionButton) {
       if (actionButton.dataset.action === "logout") {
         logout();
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-incoming-modal") {
+        openIncomingModal();
+        return;
+      }
+
+      if (actionButton.dataset.action === "close-incoming-modal") {
+        const root = document.getElementById("inventory-modal-root");
+        if (root) root.innerHTML = "";
         return;
       }
 
@@ -2307,6 +2516,34 @@ function formatPhone(value) {
   if (digits.length <= 4) return digits;
   if (digits.length <= 8) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
   return `${digits.slice(0, 4)}-${digits.slice(4, 8)}-${digits.slice(8)}`;
+}
+
+function loadStoredInventory() {
+  try {
+    const storedLog = localStorage.getItem("printeoo:incoming_log");
+    if (storedLog && window.APP_DATA) {
+      const parsed = JSON.parse(storedLog);
+      const existingIds = new Set((window.APP_DATA.incomingLog || []).map((e) => e.id));
+      const newEntries = parsed.filter((e) => !existingIds.has(e.id));
+      if (!window.APP_DATA.incomingLog) window.APP_DATA.incomingLog = [];
+      window.APP_DATA.incomingLog.push(...newEntries);
+    }
+  } catch (e) {}
+
+  try {
+    const storedStocks = localStorage.getItem("printeoo:inventory_stocks");
+    if (storedStocks && window.APP_DATA?.inventory) {
+      const stocks = JSON.parse(storedStocks);
+      window.APP_DATA.inventory.forEach((item) => {
+        if (stocks[item.id] !== undefined) {
+          item.stock = stocks[item.id];
+          if (item.stock <= 0) item.status = "empty";
+          else if (item.stock <= item.minStock) item.status = "low";
+          else item.status = "safe";
+        }
+      });
+    }
+  } catch (e) {}
 }
 
 function loadStoredOrders() {
