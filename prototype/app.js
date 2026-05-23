@@ -69,7 +69,7 @@ const ROUTES = {
   hr: { page: "hr", title: "Karyawan" },
   finance: { page: "finance", title: "Keuangan" },
   pricing: { page: "pricing", title: "Pricing", fullScreen: true },
-  settings: { page: "pricing", title: "Pengaturan" },
+  settings: { page: "settings", title: "Pengaturan" },
 };
 
 const MENU_ITEMS = [
@@ -366,6 +366,10 @@ function initPage(route, params = {}) {
 
   if (route === "finance") {
     renderFinancePreview();
+  }
+
+  if (route === "settings") {
+    renderSettingsPage();
   }
 }
 
@@ -4846,6 +4850,581 @@ function buildFinanceChart(pnl) {
   `;
 }
 
+// ─── SETTINGS PAGE ───────────────────────────────────────────────────────────
+
+function renderSettingsPage(activeTab = "profil") {
+  const container = document.getElementById("settings-tab-content");
+  if (!container) return;
+
+  document.querySelectorAll("[data-settings-tab]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.settingsTab === activeTab);
+  });
+
+  if (activeTab === "profil") container.innerHTML = renderSettingsProfilTab();
+  else if (activeTab === "cabang") container.innerHTML = renderSettingsCabangTab();
+  else if (activeTab === "users") container.innerHTML = renderSettingsUsersTab();
+  else if (activeTab === "notifikasi") container.innerHTML = renderSettingsNotifikasiTab();
+  else if (activeTab === "tampilan") container.innerHTML = renderSettingsTampilanTab();
+  else if (activeTab === "langganan") container.innerHTML = renderSettingsLanggananTab();
+}
+
+function renderSettingsProfilTab() {
+  const t = APP_DATA.tenant;
+  const branch = APP_DATA.branches[0];
+  return `
+    <div class="settings-grid">
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Identitas Bisnis</h2>
+        <p class="settings-section-desc">Informasi ini tampil di SPK, invoice, dan dokumen cetak.</p>
+        <div class="settings-form">
+          <div class="content-grid">
+            <div class="col-6">
+              <label class="form-label">Nama Bisnis</label>
+              <input class="form-input" type="text" value="${escapeAttr(t.name)}" readonly>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Kota</label>
+              <input class="form-input" type="text" value="${escapeAttr(t.city)}" readonly>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Nomor Telepon Utama</label>
+              <input class="form-input" type="tel" value="${escapeAttr(branch.phone)}" readonly>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Email Bisnis</label>
+              <input class="form-input" type="email" value="admin@titaniumprint.id" readonly>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Alamat Utama</label>
+              <input class="form-input" type="text" value="${escapeAttr(branch.address)}" readonly>
+            </div>
+            <div class="col-6">
+              <label class="form-label">NPWP</label>
+              <input class="form-input" type="text" value="01.234.567.8-601.000" readonly>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Jam Operasional (default)</label>
+              <input class="form-input" type="text" value="${escapeAttr(branch.openingHours)} WIB" readonly>
+            </div>
+          </div>
+          <div class="settings-action-row">
+            <span class="text-muted text-sm">Demo mode — perubahan tidak disimpan.</span>
+            <button class="btn-primary" type="button" onclick="showToast('Perubahan profil berhasil disimpan.','success')">Simpan Perubahan</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Logo & Branding</h2>
+        <p class="settings-section-desc">Logo tampil di header aplikasi dan dokumen cetak.</p>
+        <div class="settings-logo-area">
+          <div class="settings-logo-preview">
+            <span style="font-size:32px;font-weight:800;color:var(--primary)">P</span>
+          </div>
+          <div>
+            <p class="text-sm" style="margin-bottom:8px">Format: PNG atau SVG. Ukuran maksimum 500KB. Rekomendasi 200×60px.</p>
+            <button class="btn-secondary" type="button" onclick="showToast('Fitur upload logo aktif di paket Studio ke atas.','success')">Ganti Logo</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Format Dokumen</h2>
+        <p class="settings-section-desc">Konfigurasi tampilan nomor SPK, invoice, dan kwitansi.</p>
+        <div class="content-grid">
+          <div class="col-6">
+            <label class="form-label">Format Nomor SPK</label>
+            <input class="form-input" type="text" value="SPK-SBY-YYYYMMDD-XXXX" readonly>
+            <p class="text-xs text-muted" style="margin-top:4px">Contoh: SPK-SBY-20260523-0042</p>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Prefix Nomor Antrian</label>
+            <div class="flex gap-2">
+              <input class="form-input" type="text" value="A" style="max-width:60px" readonly>
+              <input class="form-input" type="text" value="B" style="max-width:60px" readonly>
+              <input class="form-input" type="text" value="C" style="max-width:60px" readonly>
+            </div>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Footer Invoice</label>
+            <input class="form-input" type="text" value="Terima kasih atas kepercayaan Anda." readonly>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Syarat & Ketentuan Pembayaran</label>
+            <input class="form-input" type="text" value="Pembayaran DP minimal 50% sebelum produksi." readonly>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderSettingsCabangTab() {
+  const branches = APP_DATA.branches;
+  return `
+    <div class="settings-grid">
+      <section class="card settings-section">
+        <div class="card-section-header">
+          <div>
+            <h2 class="settings-section-title">Daftar Cabang</h2>
+            <p class="settings-section-desc">Kelola lokasi operasional bisnis Anda.</p>
+          </div>
+          <button class="btn-primary" type="button" onclick="showToast('Fitur tambah cabang aktif di paket Business ke atas.','success')">+ Tambah Cabang</button>
+        </div>
+        <div class="data-table mt-4">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama Cabang</th>
+                <th>Alamat</th>
+                <th>Telepon</th>
+                <th>Jam Operasional</th>
+                <th>Counter</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${branches.map((b) => `
+                <tr>
+                  <td><strong>${escapeHtml(b.name)}</strong></td>
+                  <td class="text-sm text-muted">${escapeHtml(b.address)}</td>
+                  <td class="text-sm">${escapeHtml(b.phone)}</td>
+                  <td class="text-sm">${escapeHtml(b.openingHours)} WIB</td>
+                  <td class="text-sm text-center">${b.counters}</td>
+                  <td><span class="badge badge-ready">Aktif</span></td>
+                  <td>
+                    <button class="btn-secondary" style="padding:4px 10px;font-size:12px" type="button"
+                      onclick="showToast('Pengaturan cabang ${escapeAttr(b.name)} disimpan.','success')">Edit</button>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Pengaturan Counter Antrian</h2>
+        <p class="settings-section-desc">Jumlah counter aktif menentukan kapasitas layanan per cabang.</p>
+        <div class="content-grid">
+          ${branches.map((b) => `
+            <div class="col-6">
+              <label class="form-label">${escapeHtml(b.name)}</label>
+              <div class="flex gap-2 items-center">
+                <input class="form-input" type="number" value="${b.counters}" min="1" max="10" style="max-width:80px" readonly>
+                <span class="text-sm text-muted">counter aktif</span>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderSettingsUsersTab() {
+  const employees = APP_DATA.employees;
+  const roleColors = {
+    owner: "badge-VIP",
+    cashier: "badge-confirmed",
+    designer: "badge-printing",
+    operator: "badge-finishing",
+    warehouse: "badge-overdue",
+    finance: "badge-ready",
+    installer: "badge-urgent",
+  };
+  const roleLabels = {
+    owner: "Owner", cashier: "Kasir", designer: "Desainer",
+    operator: "Operator", warehouse: "Gudang", finance: "Keuangan", installer: "Teknisi",
+  };
+  return `
+    <div class="settings-grid">
+      <section class="card settings-section">
+        <div class="card-section-header">
+          <div>
+            <h2 class="settings-section-title">Pengguna Aktif</h2>
+            <p class="settings-section-desc">Kelola akun, role, dan hak akses setiap pengguna.</p>
+          </div>
+          <button class="btn-primary" type="button" onclick="showToast('Undangan berhasil dikirim ke email pengguna baru.','success')">+ Undang Pengguna</button>
+        </div>
+        <div class="data-table mt-4">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Jabatan</th>
+                <th>Role Akses</th>
+                <th>Tipe Kontrak</th>
+                <th>Cabang</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${employees.map((e) => {
+                const branch = APP_DATA.branches.find((b) => b.id === e.branchId);
+                return `
+                  <tr>
+                    <td>
+                      <div class="flex items-center gap-2">
+                        <div class="customer-avatar" style="width:30px;height:30px;font-size:11px;background:var(--primary-light);color:var(--primary)">
+                          ${getCustomerInitials(e.name)}
+                        </div>
+                        <strong>${escapeHtml(e.name)}</strong>
+                      </div>
+                    </td>
+                    <td class="text-sm">${escapeHtml(e.position)}</td>
+                    <td><span class="badge ${roleColors[e.role] || "badge-confirmed"}">${roleLabels[e.role] || e.role}</span></td>
+                    <td class="text-sm">${capitalize(e.contractType)}</td>
+                    <td class="text-sm text-muted">${branch ? branch.name : "—"}</td>
+                    <td><span class="badge badge-ready">Aktif</span></td>
+                    <td>
+                      <button class="btn-secondary" style="padding:4px 10px;font-size:12px" type="button"
+                        onclick="showToast('Pengaturan ${escapeAttr(e.name)} diperbarui.','success')">Edit</button>
+                    </td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Matriks Hak Akses</h2>
+        <p class="settings-section-desc">Ringkasan menu yang bisa diakses per role.</p>
+        <div class="data-table mt-4">
+          <table>
+            <thead>
+              <tr>
+                <th>Fitur</th>
+                <th>Owner</th>
+                <th>Kasir</th>
+                <th>Operator</th>
+                <th>Desainer</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${[
+                ["Dashboard & Laporan", "✓", "—", "—", "—"],
+                ["Input & Kelola Pesanan", "✓", "✓", "—", "—"],
+                ["Papan Produksi", "✓", "—", "✓", "✓"],
+                ["Antrian Customer", "✓", "✓", "—", "—"],
+                ["Inventaris", "✓", "—", "—", "—"],
+                ["Karyawan & Payroll", "✓", "—", "—", "—"],
+                ["Keuangan", "✓", "—", "—", "—"],
+                ["Pengaturan", "✓", "—", "—", "—"],
+              ].map(([feat, ...cols]) => `
+                <tr>
+                  <td>${feat}</td>
+                  ${cols.map((v) => `<td class="text-center ${v === "✓" ? "text-success" : "text-muted"}">${v}</td>`).join("")}
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderSettingsNotifikasiTab() {
+  const notifGroups = [
+    {
+      title: "Pesanan & Produksi",
+      items: [
+        ["SPK baru masuk", true, "Notifikasi saat kasir membuat pesanan baru"],
+        ["Pesanan mendekat deadline", true, "Alert 2 jam sebelum deadline"],
+        ["Pesanan overdue", true, "Alert jika deadline terlewat dan belum selesai"],
+        ["Status produksi berubah", false, "Notifikasi setiap perubahan stage produksi"],
+        ["Pesanan siap diambil", true, "Notif ke customer saat status = Siap Ambil"],
+      ],
+    },
+    {
+      title: "Inventaris & Stok",
+      items: [
+        ["Stok bahan menipis", true, "Alert jika stok di bawah minimum"],
+        ["Stok habis", true, "Alert prioritas saat stok = 0"],
+        ["PO belum diterima lewat estimasi", false, "Pengingat jika PO melewati tanggal estimasi terima"],
+      ],
+    },
+    {
+      title: "Keuangan & Pembayaran",
+      items: [
+        ["Pembayaran DP diterima", true, "Konfirmasi saat kasir mencatat DP"],
+        ["Piutang jatuh tempo", true, "Pengingat piutang yang belum dilunasi"],
+        ["Laporan harian otomatis", false, "Ringkasan omzet dikirim setiap pukul 21.00"],
+      ],
+    },
+    {
+      title: "Sistem",
+      items: [
+        ["Login dari perangkat baru", true, "Alert keamanan saat ada login perangkat tak dikenal"],
+        ["Update versi aplikasi", false, "Informasi saat ada versi baru Printeoo"],
+      ],
+    },
+  ];
+
+  return `
+    <div class="settings-grid">
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Saluran Notifikasi</h2>
+        <p class="settings-section-desc">Pilih cara Printeoo mengirimkan notifikasi ke tim Anda.</p>
+        <div class="notif-channel-grid">
+          ${[
+            ["WA", "WhatsApp Business", "Notif langsung ke nomor WA operator", true],
+            ["Email", "Email", "Ringkasan harian dan alert penting", false],
+            ["Browser", "Browser Push", "Pop-up saat aplikasi dibuka di Chrome/Edge", true],
+          ].map(([icon, label, desc, enabled]) => `
+            <div class="notif-channel-card ${enabled ? "notif-channel-active" : ""}">
+              <div class="notif-channel-icon">${icon}</div>
+              <div class="flex-1">
+                <div style="font-weight:600;font-size:var(--text-sm)">${label}</div>
+                <div class="text-xs text-muted">${desc}</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" ${enabled ? "checked" : ""} onchange="showToast('Pengaturan notifikasi disimpan.','success')">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+
+      ${notifGroups.map((group) => `
+        <section class="card settings-section">
+          <h2 class="settings-section-title">${group.title}</h2>
+          <div class="notif-item-list">
+            ${group.items.map(([label, enabled, desc]) => `
+              <div class="notif-item">
+                <div class="flex-1">
+                  <div style="font-weight:500;font-size:var(--text-sm)">${label}</div>
+                  <div class="text-xs text-muted">${desc}</div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" ${enabled ? "checked" : ""} onchange="showToast('Pengaturan notifikasi disimpan.','success')">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderSettingsTampilanTab() {
+  return `
+    <div class="settings-grid">
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Bahasa & Zona Waktu</h2>
+        <div class="content-grid">
+          <div class="col-6">
+            <label class="form-label">Bahasa Aplikasi</label>
+            <select class="form-select" onchange="showToast('Bahasa diperbarui.','success')">
+              <option selected>Bahasa Indonesia</option>
+              <option>English</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Zona Waktu</label>
+            <select class="form-select" onchange="showToast('Zona waktu diperbarui.','success')">
+              <option selected>WIB — UTC+7 (Jakarta, Surabaya)</option>
+              <option>WITA — UTC+8 (Makassar, Bali)</option>
+              <option>WIT — UTC+9 (Jayapura)</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Format Tanggal</label>
+            <select class="form-select" onchange="showToast('Format tanggal diperbarui.','success')">
+              <option selected>23 Mei 2026</option>
+              <option>23/05/2026</option>
+              <option>2026-05-23</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Format Mata Uang</label>
+            <select class="form-select" onchange="showToast('Format mata uang diperbarui.','success')">
+              <option selected>Rp 1.234.000</option>
+              <option>IDR 1,234,000</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Tampilan Antarmuka</h2>
+        <div class="notif-item-list">
+          ${[
+            ["Mode Gelap (Dark Mode)", false, "Tersedia di Printeoo versi berikutnya"],
+            ["Tampilkan foto di kartu produksi", true, "Foto produk muncul di kanban board"],
+            ["Animasi & transisi", true, "Matikan untuk performa lebih cepat di perangkat lama"],
+            ["Tampilkan salam di dashboard", true, "Ucapan pagi/siang/sore di header dashboard"],
+            ["Kolom tabel kompak", false, "Kurangi padding tabel untuk menampilkan lebih banyak baris"],
+          ].map(([label, enabled, desc]) => `
+            <div class="notif-item">
+              <div class="flex-1">
+                <div style="font-weight:500;font-size:var(--text-sm)">${label}</div>
+                <div class="text-xs text-muted">${desc}</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" ${enabled ? "checked" : ""} onchange="showToast('Preferensi tampilan disimpan.','success')">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Display Mode (TV/Layar Publik)</h2>
+        <p class="settings-section-desc">Pengaturan khusus untuk Production Display dan Queue Display.</p>
+        <div class="content-grid">
+          <div class="col-6">
+            <label class="form-label">Interval Refresh Display</label>
+            <select class="form-select" onchange="showToast('Pengaturan display disimpan.','success')">
+              <option>5 detik</option>
+              <option selected>10 detik</option>
+              <option>30 detik</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Volume TTS (Text-to-Speech)</label>
+            <select class="form-select" onchange="showToast('Volume TTS diperbarui.','success')">
+              <option>Pelan</option>
+              <option selected>Normal</option>
+              <option>Keras</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Kecepatan Suara Antrian</label>
+            <select class="form-select" onchange="showToast('Kecepatan suara diperbarui.','success')">
+              <option>Lambat</option>
+              <option selected>Normal (0.9x)</option>
+              <option>Cepat</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">PIN Keluar Display Mode</label>
+            <input class="form-input" type="password" value="1234" readonly>
+            <p class="text-xs text-muted" style="margin-top:4px">Tekan Escape di Display Mode lalu masukkan PIN.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderSettingsLanggananTab() {
+  const currentPlan = "Pro";
+  const planColors = { Solo: "#6B7280", Studio: "#2563EB", Pro: "#7C3AED", Business: "#D97706", Enterprise: "#111827" };
+  const plans = [
+    { name: "Solo", price: "Rp 149rb", desc: "Operator mandiri", cta: "Downgrade", ctaClass: "btn-secondary" },
+    { name: "Studio", price: "Rp 399rb", desc: "Print shop kecil", cta: "Downgrade", ctaClass: "btn-secondary" },
+    { name: "Pro", price: "Rp 899rb", desc: "Kontrol produksi & stok", cta: "Paket Aktif", ctaClass: "btn-primary", current: true },
+    { name: "Business", price: "Rp 1,9jt", desc: "Multi-cabang & laporan", cta: "Upgrade", ctaClass: "btn-primary" },
+    { name: "Enterprise", price: "Hubungi Kami", desc: "Grup besar & SLA khusus", cta: "Hubungi Kami", ctaClass: "btn-secondary" },
+  ];
+
+  return `
+    <div class="settings-grid">
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Status Langganan</h2>
+        <div class="flex gap-4 items-center" style="padding:16px 0">
+          <div class="settings-plan-badge" style="background:${planColors[currentPlan]}20;border:2px solid ${planColors[currentPlan]};color:${planColors[currentPlan]}">
+            ${currentPlan}
+          </div>
+          <div>
+            <div style="font-weight:600;font-size:var(--text-md)">Paket ${currentPlan} — Aktif</div>
+            <div class="text-sm text-muted">Diperpanjang otomatis pada <strong>23 Juni 2026</strong> · Rp 899.000/bulan</div>
+          </div>
+          <button class="btn-secondary" style="margin-left:auto" type="button"
+            onclick="showToast('Tagihan akan dikirim ke email admin@titaniumprint.id.','success')">Lihat Tagihan</button>
+        </div>
+        <div class="settings-usage-grid">
+          ${[
+            ["SPK Bulan Ini", "1.247", "2.000", 62],
+            ["Pengguna Aktif", "11", "15", 73],
+            ["Cabang", "2", "3", 67],
+            ["Storage File", "1,2 GB", "5 GB", 24],
+          ].map(([label, used, limit, pct]) => `
+            <div class="settings-usage-item">
+              <div class="flex justify-between text-sm mb-1">
+                <span style="font-weight:500">${label}</span>
+                <span class="text-muted">${used} / ${limit}</span>
+              </div>
+              <div class="settings-usage-bar">
+                <div class="settings-usage-fill ${pct > 80 ? "settings-usage-warn" : ""}" style="width:${pct}%"></div>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Pilihan Paket</h2>
+        <p class="settings-section-desc">Upgrade atau downgrade kapan saja. Perubahan berlaku di awal siklus billing berikutnya.</p>
+        <div class="settings-plan-grid">
+          ${plans.map((p) => `
+            <article class="settings-plan-card ${p.current ? "settings-plan-current" : ""}">
+              ${p.current ? `<div class="settings-plan-current-badge">Paket Aktif</div>` : ""}
+              <h3 style="font-size:var(--text-md);font-weight:700;color:${planColors[p.name]}">${p.name}</h3>
+              <div style="font-size:var(--text-xl);font-weight:800;margin:8px 0">${p.price}<span style="font-size:var(--text-sm);font-weight:400;color:var(--neutral-500)">/bln</span></div>
+              <p class="text-sm text-muted" style="margin-bottom:12px">${p.desc}</p>
+              <button class="${p.ctaClass} w-full" type="button"
+                onclick="showToast('${p.current ? "Anda sudah berada di paket " + p.name + "." : "Tim kami akan menghubungi Anda untuk proses " + (p.cta === "Upgrade" ? "upgrade" : "perubahan") + " ke " + p.name + "."}','success')">
+                ${p.cta}
+              </button>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <h2 class="settings-section-title">Perbandingan Fitur</h2>
+        <div class="data-table mt-4">
+          <table>
+            <thead>
+              <tr>
+                <th>Fitur</th>
+                <th>Solo</th><th>Studio</th><th>Pro</th><th>Business</th><th>Enterprise</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${[
+                ["SPK per bulan", "100", "500", "2.000", "Unlimited", "Unlimited"],
+                ["User", "1", "5", "15", "40", "Unlimited"],
+                ["Production board", "—", "✓", "✓", "✓", "✓"],
+                ["Queue display + audio", "—", "✓", "✓", "✓", "✓"],
+                ["Inventory tracking", "—", "Dasar", "QR batch", "Multi-cabang", "Custom"],
+                ["Job costing", "—", "—", "✓", "✓", "✓"],
+                ["HR & payroll", "—", "—", "Dasar", "✓", "✓"],
+                ["Finance report", "—", "—", "Ringkas", "Lengkap", "Custom"],
+                ["Web-to-print API", "—", "—", "—", "✓", "Custom"],
+                ["Support", "Email", "Email", "Prioritas", "Prioritas", "Dedicated"],
+              ].map(([feat, ...cols]) => `
+                <tr>
+                  <td>${feat}</td>
+                  ${cols.map((v, i) => `
+                    <td class="text-center ${i === 2 ? "settings-plan-highlight-col" : ""} ${v === "✓" ? "text-success" : v === "—" ? "text-muted" : ""}">
+                      ${v === "✓" ? "✓" : v === "—" ? "—" : `<span class="text-xs">${v}</span>`}
+                    </td>
+                  `).join("")}
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+        <p class="text-xs text-muted" style="margin-top:12px">Semua harga belum termasuk PPN. Gratis trial 14 hari.
+          <a href="#/pricing" style="color:var(--primary);text-decoration:none;margin-left:8px">Lihat halaman pricing lengkap →</a>
+        </p>
+      </section>
+    </div>
+  `;
+}
+
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 11) return "Selamat pagi";
@@ -4973,6 +5552,7 @@ function setupEventHandlers() {
     const productionFilterButton = event.target.closest("[data-production-filter]");
     const productionCard = event.target.closest("[data-production-spk]");
     const hrTabButton = event.target.closest("[data-hr-tab]");
+    const settingsTabButton = event.target.closest("[data-settings-tab]");
     const invTabButton = event.target.closest("[data-inv-tab]");
     const usagePeriodButton = event.target.closest("[data-usage-period]");
     const wastePeriodButton = event.target.closest("[data-waste-period]");
@@ -4985,6 +5565,11 @@ function setupEventHandlers() {
 
     if (hrTabButton) {
       renderHrPreview(hrTabButton.dataset.hrTab);
+      return;
+    }
+
+    if (settingsTabButton) {
+      renderSettingsPage(settingsTabButton.dataset.settingsTab);
       return;
     }
 
