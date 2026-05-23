@@ -7,7 +7,38 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app-shell" class="app-shell">
+    <aside id="sidebar" class="sidebar" aria-label="Navigasi utama">
+      <a class="sidebar-logo" href="#/dashboard" aria-label="Printeoo Dashboard">
+        <span class="brand-mark" aria-hidden="true">P</span>
+        <span>Printeoo</span>
+      </a>
+      <nav id="sidebar-nav" class="sidebar-nav"></nav>
+      <div id="sidebar-footer" class="sidebar-footer"></div>
+    </aside>
+
+    <div id="main-content" class="main-content">
+      <header id="header" class="header">
+        <div>
+          <div id="breadcrumb" class="breadcrumb">Dashboard</div>
+        </div>
+        <label class="role-switcher" for="role-switcher">
+          <span>Lihat sebagai:</span>
+          <select id="role-switcher" class="form-select">
+            <option value="owner">Owner</option>
+            <option value="cashier">Kasir</option>
+            <option value="operator">Operator</option>
+            <option value="display">Display</option>
+          </select>
+        </label>
+      </header>
+
+      <main id="app" class="page" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>

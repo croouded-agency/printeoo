@@ -1,1 +1,174 @@
+<section class="order-new-page" data-page="order-new">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Pesanan Baru</h1>
+      <p class="page-subtitle">Input SPK baru dengan harga dan total otomatis.</p>
+    </div>
+    <a class="btn-secondary" href="#/orders">Batal</a>
+  </div>
 
+  <form id="order-new-form" class="order-form">
+    <section class="card form-section">
+      <div class="form-section-header">
+        <span class="section-number">1</span>
+        <div>
+          <h2 class="card-title">Data Customer</h2>
+          <p class="card-description">Pilih pelanggan existing atau input walk-in baru.</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group autocomplete-field">
+          <label for="order-customer">Nama Customer</label>
+          <input id="order-customer" name="customerName" type="text" autocomplete="off" placeholder="Ketik minimal 2 karakter">
+          <input id="order-customer-id" name="customerId" type="hidden">
+          <div id="customer-suggestions" class="autocomplete-menu hidden"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="order-phone">Nomor HP</label>
+          <input id="order-phone" name="phone" type="tel" placeholder="08xx-xxxx-xxxx">
+        </div>
+      </div>
+
+      <div class="radio-row mt-4">
+        <label><input type="radio" name="channel" value="walk-in" checked> Walk-in</label>
+        <label><input type="radio" name="channel" value="online"> Online</label>
+        <label><input type="radio" name="channel" value="telepon"> Telepon</label>
+      </div>
+    </section>
+
+    <section class="card form-section">
+      <div class="form-section-header">
+        <span class="section-number">2</span>
+        <div>
+          <h2 class="card-title">Detail Pesanan</h2>
+          <p class="card-description">Pilih produk, spesifikasi, finishing, dan harga.</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="order-product">Produk</label>
+          <select id="order-product" name="productId">
+            <option value="">Pilih produk</option>
+          </select>
+        </div>
+
+        <div id="dynamic-specs" class="dynamic-specs"></div>
+
+        <div class="form-group">
+          <label for="order-qty">Qty</label>
+          <input id="order-qty" name="qty" type="number" min="1" value="1">
+          <p id="qty-help" class="form-help">Jumlah item pesanan.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="order-unit-price">Harga Satuan</label>
+          <input id="order-unit-price" name="unitPrice" type="number" min="0" step="500">
+        </div>
+      </div>
+
+      <div class="checkbox-grid mt-4">
+        <label><input type="checkbox" name="finishing" value="Laminasi Doff"> Laminasi Doff</label>
+        <label><input type="checkbox" name="finishing" value="Laminasi Glossy"> Laminasi Glossy</label>
+        <label><input type="checkbox" name="finishing" value="Mata Ayam"> Mata Ayam</label>
+        <label><input type="checkbox" name="finishing" value="Cutting"> Cutting</label>
+        <label><input type="checkbox" name="finishing" value="Lipat"> Lipat</label>
+      </div>
+
+      <div class="order-total-box mt-4">
+        <div>
+          <span>Total</span>
+          <strong id="order-total">Rp 0</strong>
+        </div>
+        <div class="discount-row">
+          <select id="discount-type" aria-label="Tipe diskon">
+            <option value="nominal">Diskon Rp</option>
+            <option value="percent">Diskon %</option>
+          </select>
+          <input id="order-discount" type="number" min="0" value="0" aria-label="Nilai diskon">
+        </div>
+        <div>
+          <span>Total Setelah Diskon</span>
+          <strong id="order-grand-total">Rp 0</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="card form-section">
+      <div class="form-section-header">
+        <span class="section-number">3</span>
+        <div>
+          <h2 class="card-title">Produksi & Pembayaran</h2>
+          <p class="card-description">Deadline, prioritas, catatan produksi, dan DP.</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="order-deadline-date">Deadline</label>
+          <input id="order-deadline-date" name="deadlineDate" type="date">
+        </div>
+
+        <div class="form-group">
+          <label for="order-deadline-time">Jam Deadline</label>
+          <input id="order-deadline-time" name="deadlineTime" type="time" value="16:00">
+        </div>
+      </div>
+
+      <div class="radio-row mt-4">
+        <label><input type="radio" name="priority" value="normal" checked> Normal</label>
+        <label><input type="radio" name="priority" value="urgent"> <span class="badge badge-urgent">Urgent</span></label>
+        <label><input type="radio" name="priority" value="VIP"> <span class="badge badge-vip">VIP</span></label>
+      </div>
+
+      <div class="form-grid mt-4">
+        <div class="form-group">
+          <label for="needs-design">Butuh Desain</label>
+          <select id="needs-design" name="needsDesign">
+            <option value="yes">Ya</option>
+            <option value="no">Tidak</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="dp-method">Metode DP</label>
+          <select id="dp-method" name="dpMethod">
+            <option value="cash">Cash</option>
+            <option value="transfer">Transfer</option>
+            <option value="qris">QRIS</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="order-dp">DP</label>
+          <input id="order-dp" name="dp" type="number" min="0" value="0">
+        </div>
+
+        <div class="form-group">
+          <label>Sisa Tagihan</label>
+          <div id="order-balance" class="readonly-value">Rp 0</div>
+        </div>
+      </div>
+
+      <div class="form-group mt-4">
+        <label for="operator-notes">Catatan untuk Operator</label>
+        <textarea id="operator-notes" name="notes" placeholder="Contoh: warna harus sesuai file, finishing jangan terlalu mepet tepi"></textarea>
+      </div>
+
+      <div class="file-drop mt-4">
+        <input id="order-file" type="file" hidden>
+        <label for="order-file" class="file-drop-label">
+          <strong>Upload file desain</strong>
+          <span id="file-name">Drop file atau klik untuk browse</span>
+        </label>
+      </div>
+    </section>
+
+    <div class="form-actions">
+      <a class="btn-secondary" href="#/orders">Batal</a>
+      <button class="btn-primary" type="submit">Simpan Pesanan</button>
+    </div>
+  </form>
+</section>

@@ -1,1 +1,31 @@
+<section class="orders-page" data-page="orders">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Pesanan</h1>
+      <p id="orders-counter" class="page-subtitle">Memuat pesanan...</p>
+    </div>
+    <a class="btn-primary" href="#/order-new">+ Pesanan Baru</a>
+  </div>
 
+  <section class="card filter-card" aria-label="Filter pesanan">
+    <div class="orders-filter-bar">
+      <div class="form-group">
+        <label for="orders-search">Search</label>
+        <input id="orders-search" type="search" placeholder="Cari customer atau nomor SPK">
+      </div>
+      <div class="form-group">
+        <label for="orders-status">Status</label>
+        <select id="orders-status">
+          <option value="all">Semua status</option>
+        </select>
+      </div>
+      <div class="quick-filter-group" role="group" aria-label="Filter tanggal">
+        <button class="btn-secondary btn-sm active" type="button" data-date-filter="all">Semua</button>
+        <button class="btn-secondary btn-sm" type="button" data-date-filter="today">Hari Ini</button>
+        <button class="btn-secondary btn-sm" type="button" data-date-filter="week">Minggu Ini</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="orders-table" class="mt-4"></div>
+</section>

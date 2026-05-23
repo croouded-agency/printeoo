@@ -1,1 +1,19 @@
+<section class="production-page" data-page="production">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Papan Produksi</h1>
+      <p class="page-subtitle">Pantau SPK aktif dari desain sampai siap ambil.</p>
+    </div>
+    <div class="flex gap-3 flex-wrap">
+      <div class="quick-filter-group" role="group" aria-label="Filter produksi">
+        <button class="btn-secondary btn-sm active" type="button" data-production-filter="all">Semua</button>
+        <button class="btn-secondary btn-sm" type="button" data-production-filter="urgent">Urgent</button>
+        <button class="btn-secondary btn-sm" type="button" data-production-filter="overdue">Overdue</button>
+      </div>
+      <a class="btn-primary" href="#/display-production">Display Mode</a>
+    </div>
+  </div>
 
+  <div id="production-board" class="production-board"></div>
+  <div id="production-modal-root"></div>
+</section>

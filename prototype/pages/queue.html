@@ -1,1 +1,26 @@
+<section class="queue-page" data-page="queue">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Antrian Customer</h1>
+      <p class="page-subtitle">Kelola panggilan counter kasir dan sinkronkan ke layar antrian.</p>
+    </div>
+    <button class="btn-primary" type="button" data-action="open-queue-display">Buka Layar Antrian</button>
+  </div>
 
+  <section class="queue-layout">
+    <div class="queue-control-panel">
+      <div id="queue-counters" class="queue-counter-grid"></div>
+    </div>
+
+    <aside class="card queue-waiting-panel">
+      <div class="card-section-header">
+        <div>
+          <h2 class="card-title">Antrian Menunggu</h2>
+          <p id="queue-waiting-count" class="card-description">0 menunggu</p>
+        </div>
+        <button class="btn-secondary" type="button" data-action="add-queue-number">+ Tambah Antrian</button>
+      </div>
+      <div id="queue-waiting-list" class="queue-waiting-list"></div>
+    </aside>
+  </section>
+</section>

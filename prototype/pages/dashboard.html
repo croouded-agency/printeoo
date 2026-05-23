@@ -1,1 +1,48 @@
+<section class="dashboard-page" data-page="dashboard">
+  <div class="page-header">
+    <div>
+      <h1 id="dashboard-greeting" class="page-title">Dashboard</h1>
+      <p class="page-subtitle">Ringkasan performa cabang hari ini.</p>
+    </div>
+    <div class="flex gap-3 flex-wrap">
+      <a class="btn-secondary" href="#/orders">Lihat Semua Pesanan</a>
+      <a class="btn-primary" href="#/order-new">+ Pesanan Baru</a>
+    </div>
+  </div>
 
+  <div id="dashboard-alert"></div>
+
+  <section id="dashboard-metrics" class="metric-grid" aria-label="Ringkasan metrik"></section>
+
+  <section class="dashboard-grid">
+    <article class="card dashboard-chart-card">
+      <div class="card-section-header">
+        <div>
+          <h2 class="card-title">Revenue 7 Hari Terakhir</h2>
+          <p class="card-description">Pergerakan omzet harian dari semua cabang.</p>
+        </div>
+      </div>
+      <div id="revenue-chart" class="revenue-chart"></div>
+    </article>
+
+    <article class="card">
+      <div class="card-section-header">
+        <div>
+          <h2 class="card-title">Top Produk Bulan Ini</h2>
+          <p class="card-description">Produk dengan kontribusi penjualan terbesar.</p>
+        </div>
+      </div>
+      <div id="top-products" class="top-products"></div>
+    </article>
+
+    <article class="card">
+      <div class="card-section-header">
+        <div>
+          <h2 class="card-title">Status Produksi Sekarang</h2>
+          <p class="card-description">Jumlah SPK aktif per tahap produksi.</p>
+        </div>
+      </div>
+      <div id="production-summary" class="production-summary"></div>
+    </article>
+  </section>
+</section>
