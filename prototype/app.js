@@ -30,6 +30,8 @@ const APP_STATE = {
   audioMuted: false,
   selectedProduct: null,
   selectedCustomer: null,
+  currentOpnameSession: null,
+  usagePeriod: "month",
 };
 
 window.APP_STATE = APP_STATE;
@@ -1716,8 +1718,12 @@ function renderInventoryPage(activeTab = "stok") {
 
   if (activeTab === "stok") {
     tabContent.innerHTML = renderInventoryStokTab(inventory);
-  } else {
+  } else if (activeTab === "incoming") {
     tabContent.innerHTML = renderInventoryIncomingTab();
+  } else if (activeTab === "opname") {
+    tabContent.innerHTML = renderInventoryOpnameTab();
+  } else if (activeTab === "usage") {
+    tabContent.innerHTML = renderInventoryUsageTab(APP_STATE.usagePeriod);
   }
 }
 
@@ -1814,54 +1820,56 @@ function openIncomingModal() {
           <button class="modal-close" type="button" data-action="close-incoming-modal" aria-label="Tutup">×</button>
         </div>
         <form id="incoming-form" novalidate>
-          <div class="form-group">
-            <label class="form-label" for="incoming-item">Bahan *</label>
-            <select class="form-select" id="incoming-item" name="itemId" required>
-              <option value="">-- Pilih Bahan --</option>
-              ${inventory.map((item) => `
-                <option value="${item.id}"
-                  data-unit="${item.unit}"
-                  data-supplier="${item.supplier}"
-                  data-stock="${item.stock}">
-                  ${item.name} (stok: ${item.stock} ${item.unit})
-                </option>
-              `).join("")}
-            </select>
-          </div>
-          <div class="form-row">
+          <div class="modal-form">
             <div class="form-group">
-              <label class="form-label" for="incoming-qty">Qty Diterima *</label>
-              <input class="form-input" id="incoming-qty" name="qty" type="number" min="0.01" step="0.01" required placeholder="0">
+              <label class="form-label" for="incoming-item">Bahan *</label>
+              <select class="form-select" id="incoming-item" name="itemId" required>
+                <option value="">-- Pilih Bahan --</option>
+                ${inventory.map((item) => `
+                  <option value="${item.id}"
+                    data-unit="${item.unit}"
+                    data-supplier="${item.supplier}"
+                    data-stock="${item.stock}">
+                    ${item.name} (stok: ${item.stock} ${item.unit})
+                  </option>
+                `).join("")}
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="incoming-qty">Qty Diterima *</label>
+                <input class="form-input" id="incoming-qty" name="qty" type="number" min="0.01" step="0.01" required placeholder="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="incoming-unit">Satuan</label>
+                <input class="form-input" id="incoming-unit" type="text" readonly placeholder="(auto-fill)">
+              </div>
             </div>
             <div class="form-group">
-              <label class="form-label" for="incoming-unit">Satuan</label>
-              <input class="form-input" id="incoming-unit" type="text" readonly placeholder="(auto-fill)">
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="incoming-batch">Nomor Batch *</label>
-            <input class="form-input" id="incoming-batch" name="batchId" type="text" required placeholder="BATCH-YYYYMMDD-001">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="incoming-supplier">Supplier *</label>
-            <input class="form-input" id="incoming-supplier" name="supplier" type="text" required list="incoming-supplier-list" placeholder="Nama supplier">
-            <datalist id="incoming-supplier-list">
-              ${suppliers.map((s) => `<option value="${s}">`).join("")}
-            </datalist>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="incoming-price">Harga/Satuan (Rp) *</label>
-              <input class="form-input" id="incoming-price" name="pricePerUnit" type="number" min="0" required placeholder="0">
+              <label class="form-label" for="incoming-batch">Nomor Batch *</label>
+              <input class="form-input" id="incoming-batch" name="batchId" type="text" required placeholder="BATCH-YYYYMMDD-001">
             </div>
             <div class="form-group">
-              <label class="form-label" for="incoming-date">Tanggal Terima *</label>
-              <input class="form-input" id="incoming-date" name="receivedDate" type="date" value="${today}" required>
+              <label class="form-label" for="incoming-supplier">Supplier *</label>
+              <input class="form-input" id="incoming-supplier" name="supplier" type="text" required list="incoming-supplier-list" placeholder="Nama supplier">
+              <datalist id="incoming-supplier-list">
+                ${suppliers.map((s) => `<option value="${s}">`).join("")}
+              </datalist>
             </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="incoming-notes">Catatan</label>
-            <textarea class="form-input" id="incoming-notes" name="notes" rows="2" placeholder="Kondisi barang, keterangan lain (opsional)"></textarea>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="incoming-price">Harga/Satuan (Rp) *</label>
+                <input class="form-input" id="incoming-price" name="pricePerUnit" type="number" min="0" required placeholder="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="incoming-date">Tanggal Terima *</label>
+                <input class="form-input" id="incoming-date" name="receivedDate" type="date" value="${today}" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="incoming-notes">Catatan</label>
+              <textarea class="form-input" id="incoming-notes" name="notes" rows="2" placeholder="Kondisi barang, keterangan lain (opsional)"></textarea>
+            </div>
           </div>
           <div class="modal-footer">
             <button class="btn-secondary" type="button" data-action="close-incoming-modal">Batal</button>
@@ -1945,6 +1953,708 @@ function getInventoryStatus(item) {
   if (item.stock <= 0) return { label: "Habis", className: "badge-overdue" };
   if (item.stock <= item.minStock) return { label: "Menipis", className: "badge-urgent" };
   return { label: "Aman", className: "badge-ready" };
+}
+
+function renderInventoryOpnameTab() {
+  const sessions = [...(window.APP_DATA?.opnameSessions || [])].sort(
+    (a, b) => new Date(b.date) - new Date(a.date)
+  );
+
+  const rows = sessions.length
+    ? sessions.map((s) => {
+        const hasDiff = s.items.some((i) => i.diff !== 0);
+        return `
+          <tr>
+            <td><strong>${s.name}</strong></td>
+            <td>${formatDate(new Date(s.date))}</td>
+            <td>${s.createdBy}</td>
+            <td>${s.items.length} bahan</td>
+            <td><span class="badge ${hasDiff ? "badge-urgent" : "badge-ready"}">${hasDiff ? "Ada Selisih" : "Sesuai"}</span></td>
+            <td><span class="badge badge-confirmed">Disetujui</span></td>
+            <td><button class="btn-secondary text-xs" type="button" data-action="view-opname-detail" data-opname-id="${s.id}">Lihat Detail</button></td>
+          </tr>
+        `;
+      }).join("")
+    : `<tr><td colspan="7" class="text-center text-muted" style="padding:24px">Belum ada sesi opname.</td></tr>`;
+
+  return `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button class="btn-primary" type="button" data-action="start-opname-wizard">+ Mulai Opname Baru</button>
+    </div>
+    <div class="data-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Nama Sesi</th>
+            <th>Tanggal</th>
+            <th>Dibuat Oleh</th>
+            <th>Jumlah Item</th>
+            <th>Hasil</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderOpnameSessionDetail(id) {
+  const session = (window.APP_DATA?.opnameSessions || []).find((s) => s.id === id);
+  if (!session) return;
+
+  const tabContent = document.getElementById("inventory-tab-content");
+  if (!tabContent) return;
+
+  const diffItems = session.items.filter((i) => i.diff !== 0);
+  const allRows = session.items.map((item) => {
+    const diffClass = item.diff < 0 ? "color:#DC2626" : item.diff > 0 ? "color:#D97706" : "color:#16A34A";
+    const diffLabel = item.diff === 0 ? "0" : (item.diff > 0 ? `+${item.diff}` : `${item.diff}`);
+    return `
+      <tr>
+        <td><strong>${item.itemName}</strong></td>
+        <td>${item.unit}</td>
+        <td>${item.systemStock}</td>
+        <td>${item.physicalStock}</td>
+        <td style="${diffClass}"><strong>${diffLabel}</strong></td>
+      </tr>
+    `;
+  }).join("");
+
+  tabContent.innerHTML = `
+    <div class="card mb-4">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div>
+          <h2 style="font-size:18px;font-weight:600;margin:0">${session.name}</h2>
+          <p class="text-muted text-sm" style="margin:4px 0 0">${formatDate(new Date(session.date))} &bull; ${session.createdBy}</p>
+        </div>
+        <button class="btn-secondary" type="button" data-action="back-to-opname-list">← Kembali</button>
+      </div>
+      ${session.notes ? `<p class="text-sm text-muted" style="margin-bottom:8px"><em>Catatan: ${session.notes}</em></p>` : ""}
+      ${session.reason ? `<div style="background:#FEF9C3;border:1px solid #FDE047;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px"><strong>Alasan penyesuaian:</strong> ${session.reason}</div>` : ""}
+      <div style="display:flex;gap:16px;margin-bottom:16px">
+        <div class="card" style="flex:1;text-align:center;padding:16px">
+          <div style="font-size:24px;font-weight:700">${session.items.length}</div>
+          <div class="text-muted text-xs">Total Item</div>
+        </div>
+        <div class="card" style="flex:1;text-align:center;padding:16px">
+          <div style="font-size:24px;font-weight:700;color:#16A34A">${session.items.length - diffItems.length}</div>
+          <div class="text-muted text-xs">Item Sesuai</div>
+        </div>
+        <div class="card" style="flex:1;text-align:center;padding:16px">
+          <div style="font-size:24px;font-weight:700;color:#DC2626">${diffItems.length}</div>
+          <div class="text-muted text-xs">Item Selisih</div>
+        </div>
+      </div>
+    </div>
+    <div class="data-table">
+      <table>
+        <thead>
+          <tr><th>Bahan</th><th>Satuan</th><th>Stok Sistem</th><th>Stok Fisik</th><th>Selisih</th></tr>
+        </thead>
+        <tbody>${allRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function startOpnameWizard() {
+  const tabContent = document.getElementById("inventory-tab-content");
+  if (!tabContent) return;
+
+  document.querySelectorAll("[data-inv-tab]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.invTab === "opname");
+  });
+
+  APP_STATE.currentOpnameSession = null;
+  renderOpnameStep1();
+}
+
+function renderOpnameStep1() {
+  const tabContent = document.getElementById("inventory-tab-content");
+  if (!tabContent) return;
+
+  const today = new Date().toISOString().split("T")[0];
+
+  tabContent.innerHTML = `
+    <div class="card" style="max-width:560px;margin:0 auto">
+      <div style="margin-bottom:20px">
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <span style="background:#2563EB;color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">1</span>
+          <span style="background:#E5E7EB;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">2</span>
+          <span style="background:#E5E7EB;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">3</span>
+          <span class="text-muted text-sm" style="line-height:24px">Langkah 1 dari 3 — Buat Sesi Opname</span>
+        </div>
+        <h2 style="font-size:18px;font-weight:600;margin:0 0 4px">Mulai Stok Opname</h2>
+        <p class="text-muted text-sm">Isi informasi sesi opname, lalu hitung stok fisik semua bahan.</p>
+      </div>
+      <form id="opname-step1-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="opname-name">Nama Sesi *</label>
+          <input class="form-input" id="opname-name" name="name" type="text" required
+            placeholder="cth: Opname Akhir Mei 2026" value="Opname ${new Date().toLocaleDateString("id-ID", { month: "long", year: "numeric" })}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="opname-date">Tanggal Opname *</label>
+          <input class="form-input" id="opname-date" name="date" type="date" value="${today}" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="opname-notes">Catatan (opsional)</label>
+          <textarea class="form-input" id="opname-notes" name="notes" rows="2" placeholder="Konteks atau keterangan tambahan"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+          <button class="btn-secondary" type="button" data-action="back-to-opname-list">Batal</button>
+          <button class="btn-primary" type="submit">Lanjut: Input Stok Fisik →</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function submitOpnameStep1(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  if (!data.name || !data.date) {
+    showToast("Nama sesi dan tanggal wajib diisi.", "error");
+    return;
+  }
+
+  const sessions = window.APP_DATA?.opnameSessions || [];
+  const id = `OPN-${String(sessions.length + 1).padStart(3, "0")}`;
+
+  const inventory = window.APP_DATA?.inventory || [];
+  APP_STATE.currentOpnameSession = {
+    id,
+    name: data.name,
+    date: new Date(data.date).toISOString(),
+    notes: data.notes || "",
+    createdBy: APP_STATE.currentUser.name,
+    step: 2,
+    items: inventory.map((item) => ({
+      itemId: item.id,
+      itemName: item.name,
+      unit: item.unit,
+      systemStock: item.stock,
+      physicalStock: null,
+      diff: 0,
+    })),
+  };
+
+  renderOpnameStep2();
+}
+
+function renderOpnameStep2() {
+  const tabContent = document.getElementById("inventory-tab-content");
+  if (!tabContent || !APP_STATE.currentOpnameSession) return;
+
+  const session = APP_STATE.currentOpnameSession;
+  const draft = loadOpnameDraft(session.id);
+
+  const rows = session.items.map((item) => {
+    const savedPhysical = draft ? draft[item.itemId] : null;
+    const displayPhysical = savedPhysical !== null && savedPhysical !== undefined ? savedPhysical : "";
+    const diff = savedPhysical !== null && savedPhysical !== undefined ? (savedPhysical - item.systemStock) : null;
+    const diffLabel = diff === null ? "" : diff === 0 ? "0" : diff > 0 ? `+${diff}` : `${diff}`;
+    const diffStyle = diff === null ? "" : diff === 0 ? "color:#16A34A;font-weight:600" : diff > 0 ? "color:#D97706;font-weight:600" : "color:#DC2626;font-weight:600";
+
+    return `
+      <tr>
+        <td><strong>${item.itemName}</strong></td>
+        <td>${item.unit}</td>
+        <td>${item.systemStock}</td>
+        <td>
+          <input class="form-input opname-physical-input" type="number" min="0" step="0.01"
+            style="width:90px;padding:4px 8px"
+            data-item-id="${item.itemId}"
+            data-system-stock="${item.systemStock}"
+            value="${displayPhysical}"
+            placeholder="0">
+        </td>
+        <td class="opname-diff-cell" data-diff-for="${item.itemId}" style="${diffStyle}">${diffLabel}</td>
+      </tr>
+    `;
+  }).join("");
+
+  tabContent.innerHTML = `
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:8px">
+      <span style="background:#E5E7EB;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">1</span>
+      <span style="background:#2563EB;color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">2</span>
+      <span style="background:#E5E7EB;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">3</span>
+      <span class="text-muted text-sm" style="line-height:24px">Langkah 2 dari 3 — Input Stok Fisik</span>
+    </div>
+    <div class="card mb-4" style="padding:12px 16px">
+      <strong>${session.name}</strong>
+      <span class="text-muted text-sm" style="margin-left:12px">${formatDate(new Date(session.date))}</span>
+    </div>
+    <div class="data-table" style="margin-bottom:16px">
+      <table>
+        <thead>
+          <tr>
+            <th>Bahan</th>
+            <th>Satuan</th>
+            <th>Stok Sistem</th>
+            <th>Stok Fisik (input)</th>
+            <th>Selisih</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-secondary" type="button" data-action="back-to-opname-list">Batal</button>
+      <button class="btn-secondary" type="button" data-action="save-opname-draft">Simpan Draft</button>
+      <button class="btn-primary" type="button" data-action="proceed-opname-review">Lanjut: Review & Setujui →</button>
+    </div>
+  `;
+}
+
+function loadOpnameDraft(sessionId) {
+  try {
+    const raw = localStorage.getItem(`printeoo:opname_draft:${sessionId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveOpnameDraft() {
+  if (!APP_STATE.currentOpnameSession) return;
+  const session = APP_STATE.currentOpnameSession;
+  const draft = {};
+  document.querySelectorAll(".opname-physical-input").forEach((input) => {
+    const val = input.value;
+    if (val !== "") draft[input.dataset.itemId] = parseFloat(val);
+  });
+  localStorage.setItem(`printeoo:opname_draft:${session.id}`, JSON.stringify(draft));
+  showToast("Draft tersimpan.", "success");
+}
+
+function proceedOpnameToReview() {
+  if (!APP_STATE.currentOpnameSession) return;
+  const session = APP_STATE.currentOpnameSession;
+
+  session.items.forEach((item) => {
+    const input = document.querySelector(`.opname-physical-input[data-item-id="${item.itemId}"]`);
+    if (input && input.value !== "") {
+      item.physicalStock = parseFloat(input.value);
+      item.diff = Math.round((item.physicalStock - item.systemStock) * 1000) / 1000;
+    } else {
+      item.physicalStock = item.systemStock;
+      item.diff = 0;
+    }
+  });
+
+  session.step = 3;
+  renderOpnameStep3();
+}
+
+function renderOpnameStep3() {
+  const tabContent = document.getElementById("inventory-tab-content");
+  if (!tabContent || !APP_STATE.currentOpnameSession) return;
+
+  const session = APP_STATE.currentOpnameSession;
+  const diffItems = session.items.filter((i) => i.diff !== 0);
+  const allMatch = diffItems.length === 0;
+
+  const diffRows = session.items.map((item) => {
+    const diffLabel = item.diff === 0 ? "0" : item.diff > 0 ? `+${item.diff}` : `${item.diff}`;
+    const diffStyle = item.diff < 0 ? "color:#DC2626;font-weight:600" : item.diff > 0 ? "color:#D97706;font-weight:600" : "color:#16A34A;font-weight:600";
+    const rowBg = item.diff !== 0 ? "background:#FFF5F5" : "";
+    return `
+      <tr style="${rowBg}">
+        <td><strong>${item.itemName}</strong></td>
+        <td>${item.unit}</td>
+        <td>${item.systemStock}</td>
+        <td>${item.physicalStock}</td>
+        <td style="${diffStyle}">${diffLabel}</td>
+      </tr>
+    `;
+  }).join("");
+
+  tabContent.innerHTML = `
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:8px">
+      <span style="background:#E5E7EB;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">1</span>
+      <span style="background:#E5E7EB;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">2</span>
+      <span style="background:#2563EB;color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">3</span>
+      <span class="text-muted text-sm" style="line-height:24px">Langkah 3 dari 3 — Review & Setujui</span>
+    </div>
+    <div class="card mb-4" style="padding:12px 16px;display:flex;gap:24px;align-items:center">
+      <div><strong>${session.name}</strong><span class="text-muted text-sm" style="margin-left:8px">${formatDate(new Date(session.date))}</span></div>
+      <div style="display:flex;gap:16px;margin-left:auto">
+        <span style="font-size:13px"><span style="color:#16A34A;font-weight:600">${session.items.length - diffItems.length}</span> item sesuai</span>
+        <span style="font-size:13px"><span style="color:#DC2626;font-weight:600">${diffItems.length}</span> item selisih</span>
+      </div>
+    </div>
+    ${diffItems.length ? `<div style="background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px">⚠️ Ditemukan <strong>${diffItems.length} item</strong> dengan selisih stok. Stok sistem akan disesuaikan ke stok fisik setelah disetujui.</div>` : `<div style="background:#D1FAE5;border:1px solid #6EE7B7;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px">✓ Semua stok fisik sesuai dengan sistem. Tidak ada penyesuaian diperlukan.</div>`}
+    <div class="data-table" style="margin-bottom:16px">
+      <table>
+        <thead>
+          <tr><th>Bahan</th><th>Satuan</th><th>Stok Sistem</th><th>Stok Fisik</th><th>Selisih</th></tr>
+        </thead>
+        <tbody>${diffRows}</tbody>
+      </table>
+    </div>
+    <div class="card" style="padding:16px;margin-bottom:16px">
+      <label class="form-label" for="opname-reason">Alasan Penyesuaian ${allMatch ? "(opsional)" : "*"}</label>
+      <textarea class="form-input" id="opname-reason" rows="2" placeholder="cth: Selisih akibat sisa cutting yang belum dicatat, atau kehilangan minor"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-secondary" type="button" data-action="back-to-opname-step2">← Kembali</button>
+      <button class="btn-primary" type="button" data-action="approve-opname">Setujui & Simpan Opname</button>
+    </div>
+  `;
+}
+
+function approveOpname() {
+  if (!APP_STATE.currentOpnameSession) return;
+  const session = APP_STATE.currentOpnameSession;
+  const reasonInput = document.getElementById("opname-reason");
+  const reason = reasonInput ? reasonInput.value.trim() : "";
+
+  const diffItems = session.items.filter((i) => i.diff !== 0);
+  if (diffItems.length > 0 && !reason) {
+    showToast("Alasan penyesuaian wajib diisi jika ada selisih.", "error");
+    return;
+  }
+
+  session.reason = reason;
+  session.status = "approved";
+  session.approvedAt = new Date().toISOString();
+
+  const inventory = window.APP_DATA?.inventory || [];
+  if (!window.APP_DATA.adjustmentLog) window.APP_DATA.adjustmentLog = [];
+  const sessions = window.APP_DATA?.opnameSessions || [];
+
+  diffItems.forEach((item) => {
+    const inv = inventory.find((i) => i.id === item.itemId);
+    if (inv) {
+      const adjId = `ADJ-${String(window.APP_DATA.adjustmentLog.length + 1).padStart(3, "0")}`;
+      window.APP_DATA.adjustmentLog.push({
+        id: adjId,
+        opnameId: session.id,
+        itemId: item.itemId,
+        itemName: item.itemName,
+        oldStock: item.systemStock,
+        newStock: item.physicalStock,
+        diff: item.diff,
+        unit: item.unit,
+        adjustedAt: new Date().toISOString(),
+        adjustedBy: APP_STATE.currentUser.name,
+      });
+      inv.stock = item.physicalStock;
+      if (inv.stock <= 0) inv.status = "empty";
+      else if (inv.stock <= inv.minStock) inv.status = "low";
+      else inv.status = "safe";
+    }
+  });
+
+  if (!window.APP_DATA.opnameSessions) window.APP_DATA.opnameSessions = [];
+  window.APP_DATA.opnameSessions.push(session);
+
+  const stockMap = {};
+  inventory.forEach((i) => { stockMap[i.id] = i.stock; });
+  localStorage.setItem("printeoo:inventory_stocks", JSON.stringify(stockMap));
+  localStorage.setItem("printeoo:opname_sessions", JSON.stringify(window.APP_DATA.opnameSessions));
+  localStorage.setItem("printeoo:adjustment_log", JSON.stringify(window.APP_DATA.adjustmentLog));
+  localStorage.removeItem(`printeoo:opname_draft:${session.id}`);
+
+  APP_STATE.currentOpnameSession = null;
+
+  showToast(
+    diffItems.length
+      ? `Opname selesai. ${diffItems.length} item stok disesuaikan.`
+      : "Opname selesai. Semua stok sesuai, tidak ada perubahan.",
+    "success"
+  );
+  renderInventoryPage("opname");
+}
+
+function getUsagePeriodRange(period) {
+  const now = new Date();
+  let start, end;
+
+  if (period === "week") {
+    const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1; // Mon=0
+    start = new Date(now);
+    start.setDate(now.getDate() - dayOfWeek);
+    start.setHours(0, 0, 0, 0);
+    end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+  } else if (period === "month") {
+    start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+  } else if (period === "last_month") {
+    start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+    end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+  } else {
+    start = new Date(0);
+    end = new Date();
+  }
+
+  return { start, end };
+}
+
+function filterUsageByPeriod(period) {
+  const { start, end } = getUsagePeriodRange(period);
+  return (window.APP_DATA?.usageLog || []).filter((entry) => {
+    const d = new Date(entry.usedAt);
+    return d >= start && d <= end;
+  });
+}
+
+function renderInventoryUsageTab(period = "month") {
+  const log = filterUsageByPeriod(period);
+
+  const periods = [
+    { key: "week", label: "Minggu Ini" },
+    { key: "month", label: "Bulan Ini" },
+    { key: "last_month", label: "Bulan Lalu" },
+    { key: "all", label: "Semua" },
+  ];
+
+  const filterBar = `
+    <div class="tabs mb-4" style="margin-bottom:16px">
+      ${periods.map((p) => `
+        <button class="tab-button ${period === p.key ? "active" : ""}" type="button" data-usage-period="${p.key}">${p.label}</button>
+      `).join("")}
+    </div>
+  `;
+
+  const totalUsageValue = log.reduce((sum, e) => sum + e.qtyUsed * e.unitCost, 0);
+  const totalWasteValue = log.reduce((sum, e) => sum + e.qtyWaste * e.unitCost, 0);
+  const wasteRate = totalUsageValue > 0 ? ((totalWasteValue / (totalUsageValue + totalWasteValue)) * 100).toFixed(1) : 0;
+
+  const metricCards = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
+      <div class="card" style="text-align:center;padding:20px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--neutral-500);margin-bottom:8px">Total Pemakaian</div>
+        <div style="font-size:22px;font-weight:700;color:var(--neutral-900)">${formatCurrency(totalUsageValue)}</div>
+      </div>
+      <div class="card" style="text-align:center;padding:20px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--neutral-500);margin-bottom:8px">Total Waste</div>
+        <div style="font-size:22px;font-weight:700;color:var(--warning)">${formatCurrency(totalWasteValue)}</div>
+      </div>
+      <div class="card" style="text-align:center;padding:20px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--neutral-500);margin-bottom:8px">Waste Rate</div>
+        <div style="font-size:22px;font-weight:700;color:${wasteRate > 5 ? "var(--danger)" : "var(--success)"}">${wasteRate}%</div>
+      </div>
+    </div>
+  `;
+
+  const summarySection = renderUsageSummaryTable(log);
+  const spkSection = renderUsagePerSpkTable(log);
+  const chartSection = renderUsageBarChart(log, period);
+
+  return `
+    ${filterBar}
+    ${log.length === 0 ? `<div class="card empty-state" style="text-align:center;padding:40px"><p class="text-muted">Tidak ada data penggunaan pada periode ini.</p></div>` : `
+      ${metricCards}
+      <div class="card mb-4" style="margin-bottom:24px">
+        <h3 style="font-size:15px;font-weight:600;margin:0 0 16px">Grafik Pemakaian</h3>
+        ${chartSection}
+      </div>
+      <div class="card mb-4" style="margin-bottom:24px">
+        <h3 style="font-size:15px;font-weight:600;margin:0 0 16px">Ringkasan per Bahan</h3>
+        ${summarySection}
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="font-size:15px;font-weight:600;margin:0">Penggunaan per SPK</h3>
+          <select class="form-select" id="usage-material-filter" style="width:200px;padding:6px 10px;font-size:13px">
+            <option value="all">Semua Bahan</option>
+            ${[...new Set(log.map((e) => e.itemId))].map((id) => {
+              const e = log.find((x) => x.itemId === id);
+              return `<option value="${id}">${e.itemName}</option>`;
+            }).join("")}
+          </select>
+        </div>
+        <div id="usage-spk-table">${spkSection}</div>
+      </div>
+    `}
+  `;
+}
+
+function renderUsageSummaryTable(log) {
+  const byItem = {};
+  log.forEach((e) => {
+    if (!byItem[e.itemId]) {
+      byItem[e.itemId] = { itemName: e.itemName, unit: e.unit, qtyUsed: 0, qtyWaste: 0, value: 0 };
+    }
+    byItem[e.itemId].qtyUsed = Math.round((byItem[e.itemId].qtyUsed + e.qtyUsed) * 1000) / 1000;
+    byItem[e.itemId].qtyWaste = Math.round((byItem[e.itemId].qtyWaste + e.qtyWaste) * 1000) / 1000;
+    byItem[e.itemId].value += e.qtyUsed * e.unitCost;
+  });
+
+  const sorted = Object.values(byItem).sort((a, b) => b.value - a.value);
+
+  const rows = sorted.map((item) => {
+    const wasteRate = item.qtyUsed > 0 ? ((item.qtyWaste / item.qtyUsed) * 100).toFixed(1) : "0.0";
+    const rateColor = parseFloat(wasteRate) > 8 ? "color:#DC2626" : parseFloat(wasteRate) > 4 ? "color:#D97706" : "color:#16A34A";
+    return `
+      <tr>
+        <td><strong>${item.itemName}</strong></td>
+        <td>${item.qtyUsed} ${item.unit}</td>
+        <td>${item.qtyWaste} ${item.unit}</td>
+        <td style="${rateColor}"><strong>${wasteRate}%</strong></td>
+        <td><strong>${formatCurrency(item.value)}</strong></td>
+      </tr>
+    `;
+  }).join("");
+
+  return `
+    <div class="data-table">
+      <table>
+        <thead><tr><th>Bahan</th><th>Qty Dipakai</th><th>Qty Waste</th><th>Waste Rate</th><th>Nilai Pemakaian</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderUsagePerSpkTable(log, materialFilter = "all") {
+  const filtered = materialFilter === "all" ? log : log.filter((e) => e.itemId === materialFilter);
+
+  const bySpk = {};
+  filtered.forEach((e) => {
+    if (!bySpk[e.spkNumber]) {
+      bySpk[e.spkNumber] = { spkNumber: e.spkNumber, productName: e.productName, usedAt: e.usedAt, items: [], totalQty: 0, totalValue: 0 };
+    }
+    bySpk[e.spkNumber].items.push(`${e.itemName} (${e.qtyUsed} ${e.unit})`);
+    bySpk[e.spkNumber].totalValue += e.qtyUsed * e.unitCost;
+  });
+
+  const rows = Object.values(bySpk)
+    .sort((a, b) => new Date(b.usedAt) - new Date(a.usedAt))
+    .map((spk) => `
+      <tr>
+        <td><a href="#" onclick="event.preventDefault();window.location.hash='#/order/${spk.spkNumber}'" class="link-primary">${spk.spkNumber}</a></td>
+        <td>${spk.productName}</td>
+        <td class="text-sm text-muted">${spk.items.slice(0, 2).join(", ")}${spk.items.length > 2 ? ` +${spk.items.length - 2} lainnya` : ""}</td>
+        <td><strong>${formatCurrency(spk.totalValue)}</strong></td>
+        <td class="text-muted text-sm">${formatDate(new Date(spk.usedAt))}</td>
+      </tr>
+    `).join("");
+
+  if (!rows) {
+    return `<p class="text-muted text-sm" style="padding:16px 0">Tidak ada data untuk filter ini.</p>`;
+  }
+
+  return `
+    <div class="data-table">
+      <table>
+        <thead><tr><th>No. SPK</th><th>Produk</th><th>Bahan Dipakai</th><th>Nilai Pemakaian</th><th>Tanggal</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderUsageBarChart(log, period) {
+  if (!log.length) return `<p class="text-muted text-sm">Tidak ada data untuk ditampilkan.</p>`;
+
+  const { start } = getUsagePeriodRange(period);
+  const isWeek = period === "week";
+
+  // Build date buckets
+  const buckets = [];
+  const msPerDay = 86400000;
+
+  if (isWeek) {
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start.getTime() + i * msPerDay);
+      buckets.push({
+        label: d.toLocaleDateString("id-ID", { weekday: "short" }),
+        date: d,
+        usageValue: 0,
+        wasteValue: 0,
+      });
+    }
+  } else {
+    // Group by week (up to 5 weeks)
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 1);
+    let weekStart = new Date(start);
+    let weekNum = 1;
+    while (weekStart < end && weekNum <= 5) {
+      const weekEnd = new Date(weekStart.getTime() + 7 * msPerDay);
+      buckets.push({
+        label: `Mgg ${weekNum}`,
+        dateStart: weekStart,
+        dateEnd: weekEnd,
+        usageValue: 0,
+        wasteValue: 0,
+      });
+      weekStart = new Date(weekEnd);
+      weekNum++;
+    }
+  }
+
+  log.forEach((e) => {
+    const d = new Date(e.usedAt);
+    if (isWeek) {
+      const idx = buckets.findIndex((b) => {
+        const bn = new Date(b.date);
+        return d >= bn && d < new Date(bn.getTime() + msPerDay);
+      });
+      if (idx >= 0) {
+        buckets[idx].usageValue += e.qtyUsed * e.unitCost;
+        buckets[idx].wasteValue += e.qtyWaste * e.unitCost;
+      }
+    } else {
+      const idx = buckets.findIndex((b) => d >= b.dateStart && d < b.dateEnd);
+      if (idx >= 0) {
+        buckets[idx].usageValue += e.qtyUsed * e.unitCost;
+        buckets[idx].wasteValue += e.qtyWaste * e.unitCost;
+      }
+    }
+  });
+
+  const maxVal = Math.max(...buckets.map((b) => b.usageValue), 1);
+  const chartW = 600;
+  const chartH = 160;
+  const padL = 60;
+  const padB = 28;
+  const barArea = chartW - padL - 16;
+  const barWidth = Math.floor(barArea / buckets.length * 0.6);
+  const barGap = Math.floor(barArea / buckets.length);
+
+  const bars = buckets.map((b, i) => {
+    const x = padL + i * barGap + (barGap - barWidth) / 2;
+    const usageH = Math.max((b.usageValue / maxVal) * (chartH - padB - 8), 1);
+    const wasteH = Math.max((b.wasteValue / maxVal) * (chartH - padB - 8), 0);
+    const yUsage = chartH - padB - usageH;
+    const yWaste = chartH - padB - wasteH;
+    const labelY = chartH - padB + 14;
+    return `
+      <rect x="${x}" y="${yUsage}" width="${barWidth}" height="${usageH}" fill="#2563EB" rx="2" opacity="0.85">
+        <title>${b.label}: ${formatCurrency(b.usageValue)}</title>
+      </rect>
+      ${b.wasteValue > 0 ? `<rect x="${x}" y="${yWaste}" width="${barWidth}" height="${wasteH}" fill="#D97706" rx="2" opacity="0.7"><title>Waste: ${formatCurrency(b.wasteValue)}</title></rect>` : ""}
+      <text x="${x + barWidth / 2}" y="${labelY}" text-anchor="middle" font-size="10" fill="#6B7280">${b.label}</text>
+    `;
+  }).join("");
+
+  // Y-axis labels
+  const yLabels = [0, 0.25, 0.5, 0.75, 1].map((frac) => {
+    const val = maxVal * frac;
+    const y = chartH - padB - frac * (chartH - padB - 8);
+    const label = val >= 1000000 ? `${(val / 1000000).toFixed(1)}jt` : val >= 1000 ? `${(val / 1000).toFixed(0)}rb` : `${Math.round(val)}`;
+    return `<text x="${padL - 6}" y="${y + 4}" text-anchor="end" font-size="9" fill="#9CA3AF">${label}</text>
+             <line x1="${padL}" y1="${y}" x2="${chartW - 16}" y2="${y}" stroke="#F3F4F6" stroke-width="1"/>`;
+  }).join("");
+
+  return `
+    <div style="display:flex;gap:16px;align-items:center;margin-bottom:8px;font-size:12px;color:var(--neutral-500)">
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#2563EB;border-radius:2px;display:inline-block"></span> Pemakaian</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#D97706;border-radius:2px;display:inline-block"></span> Waste</span>
+    </div>
+    <svg width="100%" viewBox="0 0 ${chartW} ${chartH}" style="overflow:visible">
+      ${yLabels}
+      ${bars}
+      <line x1="${padL}" y1="0" x2="${padL}" y2="${chartH - padB}" stroke="#E5E7EB" stroke-width="1"/>
+    </svg>
+  `;
 }
 
 function renderHrPreview(activeTab = "employees") {
@@ -2164,6 +2874,7 @@ function setupEventHandlers() {
     const form = event.target.closest("[data-action='login']");
     const orderForm = event.target.closest("#order-new-form");
     const incomingForm = event.target.closest("#incoming-form");
+    const opnameStep1Form = event.target.closest("#opname-step1-form");
 
     if (form) {
       event.preventDefault();
@@ -2179,6 +2890,12 @@ function setupEventHandlers() {
     if (incomingForm) {
       event.preventDefault();
       submitIncomingForm(incomingForm);
+      return;
+    }
+
+    if (opnameStep1Form) {
+      event.preventDefault();
+      submitOpnameStep1(opnameStep1Form);
     }
   });
 
@@ -2191,6 +2908,7 @@ function setupEventHandlers() {
     const productionCard = event.target.closest("[data-production-spk]");
     const hrTabButton = event.target.closest("[data-hr-tab]");
     const invTabButton = event.target.closest("[data-inv-tab]");
+    const usagePeriodButton = event.target.closest("[data-usage-period]");
     const dashboardFilter = event.target.closest("[data-dashboard-filter]");
 
     if (customerOption) {
@@ -2205,6 +2923,13 @@ function setupEventHandlers() {
 
     if (invTabButton) {
       renderInventoryPage(invTabButton.dataset.invTab);
+      return;
+    }
+
+    if (usagePeriodButton) {
+      APP_STATE.usagePeriod = usagePeriodButton.dataset.usagePeriod;
+      const tabContent = document.getElementById("inventory-tab-content");
+      if (tabContent) tabContent.innerHTML = renderInventoryUsageTab(APP_STATE.usagePeriod);
       return;
     }
 
@@ -2254,6 +2979,53 @@ function setupEventHandlers() {
       if (actionButton.dataset.action === "close-incoming-modal") {
         const root = document.getElementById("inventory-modal-root");
         if (root) root.innerHTML = "";
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-usage-report") {
+        renderInventoryPage("usage");
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-opname-view") {
+        renderInventoryPage("opname");
+        return;
+      }
+
+      if (actionButton.dataset.action === "start-opname-wizard") {
+        startOpnameWizard();
+        return;
+      }
+
+      if (actionButton.dataset.action === "back-to-opname-list") {
+        APP_STATE.currentOpnameSession = null;
+        renderInventoryPage("opname");
+        return;
+      }
+
+      if (actionButton.dataset.action === "save-opname-draft") {
+        saveOpnameDraft();
+        return;
+      }
+
+      if (actionButton.dataset.action === "proceed-opname-review") {
+        proceedOpnameToReview();
+        return;
+      }
+
+      if (actionButton.dataset.action === "back-to-opname-step2") {
+        if (APP_STATE.currentOpnameSession) APP_STATE.currentOpnameSession.step = 2;
+        renderOpnameStep2();
+        return;
+      }
+
+      if (actionButton.dataset.action === "approve-opname") {
+        approveOpname();
+        return;
+      }
+
+      if (actionButton.dataset.action === "view-opname-detail") {
+        renderOpnameSessionDetail(actionButton.dataset.opnameId);
         return;
       }
 
@@ -2381,6 +3153,24 @@ function setupEventHandlers() {
       event.target.value = formatPhone(event.target.value);
     }
 
+    if (event.target.matches(".opname-physical-input")) {
+      const input = event.target;
+      const systemStock = parseFloat(input.dataset.systemStock);
+      const physical = input.value !== "" ? parseFloat(input.value) : null;
+      const diffCell = document.querySelector(`.opname-diff-cell[data-diff-for="${input.dataset.itemId}"]`);
+      if (diffCell) {
+        if (physical === null) {
+          diffCell.textContent = "";
+          diffCell.style.cssText = "";
+        } else {
+          const diff = Math.round((physical - systemStock) * 1000) / 1000;
+          diffCell.textContent = diff === 0 ? "0" : diff > 0 ? `+${diff}` : `${diff}`;
+          diffCell.style.cssText = diff === 0 ? "color:#16A34A;font-weight:600" : diff < 0 ? "color:#DC2626;font-weight:600" : "color:#D97706;font-weight:600";
+        }
+      }
+      return;
+    }
+
     if (event.target.matches("#order-qty, [data-calc-field]")) {
       updateOrderCalculation({ autoPrice: true });
     }
@@ -2408,6 +3198,14 @@ function setupEventHandlers() {
     if (event.target.id === "order-file") {
       const fileName = document.getElementById("file-name");
       fileName.textContent = event.target.files[0]?.name || "Drop file atau klik untuk browse";
+    }
+
+    if (event.target.id === "usage-material-filter") {
+      const spkTableEl = document.getElementById("usage-spk-table");
+      if (spkTableEl) {
+        const log = filterUsageByPeriod(APP_STATE.usagePeriod);
+        spkTableEl.innerHTML = renderUsagePerSpkTable(log, event.target.value);
+      }
     }
   });
 }
@@ -2542,6 +3340,28 @@ function loadStoredInventory() {
           else item.status = "safe";
         }
       });
+    }
+  } catch (e) {}
+
+  try {
+    const storedSessions = localStorage.getItem("printeoo:opname_sessions");
+    if (storedSessions && window.APP_DATA) {
+      const parsed = JSON.parse(storedSessions);
+      const existingIds = new Set((window.APP_DATA.opnameSessions || []).map((s) => s.id));
+      const newSessions = parsed.filter((s) => !existingIds.has(s.id));
+      if (!window.APP_DATA.opnameSessions) window.APP_DATA.opnameSessions = [];
+      window.APP_DATA.opnameSessions.push(...newSessions);
+    }
+  } catch (e) {}
+
+  try {
+    const storedAdj = localStorage.getItem("printeoo:adjustment_log");
+    if (storedAdj && window.APP_DATA) {
+      const parsed = JSON.parse(storedAdj);
+      const existingIds = new Set((window.APP_DATA.adjustmentLog || []).map((a) => a.id));
+      const newAdj = parsed.filter((a) => !existingIds.has(a.id));
+      if (!window.APP_DATA.adjustmentLog) window.APP_DATA.adjustmentLog = [];
+      window.APP_DATA.adjustmentLog.push(...newAdj);
     }
   } catch (e) {}
 }

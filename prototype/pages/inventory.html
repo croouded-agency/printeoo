@@ -6,8 +6,8 @@
     </div>
     <div class="flex gap-3 flex-wrap">
       <button class="btn-primary" type="button" data-action="open-incoming-modal">+ Catat Penerimaan</button>
-      <button class="btn-secondary" type="button" disabled title="Tersedia di TASK-024">Stok Opname</button>
-      <button class="btn-secondary" type="button" disabled title="Tersedia di TASK-025">Lihat Laporan Penggunaan</button>
+      <button class="btn-secondary" type="button" data-action="open-opname-view">Stok Opname</button>
+      <button class="btn-secondary" type="button" data-action="open-usage-report">Laporan Penggunaan</button>
     </div>
   </div>
 
@@ -16,6 +16,8 @@
   <div class="tabs mb-4">
     <button class="tab-button active" type="button" data-inv-tab="stok">Stok Bahan</button>
     <button class="tab-button" type="button" data-inv-tab="incoming">Riwayat Penerimaan</button>
+    <button class="tab-button" type="button" data-inv-tab="opname">Stok Opname</button>
+    <button class="tab-button" type="button" data-inv-tab="usage">Laporan Penggunaan</button>
   </div>
 
   <div id="inventory-tab-content"></div>

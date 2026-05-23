@@ -18,8 +18,8 @@
 | 4 — Display & Audio | 2 | 2 | 100% |
 | 5 — Supporting Pages | 3 | 3 | 100% |
 | 6 — Polish & Integration | 3 | 1 | 33% |
-| 7 — Inventory Fully Functional | 7 | 1 | 14% |
-| **Total** | **31** | **20** | **65%** |
+| 7 — Inventory Fully Functional | 7 | 3 | 43% |
+| **Total** | **31** | **22** | **71%** |
 
 ---
 
@@ -724,7 +724,7 @@ User bisa mencatat barang masuk dari supplier, stok otomatis bertambah.
 ---
 
 #### TASK-024 — Inventory: Stok Opname (Audit Trail)
-**Status:** `[ ]` Belum dikerjakan
+**Status:** `[x]` Selesai
 **Estimasi:** 75 menit
 **Depends on:** TASK-023
 **File yang diubah:** `prototype/pages/inventory.html`, `prototype/data.js`
@@ -773,7 +773,7 @@ Buat Sesi Opname → Input Stok Fisik per Bahan → Review Selisih → Approve &
 ---
 
 #### TASK-025 — Inventory: Laporan Penggunaan Material
-**Status:** `[ ]` Belum dikerjakan
+**Status:** `[x]` Selesai
 **Estimasi:** 60 menit
 **Depends on:** TASK-023
 **File yang diubah:** `prototype/pages/inventory.html`, `prototype/data.js`
@@ -1012,6 +1012,7 @@ dan dari batch material → lihat SPK mana yang menggunakannya.
 | ID | Ditemukan di Task | Deskripsi | Status | Solusi |
 |---|---|---|---|---|
 | BUG-001 | Post TASK-019 | Sidebar hilang saat navigasi antar halaman — class `hidden` menempel setelah dari fullscreen route | ✅ Fixed | Root cause: `classList.toggle("hidden", undefined)` tidak reliable. Fix: ganti toggle dengan `classList.add/remove` yang eksplisit di `updateShellVisibility`. |
+| BUG-002 | TASK-023 | Modal "Catat Penerimaan Barang" — tombol × muncul di kiri bawah judul, form-row (Qty/Satuan, Harga/Tanggal) tidak side-by-side | ✅ Fixed | Root cause: `.modal-header` tidak punya `display:flex`, `.form-row` dan `.modal-close` belum ada di style.css. Fix: tambah class `.modal-header{flex}`, `.modal-close`, `.form-row{grid 1fr 1fr}`, `.modal-title`, `.modal-form` ke style.css; pindahkan form fields ke dalam `.modal-form` wrapper. |
 
 ---
 
@@ -1058,12 +1059,14 @@ dan dari batch material → lihat SPK mana yang menggunakannya.
 | 20 | 2026-05-23 | TASK-019 — Integrasi antar halaman & konsistensi data | TASK-019 | Dashboard metrics live, overdue filter, production link, inventory alert, queue sync, breadcrumb, dan data status terhubung |
 | 21 | 2026-05-23 | BUG-001 — Fix sidebar hilang setelah navigasi dari fullscreen route | BUG-001 | Root cause ditemukan via DevTools: `classList.toggle` dengan `undefined` tidak reliable. Fix: ganti dengan `add/remove` eksplisit di `updateShellVisibility`. |
 | 22 | 2026-05-23 | TASK-023 — Inventory: Catat Penerimaan Barang | TASK-023 | Button "+ Catat Penerimaan" functional, modal form lengkap, tab Stok & Riwayat, incomingLog dummy 12 entry, persist ke localStorage, loadStoredInventory() saat init. |
+| 23 | 2026-05-23 | TASK-024 — Inventory: Stok Opname | TASK-024 | Wizard 3 langkah: Step 1 buat sesi, Step 2 input stok fisik + live diff, Step 3 review & approve. Tab "Stok Opname" + Riwayat session. 2 sesi opname dummy + adjustmentLog. Draft tersimpan ke localStorage. Adjust stok setelah approval. |
+| 24 | 2026-05-23 | TASK-025 — Inventory: Laporan Penggunaan | TASK-025 | Tab "Laporan Penggunaan" + tombol di header. Filter periode: Minggu Ini / Bulan Ini / Bulan Lalu / Semua. Metric cards (pemakaian, waste, waste rate). SVG bar chart harian/mingguan. Tabel ringkasan per bahan. Tabel per SPK + filter dropdown by bahan. 39 entry dummy usageLog tersebar 35 hari. |
 
 ---
 
 ## NEXT TASK
 
-**Task berikutnya yang harus dikerjakan: TASK-024**
+**Task berikutnya yang harus dikerjakan: TASK-026**
 
 Urutan eksekusi Fase 7 (ikuti urutan ini, jangan loncat):
 1. **TASK-023** — Incoming (foundation data untuk task lain)
