@@ -1,6 +1,7 @@
 // App state
 const ROLE_USERS = {
   owner: { name: "Ahmad Fauzi", role: "owner", label: "Owner" },
+  branch_manager: { name: "Novi Rahma", role: "branch_manager", label: "Branch Manager" },
   cashier: { name: "Siti Aminah", role: "cashier", label: "Kasir" },
   operator: { name: "Eko Pramono", role: "operator", label: "Operator" },
   display: { name: "Display Produksi", role: "display", label: "Display" },
@@ -33,6 +34,18 @@ const APP_STATE = {
   currentOpnameSession: null,
   usagePeriod: "month",
   wastePeriod: "month",
+  poFilters: {
+    status: "all",
+    supplier: "all",
+  },
+  customerFilters: {
+    search: "",
+    type: "all",
+    debt: "all",
+    sort: "name",
+  },
+  customerDetailTab: "orders",
+  customerOrderFilter: "all",
 };
 
 window.APP_STATE = APP_STATE;
@@ -44,6 +57,8 @@ const ROUTES = {
   login: { page: "login", title: "Login", fullScreen: true },
   dashboard: { page: "dashboard", title: "Dashboard" },
   orders: { page: "orders", title: "Pesanan" },
+  customers: { page: "customers", title: "Pelanggan" },
+  customer: { page: "customers", title: "Detail Pelanggan" },
   "order-new": { page: "order-new", title: "Pesanan Baru" },
   order: { page: "order-detail", title: "Detail SPK" },
   production: { page: "production", title: "Produksi" },
@@ -60,6 +75,7 @@ const ROUTES = {
 const MENU_ITEMS = [
   { id: "dashboard", label: "Dashboard", hash: "#/dashboard", roles: ["owner"], icon: "dashboard" },
   { id: "orders", label: "Pesanan", hash: "#/orders", roles: ["owner", "cashier"], icon: "orders", badge: "overdue" },
+  { id: "customers", label: "Pelanggan", hash: "#/customers", roles: ["owner", "branch_manager", "cashier"], icon: "customers" },
   { id: "order-new", label: "+ Pesanan Baru", hash: "#/order-new", roles: ["owner", "cashier"], icon: "plus" },
   { id: "production", label: "Produksi", hash: "#/production", roles: ["owner", "operator"], icon: "production" },
   { id: "queue", label: "Antrian", hash: "#/queue", roles: ["owner", "cashier"], icon: "queue" },
@@ -71,6 +87,7 @@ const MENU_ITEMS = [
 
 const ROLE_DEFAULT_ROUTES = {
   owner: "#/dashboard",
+  branch_manager: "#/customers",
   cashier: "#/orders",
   operator: "#/production",
   display: "#/display-production",
@@ -87,6 +104,10 @@ function parseHash() {
 
   if (route === "order" && segments[1]) {
     return { route: "order", params: { spkNumber: decodeURIComponent(segments[1]) } };
+  }
+
+  if (route === "customer" && segments[1]) {
+    return { route: "customer", params: { customerId: decodeURIComponent(segments[1]) } };
   }
 
   return { route, params: {} };
@@ -230,7 +251,7 @@ function applySidebarState() {
 
 function updateBreadcrumb(title, params = {}) {
   const breadcrumb = document.getElementById("breadcrumb");
-  const suffix = params.spkNumber ? ` / ${params.spkNumber}` : "";
+  const suffix = params.spkNumber ? ` / ${params.spkNumber}` : params.customerId ? ` / ${params.customerId}` : "";
   breadcrumb.textContent = `${title}${suffix}`;
   document.title = `${title} - Printeoo`;
 }
@@ -270,6 +291,7 @@ function updateSidebar(role) {
 
 function getActiveMenuId() {
   if (APP_STATE.currentRoute === "order") return "orders";
+  if (APP_STATE.currentRoute === "customer") return "customers";
   if (APP_STATE.currentRoute === "settings") return "settings";
   return APP_STATE.currentRoute;
 }
@@ -278,6 +300,7 @@ function canAccessRoute(route, role) {
   if (route === "login" || route === "pricing") return true;
   if (role === "display") return route === "display-production" || route === "display-queue";
   if (route === "order") return role === "owner" || role === "cashier";
+  if (route === "customer") return role === "owner" || role === "branch_manager" || role === "cashier";
   if (route === "settings") return role === "owner";
 
   const menuItem = MENU_ITEMS.find((item) => item.id === route);
@@ -292,13 +315,21 @@ function getOverdueOrders() {
   });
 }
 
-function initPage(route) {
+function initPage(route, params = {}) {
   if (route === "dashboard") {
     renderDashboard();
   }
 
   if (route === "orders") {
     renderOrdersPage();
+  }
+
+  if (route === "customers") {
+    renderCustomersPage();
+  }
+
+  if (route === "customer") {
+    renderCustomerDetailPage(params.customerId);
   }
 
   if (route === "order-new") {
@@ -347,9 +378,10 @@ function renderDashboard() {
   const alertEl = document.getElementById("dashboard-alert");
   const chartEl = document.getElementById("revenue-chart");
   const topProductsEl = document.getElementById("top-products");
+  const topCustomersEl = document.getElementById("top-customers");
   const productionEl = document.getElementById("production-summary");
 
-  if (!greetingEl || !metricsEl || !alertEl || !chartEl || !topProductsEl || !productionEl) return;
+  if (!greetingEl || !metricsEl || !alertEl || !chartEl || !topProductsEl || !topCustomersEl || !productionEl) return;
 
   const liveMetrics = getDashboardMetrics();
   const lowStockCount = (window.APP_DATA?.inventory || []).filter((item) => item.stock <= item.minStock).length;
@@ -432,6 +464,8 @@ function renderDashboard() {
     </div>
   `).join("");
 
+  topCustomersEl.innerHTML = renderTopCustomersThisMonth();
+
   const productionLabels = {
     design_queue: "Antrian Desain",
     in_design: "Sedang Desain",
@@ -444,6 +478,60 @@ function renderDashboard() {
     <a class="production-count" href="#/production">
       <span>${label}</span>
       <strong>${liveMetrics.productionStatus[key] || 0}</strong>
+    </a>
+  `).join("");
+}
+
+function getTopCustomersThisMonth() {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const customersById = Object.fromEntries((window.APP_DATA?.customers || []).map((customer) => [customer.id, customer]));
+  const rows = {};
+
+  (window.APP_DATA?.orders || [])
+    .filter((order) => ["delivered", "closed"].includes(order.status))
+    .filter((order) => {
+      const date = new Date(order.updatedAt || order.createdAt);
+      return date >= monthStart && date < monthEnd;
+    })
+    .forEach((order) => {
+      const customerId = order.customerId || "walk-in";
+      if (!rows[customerId]) {
+        rows[customerId] = {
+          customerId,
+          name: customersById[customerId]?.name || order.customerName || "Customer Walk-in",
+          spending: 0,
+          orderCount: 0,
+        };
+      }
+      rows[customerId].spending += Number(order.total) || 0;
+      rows[customerId].orderCount += 1;
+    });
+
+  return Object.values(rows)
+    .sort((a, b) => b.spending - a.spending)
+    .slice(0, 5);
+}
+
+function renderTopCustomersThisMonth() {
+  const rows = getTopCustomersThisMonth();
+  if (!rows.length) {
+    return `<p class="text-muted">Belum ada order selesai bulan ini.</p>`;
+  }
+
+  const max = Math.max(...rows.map((row) => row.spending), 1);
+  return rows.map((row, index) => `
+    <a class="product-rank" href="#/customer/${encodeURIComponent(row.customerId)}">
+      <div class="product-rank-header">
+        <span class="product-rank-name">${index + 1}. ${row.name}</span>
+        <span class="font-semibold">${formatCurrency(row.spending)}</span>
+      </div>
+      <div class="flex justify-between text-xs text-muted">
+        <span>${row.orderCount} order selesai</span>
+        <span>${Math.round((row.spending / max) * 100)}%</span>
+      </div>
+      <div class="mini-bar"><span style="width: ${Math.max((row.spending / max) * 100, 8)}%"></span></div>
     </a>
   `).join("");
 }
@@ -613,6 +701,614 @@ function isOrderOverdue(order) {
   return deadline < today && !isDone;
 }
 
+function getCustomerTypeMeta(type) {
+  const map = {
+    individual: { label: "Individual", className: "badge-draft" },
+    perusahaan: { label: "Perusahaan", className: "badge-confirmed" },
+    instansi: { label: "Instansi", className: "badge-ready" },
+  };
+  return map[type] || map.individual;
+}
+
+function getFilteredCustomers() {
+  const filters = APP_STATE.customerFilters;
+  const search = filters.search.trim().toLowerCase();
+  return [...(window.APP_DATA?.customers || [])]
+    .filter((customer) => {
+      const matchesSearch = !search
+        || customer.name.toLowerCase().includes(search)
+        || String(customer.phone || "").toLowerCase().includes(search)
+        || String(customer.email || "").toLowerCase().includes(search);
+      const matchesType = filters.type === "all" || customer.type === filters.type;
+      const hasDebt = Number(customer.outstandingDebt || 0) > 0;
+      const matchesDebt = filters.debt === "all"
+        || (filters.debt === "debt" && hasDebt)
+        || (filters.debt === "clear" && !hasDebt);
+      return matchesSearch && matchesType && matchesDebt;
+    })
+    .sort((a, b) => {
+      if (filters.sort === "spending") return (b.totalSpending || 0) - (a.totalSpending || 0);
+      if (filters.sort === "last_order") return new Date(b.lastOrderDate || 0) - new Date(a.lastOrderDate || 0);
+      return a.name.localeCompare(b.name, "id-ID");
+    });
+}
+
+function getCustomerStats(customers) {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const activeCutoff = new Date(now);
+  activeCutoff.setMonth(activeCutoff.getMonth() - 3);
+  return {
+    total: customers.length,
+    newThisMonth: customers.filter((customer) => new Date(customer.createdAt) >= monthStart).length,
+    debt: customers.reduce((sum, customer) => sum + (Number(customer.outstandingDebt) || 0), 0),
+    active: customers.filter((customer) => customer.lastOrderDate && new Date(customer.lastOrderDate) >= activeCutoff).length,
+  };
+}
+
+function renderCustomersPage() {
+  const customers = window.APP_DATA?.customers || [];
+  const statsEl = document.getElementById("customer-stats");
+  const tableEl = document.getElementById("customers-table-container");
+  const counterEl = document.getElementById("customers-counter");
+  const searchEl = document.getElementById("customers-search");
+  const typeEl = document.getElementById("customers-type-filter");
+  const debtEl = document.getElementById("customers-debt-filter");
+  const sortEl = document.getElementById("customers-sort");
+  if (!statsEl || !tableEl || !counterEl) return;
+
+  if (searchEl) searchEl.value = APP_STATE.customerFilters.search;
+  if (typeEl) typeEl.value = APP_STATE.customerFilters.type;
+  if (debtEl) debtEl.value = APP_STATE.customerFilters.debt;
+  if (sortEl) sortEl.value = APP_STATE.customerFilters.sort;
+
+  const stats = getCustomerStats(customers);
+  statsEl.innerHTML = `
+    <article class="metric-card"><span>Total Pelanggan</span><strong>${stats.total}</strong></article>
+    <article class="metric-card"><span>Pelanggan Baru Bulan Ini</span><strong>${stats.newThisMonth}</strong></article>
+    <article class="metric-card"><span>Total Piutang</span><strong>${formatCurrency(stats.debt)}</strong></article>
+    <article class="metric-card"><span>Pelanggan Aktif</span><strong>${stats.active}</strong></article>
+  `;
+
+  const filtered = getFilteredCustomers();
+  counterEl.textContent = `Menampilkan ${filtered.length} dari ${customers.length} pelanggan`;
+
+  if (!filtered.length) {
+    tableEl.innerHTML = `
+      <div class="card empty-state" style="text-align:center;padding:40px">
+        <div class="empty-illustration" aria-hidden="true">CRM</div>
+        <h2 class="card-title">Pelanggan tidak ditemukan</h2>
+        <p class="text-muted">Coba ubah filter atau tambahkan pelanggan baru.</p>
+        <button class="btn-primary" type="button" data-action="open-customer-modal">Tambah Pelanggan Baru</button>
+      </div>
+    `;
+    return;
+  }
+
+  tableEl.innerHTML = `
+    <div class="data-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Nama</th>
+            <th>Tipe</th>
+            <th>No. HP</th>
+            <th>Total Order</th>
+            <th>Total Spending</th>
+            <th>Piutang</th>
+            <th>Order Terakhir</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.map((customer) => renderCustomerRow(customer)).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderCustomerRow(customer) {
+  const meta = getCustomerTypeMeta(customer.type);
+  const debt = Number(customer.outstandingDebt || 0);
+  return `
+    <tr data-customer-row="${customer.id}">
+      <td><strong>${customer.name}</strong><div class="text-xs text-muted">${customer.email || customer.address || "-"}</div></td>
+      <td><span class="badge ${meta.className}">${meta.label}</span></td>
+      <td>${customer.phone}</td>
+      <td>${customer.totalOrders || 0}</td>
+      <td><strong>${formatCurrency(customer.totalSpending || 0)}</strong></td>
+      <td>${debt > 0 ? `<span class="text-danger font-semibold">⚠ ${formatCurrency(debt)}</span>` : `<span class="text-success font-semibold">Lunas</span>`}</td>
+      <td>${customer.lastOrderDate ? formatRelativeDate(customer.lastOrderDate) : "Belum ada"}</td>
+      <td>
+        <div class="flex gap-2 flex-wrap">
+          <button class="btn-secondary text-xs" type="button" data-action="view-customer-detail" data-customer-id="${customer.id}">Detail</button>
+          <button class="btn-primary text-xs" type="button" data-action="new-order-for-customer" data-customer-id="${customer.id}">Buat Order</button>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function openCustomerModal(customerId = null) {
+  const root = document.getElementById("customer-modal-root") || document.getElementById("global-modal-root");
+  if (!root) return;
+  const customer = customerId
+    ? (window.APP_DATA?.customers || []).find((item) => item.id === customerId)
+    : null;
+  const isEdit = Boolean(customer);
+  const selectedType = customer?.type || "individual";
+
+  root.innerHTML = `
+    <div class="modal-overlay" id="customer-modal">
+      <div class="modal-box" style="max-width:620px">
+        <div class="modal-header">
+          <h2 class="modal-title">${isEdit ? "Edit Pelanggan" : "Tambah Pelanggan Baru"}</h2>
+          <button class="modal-close" type="button" data-action="close-customer-modal" aria-label="Tutup">×</button>
+        </div>
+        <form id="customer-form" data-mode="${isEdit ? "edit" : "add"}" data-customer-id="${customer?.id || ""}" novalidate>
+          <div class="modal-form">
+            <div class="form-group">
+              <label class="form-label">Tipe Pelanggan *</label>
+              <div class="flex gap-3 flex-wrap">
+                <label><input type="radio" name="type" value="individual" ${selectedType === "individual" ? "checked" : ""}> Individual</label>
+                <label><input type="radio" name="type" value="perusahaan" ${selectedType === "perusahaan" ? "checked" : ""}> Perusahaan</label>
+                <label><input type="radio" name="type" value="instansi" ${selectedType === "instansi" ? "checked" : ""}> Instansi</label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="customer-name" id="customer-name-label">${selectedType === "individual" ? "Nama Lengkap *" : "Nama Perusahaan *"}</label>
+              <input class="form-input" id="customer-name" name="name" required placeholder="Nama pelanggan" value="${escapeAttr(customer?.name || "")}">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="customer-phone">Nomor HP *</label>
+                <input class="form-input" id="customer-phone" name="phone" required placeholder="0812-xxxx-xxxx" value="${escapeAttr(customer?.phone || "")}">
+                <p class="text-danger text-xs hidden" id="customer-phone-error">Nomor HP sudah terdaftar.</p>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="customer-email">Email</label>
+                <input class="form-input" id="customer-email" name="email" type="email" placeholder="email@domain.com" value="${escapeAttr(customer?.email || "")}">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="customer-address">Alamat</label>
+              <textarea class="form-input" id="customer-address" name="address" rows="2" placeholder="Alamat pelanggan">${escapeHtml(customer?.address || "")}</textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="customer-notes">Catatan internal</label>
+              <textarea class="form-input" id="customer-notes" name="notes" rows="2" placeholder="Preferensi, PIC, termin pembayaran, atau catatan relasi">${escapeHtml(customer?.notes || "")}</textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" type="button" data-action="close-customer-modal">Batal</button>
+            <button class="btn-primary" type="submit">${isEdit ? "Simpan Perubahan" : "Simpan Pelanggan"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function closeCustomerModal() {
+  const root = document.getElementById("customer-modal-root") || document.getElementById("global-modal-root");
+  if (root) root.innerHTML = "";
+}
+
+function submitCustomerForm(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  const phone = String(data.phone || "").trim();
+  const normalizedPhone = phone.replace(/\D/g, "");
+  const isEdit = form.dataset.mode === "edit";
+  const existingCustomerId = form.dataset.customerId;
+  const exists = (window.APP_DATA?.customers || []).some((customer) => (
+    customer.id !== existingCustomerId
+    && String(customer.phone || "").replace(/\D/g, "") === normalizedPhone
+  ));
+  const errorEl = document.getElementById("customer-phone-error");
+
+  if (!data.name || !phone) {
+    showToast("Nama dan nomor HP wajib diisi.", "error");
+    return;
+  }
+
+  if (exists) {
+    if (errorEl) errorEl.classList.remove("hidden");
+    showToast("Nomor HP sudah terdaftar.", "error");
+    return;
+  }
+
+  if (isEdit) {
+    const customer = (window.APP_DATA?.customers || []).find((item) => item.id === existingCustomerId);
+    if (!customer) {
+      showToast("Data pelanggan tidak ditemukan.", "error");
+      return;
+    }
+
+    customer.type = data.type || "individual";
+    customer.name = data.name.trim();
+    customer.phone = phone;
+    customer.email = data.email || "";
+    customer.address = data.address || "";
+    customer.segment = data.type === "individual" ? "Retail" : data.type === "instansi" ? "Instansi" : "Corporate";
+    customer.notes = data.notes || "";
+    customer.updatedAt = new Date().toISOString();
+
+    (window.APP_DATA?.orders || []).forEach((order) => {
+      if (order.customerId === customer.id) order.customerName = customer.name;
+    });
+
+    closeCustomerModal();
+    showToast("Data pelanggan berhasil diperbarui.", "success");
+    if (APP_STATE.currentRoute === "customer") {
+      renderCustomerDetailPage(customer.id);
+    } else {
+      renderCustomersPage();
+    }
+    return;
+  }
+
+  if (!window.APP_DATA.customers) window.APP_DATA.customers = [];
+  const nextId = `CUST-${String(window.APP_DATA.customers.length + 1).padStart(3, "0")}`;
+  window.APP_DATA.customers.push({
+    id: nextId,
+    type: data.type || "individual",
+    name: data.name.trim(),
+    phone,
+    email: data.email || "",
+    address: data.address || "",
+    segment: data.type === "individual" ? "Retail" : data.type === "instansi" ? "Instansi" : "Corporate",
+    totalSpending: 0,
+    totalOrders: 0,
+    outstandingDebt: 0,
+    lastOrderDate: null,
+    notes: data.notes || "",
+    createdAt: new Date().toISOString(),
+  });
+
+  closeCustomerModal();
+  renderCustomersPage();
+  showToast("Pelanggan baru berhasil ditambahkan", "success");
+}
+
+function startOrderForCustomer(customerId) {
+  const customer = (window.APP_DATA?.customers || []).find((item) => item.id === customerId);
+  if (!customer) return;
+  localStorage.setItem("printeoo:prefill_customer", JSON.stringify(customer));
+  window.location.hash = "#/order-new";
+}
+
+function getCustomerOrders(customerId) {
+  return (window.APP_DATA?.orders || [])
+    .filter((order) => order.customerId === customerId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function getCustomerInitials(name) {
+  return String(name || "?")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "?";
+}
+
+function renderCustomerDetailPage(customerId) {
+  const app = document.getElementById("app");
+  const customer = (window.APP_DATA?.customers || []).find((item) => item.id === customerId);
+  if (!app) return;
+
+  if (!customer) {
+    app.innerHTML = `
+      <section class="card empty-state">
+        <h1 class="page-title">Pelanggan tidak ditemukan</h1>
+        <p class="text-muted">Data pelanggan ini tidak tersedia.</p>
+        <a class="btn-secondary" href="#/customers">Kembali ke Daftar Pelanggan</a>
+      </section>
+    `;
+    return;
+  }
+
+  updateBreadcrumb(`Pelanggan → ${customer.name}`, { customerId: "" });
+  const orders = getCustomerOrders(customer.id);
+  const typeMeta = getCustomerTypeMeta(customer.type);
+  const averageOrder = customer.totalOrders > 0 ? customer.totalSpending / customer.totalOrders : 0;
+  const debt = Number(customer.outstandingDebt || 0);
+  const avatarColor = customer.type === "individual" ? "#6B7280" : customer.type === "instansi" ? "#16A34A" : "#2563EB";
+
+  app.innerHTML = `
+    <section class="customers-page" data-page="customer-detail">
+      <div class="page-header">
+        <div>
+          <a class="btn-secondary btn-sm" href="#/customers">← Kembali ke Daftar Pelanggan</a>
+        </div>
+      </div>
+
+      <article class="card" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
+          <div style="display:flex;gap:16px;align-items:center">
+            <div style="width:64px;height:64px;border-radius:999px;background:${avatarColor};color:white;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700">${getCustomerInitials(customer.name)}</div>
+            <div>
+              <h1 class="page-title" style="margin:0">${customer.name}</h1>
+              <div class="flex gap-2 flex-wrap" style="margin-top:6px">
+                <span class="badge ${typeMeta.className}">${typeMeta.label}</span>
+                <span class="text-sm text-muted">${customer.phone}</span>
+                ${customer.email ? `<span class="text-sm text-muted">${customer.email}</span>` : ""}
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <button class="btn-secondary" type="button" data-action="open-customer-edit" data-customer-id="${customer.id}">Edit</button>
+            <button class="btn-primary" type="button" data-action="new-order-for-customer" data-customer-id="${customer.id}">Buat Order Baru</button>
+            ${debt > 0 ? `<button class="btn-secondary" type="button" data-action="open-payment-modal" data-customer-id="${customer.id}">Catat Pembayaran Piutang</button>` : ""}
+          </div>
+        </div>
+      </article>
+
+      <section class="metric-grid" style="margin-bottom:16px">
+        <article class="metric-card"><span>Total Order</span><strong>${customer.totalOrders || orders.length}</strong></article>
+        <article class="metric-card"><span>Total Spending</span><strong>${formatCurrency(customer.totalSpending || 0)}</strong></article>
+        <article class="metric-card"><span>Rata-rata Nilai Order</span><strong>${formatCurrency(averageOrder)}</strong></article>
+        <article class="metric-card"><span>Piutang Saat Ini</span><strong class="${debt > 0 ? "text-danger" : "text-success"}">${debt > 0 ? formatCurrency(debt) : "Lunas"}</strong></article>
+      </section>
+
+      <div class="tabs mb-4" style="margin-bottom:16px">
+        ${[
+          ["orders", "Riwayat Pesanan"],
+          ["products", "Produk Favorit"],
+          ["payments", "Piutang & Pembayaran"],
+          ["notes", "Catatan"],
+        ].map(([key, label]) => `<button class="tab-button ${APP_STATE.customerDetailTab === key ? "active" : ""}" type="button" data-customer-tab="${key}" data-customer-id="${customer.id}">${label}</button>`).join("")}
+      </div>
+
+      <div id="customer-detail-tab">
+        ${renderCustomerDetailTab(customer, orders)}
+      </div>
+    </section>
+  `;
+}
+
+function renderCustomerDetailTab(customer, orders) {
+  if (APP_STATE.customerDetailTab === "products") return renderCustomerProductsTab(orders);
+  if (APP_STATE.customerDetailTab === "payments") return renderCustomerPaymentsTab(customer, orders);
+  if (APP_STATE.customerDetailTab === "notes") return renderCustomerNotesTab(customer);
+  return renderCustomerOrdersTab(customer, orders);
+}
+
+function renderCustomerOrdersTab(customer, orders) {
+  const filter = APP_STATE.customerOrderFilter;
+  const filtered = orders.filter((order) => {
+    if (filter === "active") return !["delivered", "closed", "cancelled"].includes(order.status);
+    if (filter === "done") return ["delivered", "closed"].includes(order.status);
+    if (filter === "cancelled") return order.status === "cancelled";
+    return true;
+  });
+
+  const filterButtons = `
+    <div class="tabs" style="margin-bottom:12px">
+      ${[
+        ["all", "Semua"],
+        ["active", "Aktif"],
+        ["done", "Selesai"],
+        ["cancelled", "Dibatalkan"],
+      ].map(([key, label]) => `<button class="tab-button ${filter === key ? "active" : ""}" type="button" data-customer-order-filter="${key}" data-customer-id="${customer.id}">${label}</button>`).join("")}
+    </div>
+  `;
+
+  if (!filtered.length) {
+    return filterButtons + `<div class="card empty-state"><p class="text-muted">Belum ada order untuk filter ini.</p></div>`;
+  }
+
+  return `
+    ${filterButtons}
+    <div class="data-table">
+      <table>
+        <thead><tr><th>No. SPK</th><th>Produk</th><th>Qty</th><th>Total</th><th>Status</th><th>Deadline</th><th>Aksi</th></tr></thead>
+        <tbody>
+          ${filtered.map((order) => `
+            <tr>
+              <td><a class="table-link" href="#/order/${encodeURIComponent(order.spkNumber)}">${order.spkNumber}</a></td>
+              <td>${order.productName}</td>
+              <td>${order.qty} ${order.unit}</td>
+              <td><strong>${formatCurrency(order.total)}</strong></td>
+              <td><span class="badge badge-${order.status}">${window.APP_DATA.statusLabels[order.status] || order.status}</span></td>
+              <td>${formatRelativeDate(order.deadlineAt)}</td>
+              <td><a class="btn-secondary btn-sm" href="#/order/${encodeURIComponent(order.spkNumber)}">Detail</a></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function getCustomerProductRows(orders) {
+  const map = {};
+  orders.forEach((order) => {
+    if (!map[order.productId]) {
+      map[order.productId] = { productName: order.productName, count: 0, qty: 0, value: 0 };
+    }
+    map[order.productId].count += 1;
+    map[order.productId].qty += Number(order.qty) || 0;
+    map[order.productId].value += Number(order.total) || 0;
+  });
+  return Object.values(map).sort((a, b) => b.count - a.count);
+}
+
+function renderCustomerProductsTab(orders) {
+  const rows = getCustomerProductRows(orders);
+  if (!rows.length) return `<div class="card empty-state"><p class="text-muted">Belum ada produk favorit karena pelanggan belum punya order.</p></div>`;
+  const max = Math.max(...rows.slice(0, 5).map((row) => row.count), 1);
+  const chart = `
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="font-size:15px;font-weight:600;margin:0 0 12px">Top 5 Produk</h3>
+      <svg viewBox="0 0 720 190" width="100%" role="img" aria-label="Bar chart produk favorit">
+        ${rows.slice(0, 5).map((row, idx) => {
+          const width = Math.max((row.count / max) * 460, 20);
+          const y = 20 + idx * 32;
+          return `<g><text x="0" y="${y + 18}" font-size="12" fill="#374151">${row.productName.slice(0, 34)}</text><rect x="250" y="${y}" width="${width}" height="20" rx="4" fill="#2563EB"/><text x="${260 + width}" y="${y + 15}" font-size="12" fill="#374151">${row.count} order</text></g>`;
+        }).join("")}
+      </svg>
+    </div>
+  `;
+  return `
+    ${chart}
+    <div class="data-table">
+      <table>
+        <thead><tr><th>Produk</th><th>Jumlah Order</th><th>Total Qty</th><th>Total Nilai</th></tr></thead>
+        <tbody>
+          ${rows.map((row) => `<tr><td><strong>${row.productName}</strong></td><td>${row.count}</td><td>${Math.round(row.qty * 100) / 100}</td><td>${formatCurrency(row.value)}</td></tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function getOutstandingOrders(orders) {
+  return orders.filter((order) => Math.max(order.total - (order.paidAmount || 0), 0) > 0 && order.status !== "cancelled");
+}
+
+function renderCustomerPaymentsTab(customer, orders) {
+  const debtOrders = getOutstandingOrders(orders);
+  const totalDebt = debtOrders.reduce((sum, order) => sum + Math.max(order.total - (order.paidAmount || 0), 0), 0);
+  const paymentRows = orders
+    .filter((order) => (order.paidAmount || 0) > 0)
+    .map((order) => `<tr><td>${formatDate(order.updatedAt || order.createdAt)}</td><td>${order.spkNumber}</td><td>${formatCurrency(order.paidAmount)}</td><td>Transfer / Kasir</td></tr>`)
+    .join("");
+
+  if (!totalDebt) {
+    return `
+      <div class="card" style="border-color:#BBF7D0;background:#F0FDF4;margin-bottom:16px">
+        <strong class="text-success">✓ Tidak ada piutang outstanding</strong>
+      </div>
+      ${renderPaymentHistoryTable(paymentRows)}
+    `;
+  }
+
+  return `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-section-header">
+        <div>
+          <h3 class="card-title">Total Piutang: ${formatCurrency(totalDebt)}</h3>
+          <p class="card-description">${debtOrders.length} SPK belum lunas.</p>
+        </div>
+        <button class="btn-primary" type="button" data-action="open-payment-modal" data-customer-id="${customer.id}">Catat Pembayaran</button>
+      </div>
+    </div>
+    <div class="data-table" style="margin-bottom:16px">
+      <table>
+        <thead><tr><th>No. SPK</th><th>Nilai SPK</th><th>Sudah Dibayar</th><th>Sisa</th><th>Jatuh Tempo</th><th>Aksi</th></tr></thead>
+        <tbody>
+          ${debtOrders.map((order) => {
+            const balance = Math.max(order.total - (order.paidAmount || 0), 0);
+            return `<tr><td>${order.spkNumber}</td><td>${formatCurrency(order.total)}</td><td>${formatCurrency(order.paidAmount || 0)}</td><td class="text-danger font-semibold">${formatCurrency(balance)}</td><td>${formatRelativeDate(order.deadlineAt)}</td><td><button class="btn-secondary btn-sm" type="button" data-action="open-payment-modal" data-customer-id="${customer.id}" data-spk-number="${order.spkNumber}">Catat Pembayaran</button></td></tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+    ${renderPaymentHistoryTable(paymentRows)}
+  `;
+}
+
+function renderPaymentHistoryTable(paymentRows) {
+  return `
+    <div class="card">
+      <h3 style="font-size:15px;font-weight:600;margin:0 0 12px">Riwayat Pembayaran</h3>
+      ${paymentRows ? `<div class="data-table"><table><thead><tr><th>Tanggal</th><th>SPK</th><th>Nominal</th><th>Metode</th></tr></thead><tbody>${paymentRows}</tbody></table></div>` : `<p class="text-muted">Belum ada pembayaran tercatat.</p>`}
+    </div>
+  `;
+}
+
+function renderCustomerNotesTab(customer) {
+  return `
+    <div class="card">
+      <div class="form-group">
+        <label class="form-label" for="customer-notes-detail">Catatan internal</label>
+        <textarea class="form-input" id="customer-notes-detail" rows="5">${customer.notes || ""}</textarea>
+      </div>
+      <div class="flex gap-3 flex-wrap items-center">
+        <button class="btn-primary" type="button" data-action="save-customer-notes" data-customer-id="${customer.id}">Simpan Catatan</button>
+        <span class="text-sm text-muted">Pelanggan sejak ${formatDate(customer.createdAt)} · Terakhir update ${formatDate(customer.updatedAt || customer.createdAt)}</span>
+      </div>
+    </div>
+  `;
+}
+
+function openPaymentModal(customerId, spkNumber = "") {
+  const root = document.getElementById("global-modal-root");
+  const customer = (window.APP_DATA?.customers || []).find((item) => item.id === customerId);
+  const orders = getOutstandingOrders(getCustomerOrders(customerId));
+  if (!root || !customer) return;
+  const selected = orders.find((order) => order.spkNumber === spkNumber) || orders[0];
+  const balance = selected ? Math.max(selected.total - (selected.paidAmount || 0), 0) : 0;
+
+  root.innerHTML = `
+    <div class="modal-overlay" id="payment-modal">
+      <div class="modal-box" style="max-width:520px">
+        <div class="modal-header">
+          <h2 class="modal-title">Catat Pembayaran Piutang</h2>
+          <button class="modal-close" type="button" data-action="close-payment-modal" aria-label="Tutup">×</button>
+        </div>
+        <form id="customer-payment-form" data-customer-id="${customer.id}" novalidate>
+          <div class="modal-form">
+            <div class="form-group">
+              <label class="form-label" for="payment-spk">SPK</label>
+              <select class="form-select" id="payment-spk" name="spkNumber" required>
+                ${orders.map((order) => `<option value="${order.spkNumber}" ${selected?.spkNumber === order.spkNumber ? "selected" : ""}>${order.spkNumber} - sisa ${formatCurrency(Math.max(order.total - (order.paidAmount || 0), 0))}</option>`).join("")}
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="payment-amount">Nominal</label>
+                <input class="form-input" id="payment-amount" name="amount" type="number" min="1" value="${balance}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="payment-method">Metode</label>
+                <select class="form-select" id="payment-method" name="method">
+                  <option value="transfer">Transfer</option>
+                  <option value="cash">Tunai</option>
+                  <option value="qris">QRIS</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" type="button" data-action="close-payment-modal">Batal</button>
+            <button class="btn-primary" type="submit">Simpan Pembayaran</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function closePaymentModal() {
+  const root = document.getElementById("global-modal-root");
+  if (root) root.innerHTML = "";
+}
+
+function submitCustomerPayment(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  const customer = (window.APP_DATA?.customers || []).find((item) => item.id === form.dataset.customerId);
+  const order = (window.APP_DATA?.orders || []).find((item) => item.spkNumber === data.spkNumber);
+  if (!customer || !order) return;
+  const amount = Math.max(Number(data.amount) || 0, 0);
+  const balance = Math.max(order.total - (order.paidAmount || 0), 0);
+  const paid = Math.min(amount, balance);
+  if (paid <= 0) {
+    showToast("Nominal pembayaran tidak valid.", "error");
+    return;
+  }
+  order.paidAmount = Math.min((order.paidAmount || 0) + paid, order.total);
+  order.paymentStatus = order.paidAmount >= order.total ? "paid" : "partial";
+  order.updatedAt = new Date().toISOString();
+  customer.outstandingDebt = Math.max((customer.outstandingDebt || 0) - paid, 0);
+  customer.updatedAt = new Date().toISOString();
+  closePaymentModal();
+  showToast("Pembayaran piutang berhasil dicatat.", "success");
+  renderCustomerDetailPage(customer.id);
+}
+
 function initOrderNewPage() {
   const productSelect = document.getElementById("order-product");
   const deadlineDate = document.getElementById("order-deadline-date");
@@ -628,6 +1324,20 @@ function initOrderNewPage() {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   deadlineDate.value = toDateInputValue(tomorrow);
+
+  try {
+    const prefill = localStorage.getItem("printeoo:prefill_customer");
+    if (prefill) {
+      const customer = JSON.parse(prefill);
+      APP_STATE.selectedCustomer = customer;
+      document.getElementById("order-customer").value = customer.name || "";
+      document.getElementById("order-customer-id").value = customer.id || "";
+      document.getElementById("order-phone").value = formatPhone(customer.phone || "");
+      renderOrderCustomerInfo(customer);
+      localStorage.removeItem("printeoo:prefill_customer");
+    }
+  } catch (e) {}
+
   updateOrderCalculation();
 }
 
@@ -670,6 +1380,35 @@ function selectCustomer(customerId) {
   document.getElementById("order-customer-id").value = customer.id;
   document.getElementById("order-phone").value = formatPhone(customer.phone);
   document.getElementById("customer-suggestions").classList.add("hidden");
+  renderOrderCustomerInfo(customer);
+}
+
+function renderOrderCustomerInfo(customer) {
+  const infoEl = document.getElementById("order-customer-info");
+  if (!infoEl) return;
+
+  if (!customer) {
+    infoEl.innerHTML = "";
+    return;
+  }
+
+  const meta = getCustomerTypeMeta(customer.type);
+  const debt = Number(customer.outstandingDebt || 0);
+  infoEl.innerHTML = `
+    <div class="card" style="background:var(--neutral-50);padding:14px">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
+        <div>
+          <div class="flex gap-2 flex-wrap items-center">
+            <strong>${customer.name}</strong>
+            <span class="badge ${meta.className}">${meta.label}</span>
+          </div>
+          <p class="text-sm text-muted" style="margin:6px 0 0">${customer.totalOrders || 0} order lifetime · ${formatCurrency(customer.totalSpending || 0)} total spending</p>
+          ${debt > 0 ? `<p class="text-sm" style="margin:8px 0 0;color:var(--warning);font-weight:600">Pelanggan ini memiliki piutang ${formatCurrency(debt)}. Pastikan sudah dikonfirmasi.</p>` : `<p class="text-sm text-success" style="margin:8px 0 0;font-weight:600">Tidak ada piutang outstanding.</p>`}
+        </div>
+        <a class="btn-secondary btn-sm" href="#/customer/${encodeURIComponent(customer.id)}" target="_blank" rel="noopener">Lihat Detail Pelanggan</a>
+      </div>
+    </div>
+  `;
 }
 
 function selectProduct(productId) {
@@ -831,6 +1570,14 @@ function submitNewOrder(event) {
   };
 
   window.APP_DATA.orders.unshift(newOrder);
+  const existingCustomer = (window.APP_DATA?.customers || []).find((customer) => customer.id === customerId);
+  if (existingCustomer) {
+    existingCustomer.totalOrders = (Number(existingCustomer.totalOrders) || 0) + 1;
+    existingCustomer.totalSpending = (Number(existingCustomer.totalSpending) || 0) + total;
+    existingCustomer.outstandingDebt = (Number(existingCustomer.outstandingDebt) || 0) + Math.max(total - paidAmount, 0);
+    existingCustomer.lastOrderDate = newOrder.createdAt;
+    existingCustomer.updatedAt = newOrder.createdAt;
+  }
   persistStoredOrders();
   updateSidebar(APP_STATE.currentRole);
   showToast(`Pesanan ${spkNumber} berhasil disimpan.`, "success");
@@ -940,12 +1687,16 @@ function renderOrderInfoCard(order) {
     ? order.files.map((file) => `<li>${file.name}</li>`).join("")
     : "<li>Belum ada file</li>";
   const finishing = order.finishing?.length ? order.finishing.join(", ") : "Standar";
+  const customer = (window.APP_DATA?.customers || []).find((item) => item.id === order.customerId);
+  const customerLabel = customer
+    ? `<a class="table-link" href="#/customer/${encodeURIComponent(customer.id)}">${order.customerName}</a>`
+    : order.customerName;
 
   return `
     <article class="card detail-card">
       <h2 class="card-title">Info Pesanan</h2>
       <dl class="detail-list">
-        <div><dt>Customer</dt><dd>${order.customerName}</dd></div>
+        <div><dt>Customer</dt><dd>${customerLabel}</dd></div>
         <div><dt>Produk</dt><dd>${order.productName}</dd></div>
         <div><dt>Qty</dt><dd>${order.qty} ${order.unit}</dd></div>
         <div><dt>Finishing</dt><dd>${finishing}</dd></div>
@@ -978,16 +1729,33 @@ function renderOrderInfoCard(order) {
           return `
             <div class="data-table" style="margin:0">
               <table>
-                <thead><tr><th>Bahan</th><th>Qty Pakai</th><th>Waste</th><th>Kategori</th></tr></thead>
+                <thead><tr><th>Bahan</th><th>Qty Pakai</th><th>Waste</th><th>Batch</th><th>Kategori</th></tr></thead>
                 <tbody>
-                  ${usages.map((u) => `
+                  ${usages.map((u, index) => {
+                    const batch = getBatchById(u.batchId) || getFallbackBatchForUsage(u, index);
+                    const batchId = u.batchId || batch?.batchId;
+                    return `
                     <tr>
                       <td>${u.itemName}</td>
                       <td>${u.qtyUsed} ${u.unit}</td>
                       <td class="${u.qtyWaste > 0 ? "text-warning" : "text-muted"}">${u.qtyWaste} ${u.unit}</td>
+                      <td>
+                        ${batchId ? `
+                          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+                            <code class="text-xs text-muted">${batchId}</code>
+                            <button class="btn-secondary text-xs" type="button" data-action="open-batch-usage" data-batch-id="${batchId}">
+                              Lihat Batch
+                            </button>
+                          </div>
+                        ` : `
+                          <button class="btn-secondary text-xs" type="button" data-action="open-item-batches" data-item-id="${u.itemId}">
+                            Pilih Batch
+                          </button>
+                        `}
+                      </td>
                       <td class="text-xs text-muted">${u.wasteCategory ? (wasteCatLabels[u.wasteCategory] || u.wasteCategory) : "—"}</td>
                     </tr>
-                  `).join("")}
+                  `; }).join("")}
                 </tbody>
               </table>
             </div>
@@ -1751,7 +2519,7 @@ function renderInventoryPage(activeTab = "stok") {
 
   const lowStock = inventory.filter((item) => item.stock <= item.minStock);
   alertEl.innerHTML = lowStock.length
-    ? `<div class="dashboard-alert"><strong>${lowStock.length} bahan menipis.</strong> <span>Segera lakukan pembelian.</span></div>`
+    ? `<div class="dashboard-alert"><strong>${lowStock.length} bahan menipis.</strong> <span>Segera lakukan pembelian.</span> <button class="btn-secondary" type="button" data-action="open-po-modal" data-item-id="${lowStock[0].id}" style="margin-left:auto">Buat PO</button></div>`
     : "";
 
   if (activeTab === "stok") {
@@ -1760,6 +2528,8 @@ function renderInventoryPage(activeTab = "stok") {
     tabContent.innerHTML = renderInventoryIncomingTab();
   } else if (activeTab === "opname") {
     tabContent.innerHTML = renderInventoryOpnameTab();
+  } else if (activeTab === "po") {
+    tabContent.innerHTML = renderInventoryPurchaseOrderTab();
   } else if (activeTab === "usage") {
     tabContent.innerHTML = renderInventoryUsageTab(APP_STATE.usagePeriod);
   } else if (activeTab === "waste") {
@@ -1769,6 +2539,7 @@ function renderInventoryPage(activeTab = "stok") {
 
 function renderInventoryStokTab(inventory) {
   return `
+    ${renderScanBatchPanel()}
     <div class="data-table">
       <table>
         <thead>
@@ -1776,23 +2547,34 @@ function renderInventoryStokTab(inventory) {
             <th>Nama Bahan</th>
             <th>Kategori</th>
             <th>Stok</th>
+            <th>Batch</th>
             <th>Satuan</th>
             <th>Min. Stok</th>
             <th>Status</th>
+            <th>Aksi</th>
             <th style="width:56px">QR</th>
           </tr>
         </thead>
         <tbody>
           ${inventory.map((item) => {
             const status = getInventoryStatus(item);
+            const activeBatches = getInventoryBatches(item.id).filter((batch) => batch.status === "aktif" || batch.qtyRemaining > 0);
             return `
               <tr>
                 <td><strong>${item.name}</strong><div class="text-xs text-muted">${item.supplier}</div></td>
                 <td>${item.category}</td>
                 <td><strong>${item.stock}</strong></td>
+                <td>
+                  <button class="btn-secondary text-xs" type="button" data-action="open-item-batches" data-item-id="${item.id}">
+                    ${activeBatches.length} batch
+                  </button>
+                </td>
                 <td>${item.unit}</td>
                 <td>${item.minStock}</td>
                 <td><span class="badge ${status.className}">${status.label}</span></td>
+                <td>
+                  ${item.stock <= item.minStock ? `<button class="btn-secondary text-xs" type="button" data-action="open-po-modal" data-item-id="${item.id}">Buat PO</button>` : `<span class="text-xs text-muted">-</span>`}
+                </td>
                 <td>
                   <button class="btn-icon-qr" type="button" title="Cetak Label QR"
                     data-action="open-qr-label" data-item-id="${item.id}">
@@ -1858,6 +2640,640 @@ function renderInventoryIncomingTab() {
       </table>
     </div>
   `;
+}
+
+function getAllBatches() {
+  const explicit = window.APP_DATA?.batches || [];
+  if (explicit.length) return explicit;
+
+  return (window.APP_DATA?.incomingLog || []).map((entry) => ({
+    batchId: entry.batchId,
+    itemId: entry.itemId,
+    itemName: entry.itemName,
+    qtyInitial: entry.qty,
+    qtyRemaining: entry.qty,
+    unit: entry.unit,
+    supplier: entry.supplier,
+    receivedDate: entry.receivedDate,
+    pricePerUnit: entry.pricePerUnit,
+    status: entry.qty > 0 ? "aktif" : "habis",
+  }));
+}
+
+function getBatchById(batchId) {
+  if (!batchId) return null;
+  return getAllBatches().find((batch) => batch.batchId === batchId || batch.id === batchId || batch.batchNumber === batchId) || null;
+}
+
+function getInventoryBatches(itemId) {
+  return getAllBatches().filter((batch) => batch.itemId === itemId || batch.materialId === itemId);
+}
+
+function getFallbackBatchForUsage(entry, index = 0) {
+  const batches = getInventoryBatches(entry.itemId);
+  if (!batches.length) return null;
+  const active = batches.filter((batch) => batch.status === "aktif" || batch.qtyRemaining > 0);
+  return (active.length ? active : batches)[index % (active.length || batches.length)];
+}
+
+function backfillUsageBatchIds() {
+  const usageLog = window.APP_DATA?.usageLog || [];
+  let changed = false;
+  usageLog.forEach((entry, index) => {
+    if (entry.batchId) return;
+    const batch = getFallbackBatchForUsage(entry, index);
+    if (batch?.batchId) {
+      entry.batchId = batch.batchId;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+function getBatchUsageLog(batchId) {
+  return (window.APP_DATA?.usageLog || []).filter((entry) => entry.batchId === batchId);
+}
+
+function renderScanBatchPanel() {
+  return `
+    <div class="card mb-4" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap">
+        <div>
+          <h3 class="card-title" style="font-size:16px;margin:0">Scan Batch</h3>
+          <p class="card-description">Masukkan Batch ID atau gunakan flow scan QR untuk melihat riwayat material lengkap.</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input class="form-input" id="batch-trace-input" type="text" placeholder="Contoh: BATCH-20260515-001" style="min-width:260px">
+          <button class="btn-primary" type="button" data-action="lookup-batch-trace">Cari Batch</button>
+          <button class="btn-secondary" type="button" data-action="open-qr-scan">Scan QR</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function openItemBatchesModal(itemId) {
+  const root = document.getElementById("inventory-modal-root") || document.getElementById("global-modal-root");
+  const item = (window.APP_DATA?.inventory || []).find((inv) => inv.id === itemId);
+  if (!root || !item) return;
+
+  const batches = getInventoryBatches(itemId).sort((a, b) => new Date(b.receivedDate) - new Date(a.receivedDate));
+  const rows = batches.map((batch) => {
+    const used = Math.max((Number(batch.qtyInitial) || 0) - (Number(batch.qtyRemaining) || 0), 0);
+    const status = batch.status === "habis" || batch.qtyRemaining <= 0 ? "habis" : "aktif";
+    return `
+      <tr>
+        <td><code class="text-xs">${batch.batchId}</code></td>
+        <td>${formatDate(new Date(batch.receivedDate))}</td>
+        <td>${batch.supplier}</td>
+        <td>${batch.qtyInitial} ${batch.unit}</td>
+        <td>${Math.round(used * 1000) / 1000} ${batch.unit}</td>
+        <td>${batch.qtyRemaining} ${batch.unit}</td>
+        <td><span class="badge ${status === "aktif" ? "badge-ready" : "badge-draft"}">${status === "aktif" ? "Aktif" : "Habis"}</span></td>
+        <td><button class="btn-secondary text-xs" type="button" data-action="open-batch-usage" data-batch-id="${batch.batchId}">Lihat Penggunaan</button></td>
+      </tr>
+    `;
+  }).join("");
+
+  root.innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box" style="max-width:940px">
+        <div class="modal-header">
+          <h2 class="modal-title">Batch Bahan ${item.name}</h2>
+          <button class="modal-close" type="button" data-action="close-inventory-modal" aria-label="Tutup">×</button>
+        </div>
+        ${batches.length ? `
+          <div class="data-table">
+            <table>
+              <thead><tr><th>Batch ID</th><th>Masuk</th><th>Supplier</th><th>Qty Awal</th><th>Qty Terpakai</th><th>Qty Tersisa</th><th>Status</th><th>Aksi</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        ` : `<div class="card empty-state"><p class="text-muted">Belum ada batch untuk bahan ini.</p></div>`}
+      </div>
+    </div>
+  `;
+}
+
+function openBatchUsageModal(batchId) {
+  const root = document.getElementById("inventory-modal-root") || document.getElementById("global-modal-root");
+  const batch = getBatchById(batchId);
+  if (!root) return;
+  if (!batch) {
+    showToast("Batch ID tidak ditemukan.", "error");
+    return;
+  }
+
+  const usages = getBatchUsageLog(batch.batchId).sort((a, b) => new Date(b.usedAt) - new Date(a.usedAt));
+  const totalUsed = usages.reduce((sum, entry) => sum + (Number(entry.qtyUsed) || 0) + (Number(entry.qtyWaste) || 0), 0);
+  const percent = batch.qtyInitial > 0 ? Math.min((totalUsed / batch.qtyInitial) * 100, 100).toFixed(1) : "0.0";
+  const rows = usages.map((entry) => {
+    const order = findOrderBySpk(entry.spkNumber);
+    return `
+      <tr>
+        <td><button class="btn-secondary text-xs" type="button" data-action="navigate-spk" data-spk-number="${entry.spkNumber}">${entry.spkNumber}</button></td>
+        <td>${order?.customerName || "-"}</td>
+        <td>${entry.productName}</td>
+        <td>${entry.qtyUsed} ${entry.unit}</td>
+        <td>${entry.qtyWaste || 0} ${entry.unit}</td>
+        <td>${formatDate(new Date(entry.usedAt))}</td>
+        <td>${entry.operatorName}</td>
+      </tr>
+    `;
+  }).join("");
+
+  root.innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box" style="max-width:980px">
+        <div class="modal-header">
+          <h2 class="modal-title">Penggunaan Batch ${batch.batchId}</h2>
+          <button class="modal-close" type="button" data-action="close-inventory-modal" aria-label="Tutup">×</button>
+        </div>
+        <div class="grid" style="margin-bottom:16px">
+          <div class="col-4"><div class="text-xs text-muted">Bahan</div><strong>${batch.itemName}</strong></div>
+          <div class="col-4"><div class="text-xs text-muted">Tanggal Masuk</div><strong>${formatDate(new Date(batch.receivedDate))}</strong></div>
+          <div class="col-4"><div class="text-xs text-muted">Supplier</div><strong>${batch.supplier}</strong></div>
+          <div class="col-4"><div class="text-xs text-muted">Qty Awal</div><strong>${batch.qtyInitial} ${batch.unit}</strong></div>
+          <div class="col-4"><div class="text-xs text-muted">Qty Tersisa</div><strong>${batch.qtyRemaining} ${batch.unit}</strong></div>
+          <div class="col-4"><div class="text-xs text-muted">Status</div><span class="badge ${batch.status === "aktif" ? "badge-ready" : "badge-draft"}">${batch.status === "aktif" ? "Aktif" : "Habis"}</span></div>
+        </div>
+        <h3 style="font-size:15px;font-weight:600;margin:0 0 12px">SPK yang menggunakan batch ini</h3>
+        ${usages.length ? `
+          <div class="data-table">
+            <table>
+              <thead><tr><th>No. SPK</th><th>Customer</th><th>Produk</th><th>Qty Dipakai</th><th>Qty Waste</th><th>Tanggal</th><th>Operator</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+          <p class="text-sm text-muted" style="margin:12px 0 0">Total terpakai: ${Math.round(totalUsed * 1000) / 1000} ${batch.unit} dari ${batch.qtyInitial} ${batch.unit} awal (${percent}% terpakai)</p>
+        ` : `<div class="card empty-state"><p class="text-muted">Belum ada SPK yang memakai batch ini.</p></div>`}
+      </div>
+    </div>
+  `;
+}
+
+function getPoStatusMeta(status) {
+  const map = {
+    draft: { label: "Draft", className: "badge-draft" },
+    sent: { label: "Dikirim", className: "badge-confirmed" },
+    partial: { label: "Partial", className: "badge-printing" },
+    received: { label: "Diterima", className: "badge-ready" },
+    cancelled: { label: "Dibatalkan", className: "badge-overdue" },
+  };
+  return map[status] || map.draft;
+}
+
+function getPurchaseOrderTotal(po) {
+  return (po.items || []).reduce((sum, item) => sum + (Number(item.qty) || 0) * (Number(item.pricePerUnit) || 0), 0);
+}
+
+function getPurchaseOrderById(poId) {
+  return (window.APP_DATA?.purchaseOrders || []).find((po) => po.id === poId);
+}
+
+function generatePurchaseOrderId() {
+  const d = new Date();
+  const date = toCompactDate(d);
+  const sameDayCount = (window.APP_DATA?.purchaseOrders || []).filter((po) => po.id.includes(`PO-${date}`)).length + 1;
+  return `PO-${date}-${String(sameDayCount).padStart(3, "0")}`;
+}
+
+function persistPurchaseOrders() {
+  localStorage.setItem("printeoo:purchase_orders", JSON.stringify(window.APP_DATA?.purchaseOrders || []));
+}
+
+function renderInventoryPurchaseOrderTab() {
+  const purchaseOrders = window.APP_DATA?.purchaseOrders || [];
+  const inventory = window.APP_DATA?.inventory || [];
+  const suppliers = [...new Set([
+    ...purchaseOrders.map((po) => po.supplier),
+    ...inventory.map((item) => item.supplier),
+  ].filter(Boolean))].sort();
+
+  const filtered = purchaseOrders
+    .filter((po) => APP_STATE.poFilters.status === "all" || po.status === APP_STATE.poFilters.status)
+    .filter((po) => APP_STATE.poFilters.supplier === "all" || po.supplier === APP_STATE.poFilters.supplier)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const rows = filtered.map((po) => {
+    const meta = getPoStatusMeta(po.status);
+    const itemSummary = (po.items || []).map((item) => `${item.itemName} (${item.qty} ${item.unit})`).join(", ");
+    return `
+      <tr>
+        <td><strong>${po.id}</strong></td>
+        <td>${po.supplier}</td>
+        <td class="text-sm">${itemSummary}</td>
+        <td><strong>${formatCurrency(getPurchaseOrderTotal(po))}</strong></td>
+        <td>${formatDate(new Date(po.createdAt))}</td>
+        <td><span class="badge ${meta.className}">${meta.label}</span></td>
+        <td>
+          <button class="btn-secondary text-xs" type="button" data-action="view-po-detail" data-po-id="${po.id}">Detail</button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  return `
+    <div class="card mb-4" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+      <div>
+        <h2 class="card-title" style="margin:0">Purchase Order</h2>
+        <p class="card-description">Buat dan pantau PO bahan ke supplier sampai barang diterima.</p>
+      </div>
+      <button class="btn-primary" type="button" data-action="open-po-modal">+ Buat PO Baru</button>
+    </div>
+    <div class="card mb-4" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:16px">
+      <div class="form-group" style="margin:0;min-width:180px">
+        <label class="form-label" for="po-status-filter">Status</label>
+        <select class="form-select" id="po-status-filter">
+          ${[
+            ["all", "Semua Status"],
+            ["draft", "Draft"],
+            ["sent", "Dikirim"],
+            ["partial", "Partial"],
+            ["received", "Diterima"],
+            ["cancelled", "Dibatalkan"],
+          ].map(([value, label]) => `<option value="${value}" ${APP_STATE.poFilters.status === value ? "selected" : ""}>${label}</option>`).join("")}
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;min-width:220px">
+        <label class="form-label" for="po-supplier-filter">Supplier</label>
+        <select class="form-select" id="po-supplier-filter">
+          <option value="all">Semua Supplier</option>
+          ${suppliers.map((supplier) => `<option value="${supplier}" ${APP_STATE.poFilters.supplier === supplier ? "selected" : ""}>${supplier}</option>`).join("")}
+        </select>
+      </div>
+      <span class="text-sm text-muted">Menampilkan ${filtered.length} dari ${purchaseOrders.length} PO</span>
+    </div>
+    ${filtered.length ? `
+      <div class="data-table">
+        <table>
+          <thead>
+            <tr>
+              <th>No. PO</th>
+              <th>Supplier</th>
+              <th>Items</th>
+              <th>Total Nilai</th>
+              <th>Tgl Dibuat</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    ` : `<div class="card empty-state"><p class="text-muted">Tidak ada PO sesuai filter.</p></div>`}
+  `;
+}
+
+function getPoItemRow(item = {}, index = 0) {
+  const inventory = window.APP_DATA?.inventory || [];
+  const selectedItem = inventory.find((i) => i.id === item.itemId);
+  const unit = item.unit || selectedItem?.unit || "";
+  const price = item.pricePerUnit ?? selectedItem?.avgCost ?? 0;
+  return `
+    <tr data-po-item-row>
+      <td>
+        <select class="form-select" name="itemId" data-po-item-select required>
+          <option value="">Pilih bahan</option>
+          ${inventory.map((inv) => `<option value="${inv.id}" data-unit="${inv.unit}" data-price="${inv.avgCost}" data-supplier="${inv.supplier}" ${item.itemId === inv.id ? "selected" : ""}>${inv.name}</option>`).join("")}
+        </select>
+      </td>
+      <td><input class="form-input" name="qty" type="number" min="0.01" step="0.01" value="${item.qty || ""}" placeholder="0" data-po-line-input required></td>
+      <td><input class="form-input" name="unit" type="text" value="${unit}" readonly data-po-unit></td>
+      <td><input class="form-input" name="pricePerUnit" type="number" min="0" value="${price}" data-po-line-input required></td>
+      <td><strong data-po-line-subtotal>${formatCurrency((Number(item.qty) || 0) * (Number(price) || 0))}</strong></td>
+      <td><button class="btn-secondary text-xs" type="button" data-action="remove-po-item" ${index === 0 ? "disabled" : ""}>Hapus</button></td>
+    </tr>
+  `;
+}
+
+function openPurchaseOrderModal(prefillItemId = null) {
+  const root = document.getElementById("inventory-modal-root");
+  if (!root) return;
+
+  const inventory = window.APP_DATA?.inventory || [];
+  const prefillItem = inventory.find((item) => item.id === prefillItemId);
+  const suppliers = [...new Set(inventory.map((item) => item.supplier))].sort();
+  const today = toDateInputValue(new Date());
+  const expected = toDateInputValue(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+  const initialItem = prefillItem
+    ? { itemId: prefillItem.id, qty: Math.max(prefillItem.minStock * 2 - prefillItem.stock, prefillItem.minStock), unit: prefillItem.unit, pricePerUnit: prefillItem.avgCost }
+    : {};
+
+  root.innerHTML = `
+    <div class="modal-overlay" id="po-modal">
+      <div class="modal-box" style="max-width:960px">
+        <div class="modal-header">
+          <h2 class="modal-title">Buat Purchase Order</h2>
+          <button class="modal-close" type="button" data-action="close-inventory-modal" aria-label="Tutup">×</button>
+        </div>
+        <form id="po-form" novalidate>
+          <div class="modal-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="po-id">Nomor PO</label>
+                <input class="form-input" id="po-id" name="id" value="${generatePurchaseOrderId()}" readonly>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="po-supplier">Supplier *</label>
+                <input class="form-input" id="po-supplier" name="supplier" list="po-supplier-list" required value="${prefillItem?.supplier || ""}" placeholder="Nama supplier">
+                <datalist id="po-supplier-list">${suppliers.map((supplier) => `<option value="${supplier}">`).join("")}</datalist>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="po-created">Tanggal PO *</label>
+                <input class="form-input" id="po-created" name="createdAt" type="date" value="${today}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="po-expected">Estimasi Terima *</label>
+                <input class="form-input" id="po-expected" name="expectedAt" type="date" value="${expected}" required>
+              </div>
+            </div>
+            <div class="data-table" style="margin:0">
+              <table>
+                <thead>
+                  <tr><th>Bahan</th><th>Qty Order</th><th>Satuan</th><th>Harga Satuan</th><th>Subtotal</th><th></th></tr>
+                </thead>
+                <tbody id="po-items-body">${getPoItemRow(initialItem, 0)}</tbody>
+              </table>
+            </div>
+            <button class="btn-secondary" type="button" data-action="add-po-item">+ Tambah Bahan</button>
+            <div style="display:flex;justify-content:flex-end;font-size:18px;font-weight:700">
+              Total PO: <span id="po-total" style="margin-left:8px">${formatCurrency(0)}</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="po-notes">Catatan ke supplier</label>
+              <textarea class="form-input" id="po-notes" name="notes" rows="2" placeholder="Catatan pengiriman, kontak, atau instruksi khusus"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" type="button" data-action="close-inventory-modal">Batal</button>
+            <button class="btn-secondary" type="submit" data-po-submit-status="draft">Simpan Draft</button>
+            <button class="btn-primary" type="submit" data-po-submit-status="sent">Kirim PO</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+
+  updatePurchaseOrderTotals();
+}
+
+function updatePurchaseOrderTotals() {
+  let total = 0;
+  document.querySelectorAll("[data-po-item-row]").forEach((row) => {
+    const qty = parseFloat(row.querySelector("[name='qty']")?.value) || 0;
+    const price = parseFloat(row.querySelector("[name='pricePerUnit']")?.value) || 0;
+    const subtotal = qty * price;
+    total += subtotal;
+    const subtotalEl = row.querySelector("[data-po-line-subtotal]");
+    if (subtotalEl) subtotalEl.textContent = formatCurrency(subtotal);
+  });
+  const totalEl = document.getElementById("po-total");
+  if (totalEl) totalEl.textContent = formatCurrency(total);
+}
+
+function submitPurchaseOrderForm(form, submitter) {
+  const formData = Object.fromEntries(new FormData(form).entries());
+  const rows = [...form.querySelectorAll("[data-po-item-row]")];
+  const inventory = window.APP_DATA?.inventory || [];
+  const items = rows.map((row) => {
+    const itemId = row.querySelector("[name='itemId']")?.value;
+    const item = inventory.find((inv) => inv.id === itemId);
+    return {
+      itemId,
+      itemName: item?.name || "",
+      qty: parseFloat(row.querySelector("[name='qty']")?.value) || 0,
+      receivedQty: 0,
+      unit: item?.unit || row.querySelector("[name='unit']")?.value || "",
+      pricePerUnit: parseFloat(row.querySelector("[name='pricePerUnit']")?.value) || 0,
+    };
+  }).filter((item) => item.itemId && item.qty > 0);
+
+  if (!formData.supplier || !formData.createdAt || !formData.expectedAt || !items.length) {
+    showToast("Lengkapi supplier, tanggal, dan minimal satu item PO.", "error");
+    return;
+  }
+
+  if (!window.APP_DATA.purchaseOrders) window.APP_DATA.purchaseOrders = [];
+  const status = submitter?.dataset.poSubmitStatus || "draft";
+  const po = {
+    id: formData.id || generatePurchaseOrderId(),
+    supplier: formData.supplier,
+    status,
+    createdAt: new Date(formData.createdAt).toISOString(),
+    expectedAt: new Date(formData.expectedAt).toISOString(),
+    notes: formData.notes || "",
+    createdBy: APP_STATE.currentUser.name,
+    sentAt: status === "sent" ? new Date().toISOString() : null,
+    receivedAt: null,
+    items,
+  };
+
+  window.APP_DATA.purchaseOrders.push(po);
+  persistPurchaseOrders();
+
+  const root = document.getElementById("inventory-modal-root");
+  if (root) root.innerHTML = "";
+  showToast(status === "sent" ? "PO berhasil dikirim ke supplier." : "Draft PO tersimpan.", "success");
+  renderInventoryPage("po");
+}
+
+function renderPurchaseOrderDetail(poId) {
+  const po = getPurchaseOrderById(poId);
+  const tabContent = document.getElementById("inventory-tab-content");
+  if (!po || !tabContent) return;
+
+  const meta = getPoStatusMeta(po.status);
+  const timeline = [
+    { label: "Draft", done: true, at: po.createdAt },
+    { label: "Dikirim", done: ["sent", "partial", "received"].includes(po.status), at: po.sentAt },
+    { label: po.status === "partial" ? "Partial" : "Diterima", done: ["partial", "received"].includes(po.status), at: po.receivedAt },
+  ];
+
+  const rows = po.items.map((item) => {
+    const remaining = Math.max((Number(item.qty) || 0) - (Number(item.receivedQty) || 0), 0);
+    return `
+      <tr>
+        <td><strong>${item.itemName}</strong></td>
+        <td>${item.qty} ${item.unit}</td>
+        <td>${item.receivedQty || 0} ${item.unit}</td>
+        <td>${remaining} ${item.unit}</td>
+        <td>${formatCurrency(item.pricePerUnit)}</td>
+        <td><strong>${formatCurrency(item.qty * item.pricePerUnit)}</strong></td>
+      </tr>
+    `;
+  }).join("");
+
+  tabContent.innerHTML = `
+    <div class="card mb-4" style="margin-bottom:16px">
+      <button class="btn-secondary" type="button" data-action="back-to-po-list" style="margin-bottom:16px">Kembali ke Daftar PO</button>
+      <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <div>
+          <h2 class="card-title" style="margin:0">${po.id}</h2>
+          <p class="card-description">${po.supplier} · dibuat ${formatDate(new Date(po.createdAt))} · estimasi ${formatDate(new Date(po.expectedAt))}</p>
+        </div>
+        <span class="badge ${meta.className}" style="align-self:flex-start">${meta.label}</span>
+      </div>
+      <div class="grid" style="margin-top:18px">
+        <div class="col-4"><div class="text-xs text-muted">Total Nilai</div><strong>${formatCurrency(getPurchaseOrderTotal(po))}</strong></div>
+        <div class="col-4"><div class="text-xs text-muted">Dibuat oleh</div><strong>${po.createdBy || "-"}</strong></div>
+        <div class="col-4"><div class="text-xs text-muted">Catatan</div><strong>${po.notes || "-"}</strong></div>
+      </div>
+    </div>
+    <div class="card mb-4" style="margin-bottom:16px">
+      <h3 style="font-size:15px;font-weight:600;margin:0 0 14px">Status Timeline</h3>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${timeline.map((step) => `<span class="badge ${step.done ? "badge-ready" : "badge-draft"}">${step.label}${step.at ? ` · ${formatDate(new Date(step.at))}` : ""}</span>`).join("")}
+      </div>
+    </div>
+    <div class="data-table">
+      <table>
+        <thead><tr><th>Bahan</th><th>Qty Order</th><th>Sudah Diterima</th><th>Sisa</th><th>Harga</th><th>Subtotal</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="card" style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      ${po.status === "draft" ? `<button class="btn-primary" type="button" data-action="send-po" data-po-id="${po.id}">Kirim PO</button>` : ""}
+      ${["sent", "partial"].includes(po.status) ? `<button class="btn-primary" type="button" data-action="open-po-receive" data-po-id="${po.id}">Catat Penerimaan</button>` : ""}
+      ${!["received", "cancelled"].includes(po.status) ? `<button class="btn-secondary" type="button" data-action="cancel-po" data-po-id="${po.id}">Batalkan PO</button>` : ""}
+    </div>
+  `;
+}
+
+function openPurchaseOrderReceiveModal(poId) {
+  const po = getPurchaseOrderById(poId);
+  const root = document.getElementById("inventory-modal-root");
+  if (!po || !root) return;
+  const today = toDateInputValue(new Date());
+  const rows = po.items.map((item) => {
+    const remaining = Math.max((Number(item.qty) || 0) - (Number(item.receivedQty) || 0), 0);
+    return `
+      <tr data-po-receive-row data-item-id="${item.itemId}">
+        <td><strong>${item.itemName}</strong><div class="text-xs text-muted">Sisa: ${remaining} ${item.unit}</div></td>
+        <td><input class="form-input" name="receivedQty" type="number" min="0" max="${remaining}" step="0.01" value="${remaining}" ${remaining <= 0 ? "disabled" : ""}></td>
+        <td>${item.unit}</td>
+      </tr>
+    `;
+  }).join("");
+
+  root.innerHTML = `
+    <div class="modal-overlay" id="po-receive-modal">
+      <div class="modal-box" style="max-width:720px">
+        <div class="modal-header">
+          <h2 class="modal-title">Catat Penerimaan dari ${po.id}</h2>
+          <button class="modal-close" type="button" data-action="close-inventory-modal" aria-label="Tutup">×</button>
+        </div>
+        <form id="po-receive-form" data-po-id="${po.id}" novalidate>
+          <div class="modal-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="po-receive-date">Tanggal Terima</label>
+                <input class="form-input" id="po-receive-date" name="receivedDate" type="date" value="${today}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="po-receive-batch-prefix">Prefix Batch</label>
+                <input class="form-input" id="po-receive-batch-prefix" name="batchPrefix" value="PO-${toCompactDate(new Date())}">
+              </div>
+            </div>
+            <div class="data-table" style="margin:0">
+              <table>
+                <thead><tr><th>Bahan</th><th>Qty Diterima</th><th>Satuan</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" type="button" data-action="close-inventory-modal">Batal</button>
+            <button class="btn-primary" type="submit">Simpan Penerimaan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function submitPurchaseOrderReceiveForm(form) {
+  const po = getPurchaseOrderById(form.dataset.poId);
+  if (!po) return;
+
+  const receivedDate = form.querySelector("[name='receivedDate']")?.value;
+  const batchPrefix = form.querySelector("[name='batchPrefix']")?.value || `PO-${toCompactDate(new Date())}`;
+  const inventory = window.APP_DATA?.inventory || [];
+  if (!window.APP_DATA.incomingLog) window.APP_DATA.incomingLog = [];
+
+  let acceptedCount = 0;
+  form.querySelectorAll("[data-po-receive-row]").forEach((row, idx) => {
+    const qty = parseFloat(row.querySelector("[name='receivedQty']")?.value) || 0;
+    if (qty <= 0) return;
+
+    const itemId = row.dataset.itemId;
+    const poItem = po.items.find((item) => item.itemId === itemId);
+    const inventoryItem = inventory.find((item) => item.id === itemId);
+    if (!poItem || !inventoryItem) return;
+
+    const remaining = Math.max((Number(poItem.qty) || 0) - (Number(poItem.receivedQty) || 0), 0);
+    const acceptedQty = Math.min(qty, remaining);
+    if (acceptedQty <= 0) return;
+
+    poItem.receivedQty = Math.round(((Number(poItem.receivedQty) || 0) + acceptedQty) * 100) / 100;
+    inventoryItem.stock = Math.round((inventoryItem.stock + acceptedQty) * 100) / 100;
+    if (inventoryItem.stock <= 0) inventoryItem.status = "empty";
+    else if (inventoryItem.stock <= inventoryItem.minStock) inventoryItem.status = "low";
+    else inventoryItem.status = "safe";
+
+    window.APP_DATA.incomingLog.push({
+      id: `INC-${String(window.APP_DATA.incomingLog.length + 1).padStart(3, "0")}`,
+      itemId,
+      itemName: inventoryItem.name,
+      batchId: `${batchPrefix}-${String(idx + 1).padStart(3, "0")}`,
+      qty: acceptedQty,
+      unit: inventoryItem.unit,
+      supplier: po.supplier,
+      pricePerUnit: poItem.pricePerUnit,
+      totalPrice: acceptedQty * poItem.pricePerUnit,
+      receivedDate: new Date(receivedDate).toISOString(),
+      receivedBy: APP_STATE.currentUser.name,
+      notes: `Penerimaan dari ${po.id}`,
+    });
+
+    if (!window.APP_DATA.batches) window.APP_DATA.batches = [];
+    window.APP_DATA.batches.push({
+      batchId: `${batchPrefix}-${String(idx + 1).padStart(3, "0")}`,
+      itemId,
+      itemName: inventoryItem.name,
+      qtyInitial: acceptedQty,
+      qtyRemaining: acceptedQty,
+      unit: inventoryItem.unit,
+      supplier: po.supplier,
+      receivedDate: new Date(receivedDate).toISOString(),
+      pricePerUnit: poItem.pricePerUnit,
+      status: "aktif",
+    });
+    acceptedCount += 1;
+  });
+
+  if (!acceptedCount) {
+    showToast("Tidak ada qty penerimaan yang dicatat.", "error");
+    return;
+  }
+
+  const allReceived = po.items.every((item) => (Number(item.receivedQty) || 0) >= (Number(item.qty) || 0));
+  po.status = allReceived ? "received" : "partial";
+  po.receivedAt = allReceived ? new Date().toISOString() : po.receivedAt;
+
+  persistPurchaseOrders();
+  localStorage.setItem("printeoo:incoming_log", JSON.stringify(window.APP_DATA.incomingLog));
+  localStorage.setItem("printeoo:batches", JSON.stringify(window.APP_DATA.batches || []));
+  const stockMap = {};
+  inventory.forEach((item) => { stockMap[item.id] = item.stock; });
+  localStorage.setItem("printeoo:inventory_stocks", JSON.stringify(stockMap));
+
+  const root = document.getElementById("inventory-modal-root");
+  if (root) root.innerHTML = "";
+  showToast(allReceived ? "PO diterima penuh dan stok bertambah." : "Penerimaan partial dicatat.", "success");
+  renderPurchaseOrderDetail(po.id);
 }
 
 function openIncomingModal() {
@@ -1993,7 +3409,22 @@ function submitIncomingForm(form) {
   };
   window.APP_DATA.incomingLog.push(entry);
 
+  if (!window.APP_DATA.batches) window.APP_DATA.batches = [];
+  window.APP_DATA.batches.push({
+    batchId: data.batchId,
+    itemId: data.itemId,
+    itemName: item.name,
+    qtyInitial: qty,
+    qtyRemaining: qty,
+    unit: item.unit,
+    supplier: data.supplier,
+    receivedDate: new Date(data.receivedDate).toISOString(),
+    pricePerUnit,
+    status: "aktif",
+  });
+
   localStorage.setItem("printeoo:incoming_log", JSON.stringify(window.APP_DATA.incomingLog));
+  localStorage.setItem("printeoo:batches", JSON.stringify(window.APP_DATA.batches));
   const stockMap = {};
   inventory.forEach((i) => { stockMap[i.id] = i.stock; });
   localStorage.setItem("printeoo:inventory_stocks", JSON.stringify(stockMap));
@@ -2943,6 +4374,12 @@ function openUsageWasteModal(spkNumber) {
                 `).join("")}
               </select>
             </div>
+            <div class="form-group">
+              <label class="form-label" for="uw-batch">Batch</label>
+              <select class="form-select" id="uw-batch" name="batchId">
+                <option value="">Pilih bahan dulu</option>
+              </select>
+            </div>
             <div id="uw-stock-warning" style="display:none;background:#FEF3C7;border:1px solid #FDE68A;border-radius:6px;padding:8px 12px;font-size:13px;color:#92400E"></div>
             <div class="form-row">
               <div class="form-group">
@@ -2991,15 +4428,26 @@ function openUsageWasteModal(spkNumber) {
     const opt = e.target.selectedOptions[0];
     if (opt?.value) {
       document.getElementById("uw-unit").value = opt.dataset.unit || "";
+      updateUsageWasteBatchOptions(e.target.value);
       checkUsageWasteStock();
     } else {
       document.getElementById("uw-unit").value = "";
+      updateUsageWasteBatchOptions(null);
     }
   });
 
   ["uw-qty-used", "uw-qty-waste"].forEach((id) => {
     document.getElementById(id)?.addEventListener("input", checkUsageWasteStock);
   });
+}
+
+function updateUsageWasteBatchOptions(itemId) {
+  const select = document.getElementById("uw-batch");
+  if (!select) return;
+  const batches = itemId ? getInventoryBatches(itemId) : [];
+  select.innerHTML = batches.length
+    ? batches.map((batch) => `<option value="${batch.batchId}">${batch.batchId} — sisa ${batch.qtyRemaining} ${batch.unit}</option>`).join("")
+    : `<option value="">Tidak ada batch tercatat</option>`;
 }
 
 function checkUsageWasteStock() {
@@ -3046,6 +4494,7 @@ function submitUsageWasteForm(form) {
     productName: order?.productName || "—",
     itemId: data.itemId,
     itemName: item.name,
+    batchId: data.batchId || null,
     unit: item.unit,
     qtyUsed,
     qtyWaste,
@@ -3063,6 +4512,13 @@ function submitUsageWasteForm(form) {
   if (item.stock <= 0) item.status = "empty";
   else if (item.stock <= item.minStock) item.status = "low";
   else item.status = "safe";
+
+  const batch = getBatchById(data.batchId);
+  if (batch) {
+    batch.qtyRemaining = Math.max(Math.round((batch.qtyRemaining - totalConsumed) * 1000) / 1000, 0);
+    batch.status = batch.qtyRemaining > 0 ? "aktif" : "habis";
+    localStorage.setItem("printeoo:batches", JSON.stringify(window.APP_DATA.batches || []));
+  }
 
   const stockMap = {};
   inventory.forEach((i) => { stockMap[i.id] = i.stock; });
@@ -3448,6 +4904,10 @@ function setupEventHandlers() {
     const form = event.target.closest("[data-action='login']");
     const orderForm = event.target.closest("#order-new-form");
     const incomingForm = event.target.closest("#incoming-form");
+    const poForm = event.target.closest("#po-form");
+    const poReceiveForm = event.target.closest("#po-receive-form");
+    const customerForm = event.target.closest("#customer-form");
+    const customerPaymentForm = event.target.closest("#customer-payment-form");
     const opnameStep1Form = event.target.closest("#opname-step1-form");
 
     if (form) {
@@ -3464,6 +4924,30 @@ function setupEventHandlers() {
     if (incomingForm) {
       event.preventDefault();
       submitIncomingForm(incomingForm);
+      return;
+    }
+
+    if (poForm) {
+      event.preventDefault();
+      submitPurchaseOrderForm(poForm, event.submitter);
+      return;
+    }
+
+    if (poReceiveForm) {
+      event.preventDefault();
+      submitPurchaseOrderReceiveForm(poReceiveForm);
+      return;
+    }
+
+    if (customerForm) {
+      event.preventDefault();
+      submitCustomerForm(customerForm);
+      return;
+    }
+
+    if (customerPaymentForm) {
+      event.preventDefault();
+      submitCustomerPayment(customerPaymentForm);
       return;
     }
 
@@ -3484,7 +4968,8 @@ function setupEventHandlers() {
     const actionButton = event.target.closest("[data-action]");
     const dateFilterButton = event.target.closest("[data-date-filter]");
     const orderRow = event.target.closest("[data-order-link]");
-    const customerOption = event.target.closest("[data-customer-id]");
+    const customerRow = event.target.closest("[data-customer-row]");
+    const customerOption = event.target.closest(".autocomplete-option[data-customer-id]");
     const productionFilterButton = event.target.closest("[data-production-filter]");
     const productionCard = event.target.closest("[data-production-spk]");
     const hrTabButton = event.target.closest("[data-hr-tab]");
@@ -3554,6 +5039,26 @@ function setupEventHandlers() {
       return;
     }
 
+    if (customerRow && !event.target.closest("a, button")) {
+      window.location.hash = `#/customer/${customerRow.dataset.customerRow}`;
+      return;
+    }
+
+    const customerTabButton = event.target.closest("[data-customer-tab]");
+    if (customerTabButton) {
+      APP_STATE.customerDetailTab = customerTabButton.dataset.customerTab || "orders";
+      renderCustomerDetailPage(customerTabButton.dataset.customerId);
+      return;
+    }
+
+    const customerOrderFilterButton = event.target.closest("[data-customer-order-filter]");
+    if (customerOrderFilterButton) {
+      APP_STATE.customerOrderFilter = customerOrderFilterButton.dataset.customerOrderFilter || "all";
+      APP_STATE.customerDetailTab = "orders";
+      renderCustomerDetailPage(customerOrderFilterButton.dataset.customerId);
+      return;
+    }
+
     if (actionButton) {
       if (actionButton.dataset.action === "logout") {
         logout();
@@ -3562,6 +5067,139 @@ function setupEventHandlers() {
 
       if (actionButton.dataset.action === "open-incoming-modal") {
         openIncomingModal();
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-customer-modal") {
+        openCustomerModal();
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-customer-edit") {
+        openCustomerModal(actionButton.dataset.customerId);
+        return;
+      }
+
+      if (actionButton.dataset.action === "close-customer-modal") {
+        closeCustomerModal();
+        return;
+      }
+
+      if (actionButton.dataset.action === "new-order-for-customer") {
+        startOrderForCustomer(actionButton.dataset.customerId);
+        return;
+      }
+
+      if (actionButton.dataset.action === "view-customer-detail") {
+        window.location.hash = `#/customer/${actionButton.dataset.customerId}`;
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-payment-modal") {
+        openPaymentModal(actionButton.dataset.customerId, actionButton.dataset.spkNumber || "");
+        return;
+      }
+
+      if (actionButton.dataset.action === "close-payment-modal") {
+        closePaymentModal();
+        return;
+      }
+
+      if (actionButton.dataset.action === "save-customer-notes") {
+        const customer = (window.APP_DATA?.customers || []).find((item) => item.id === actionButton.dataset.customerId);
+        if (customer) {
+          customer.notes = document.getElementById("customer-notes-detail")?.value || "";
+          customer.updatedAt = new Date().toISOString();
+          showToast("Catatan pelanggan disimpan.", "success");
+          renderCustomerDetailPage(customer.id);
+        }
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-po-modal") {
+        openPurchaseOrderModal(actionButton.dataset.itemId || null);
+        return;
+      }
+
+      if (actionButton.dataset.action === "add-po-item") {
+        const body = document.getElementById("po-items-body");
+        if (body) {
+          body.insertAdjacentHTML("beforeend", getPoItemRow({}, body.querySelectorAll("[data-po-item-row]").length));
+          updatePurchaseOrderTotals();
+        }
+        return;
+      }
+
+      if (actionButton.dataset.action === "remove-po-item") {
+        actionButton.closest("[data-po-item-row]")?.remove();
+        updatePurchaseOrderTotals();
+        return;
+      }
+
+      if (actionButton.dataset.action === "view-po-detail") {
+        renderPurchaseOrderDetail(actionButton.dataset.poId);
+        return;
+      }
+
+      if (actionButton.dataset.action === "back-to-po-list") {
+        renderInventoryPage("po");
+        return;
+      }
+
+      if (actionButton.dataset.action === "send-po") {
+        const po = getPurchaseOrderById(actionButton.dataset.poId);
+        if (po) {
+          po.status = "sent";
+          po.sentAt = new Date().toISOString();
+          persistPurchaseOrders();
+          showToast("PO dikirim ke supplier.", "success");
+          renderPurchaseOrderDetail(po.id);
+        }
+        return;
+      }
+
+      if (actionButton.dataset.action === "cancel-po") {
+        const po = getPurchaseOrderById(actionButton.dataset.poId);
+        if (po) {
+          po.status = "cancelled";
+          persistPurchaseOrders();
+          showToast("PO dibatalkan.", "success");
+          renderPurchaseOrderDetail(po.id);
+        }
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-po-receive") {
+        openPurchaseOrderReceiveModal(actionButton.dataset.poId);
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-item-batches") {
+        openItemBatchesModal(actionButton.dataset.itemId);
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-batch-usage") {
+        openBatchUsageModal(actionButton.dataset.batchId);
+        return;
+      }
+
+      if (actionButton.dataset.action === "lookup-batch-trace") {
+        const batchId = document.getElementById("batch-trace-input")?.value?.trim();
+        if (!batchId) {
+          showToast("Masukkan Batch ID terlebih dahulu.", "error");
+          return;
+        }
+        openBatchUsageModal(batchId);
+        return;
+      }
+
+      if (actionButton.dataset.action === "navigate-spk") {
+        const r1 = document.getElementById("inventory-modal-root");
+        const r2 = document.getElementById("global-modal-root");
+        if (r1) r1.innerHTML = "";
+        if (r2) r2.innerHTML = "";
+        window.location.hash = `#/order/${actionButton.dataset.spkNumber}`;
         return;
       }
 
@@ -3811,11 +5449,23 @@ function setupEventHandlers() {
     if (event.target.id === "order-customer") {
       APP_STATE.selectedCustomer = null;
       document.getElementById("order-customer-id").value = "";
+      renderOrderCustomerInfo(null);
       renderCustomerSuggestions(event.target.value);
     }
 
     if (event.target.id === "order-phone") {
       event.target.value = formatPhone(event.target.value);
+    }
+
+    if (event.target.id === "customers-search") {
+      APP_STATE.customerFilters.search = event.target.value;
+      renderCustomersPage();
+      return;
+    }
+
+    if (event.target.id === "customer-phone") {
+      event.target.value = formatPhone(event.target.value);
+      document.getElementById("customer-phone-error")?.classList.add("hidden");
     }
 
     if (event.target.matches(".opname-physical-input")) {
@@ -3842,6 +5492,10 @@ function setupEventHandlers() {
 
     if (event.target.matches("#order-unit-price, #order-discount, #order-dp")) {
       updateOrderCalculation();
+    }
+
+    if (event.target.matches("[data-po-line-input]")) {
+      updatePurchaseOrderTotals();
     }
   });
 
@@ -3871,6 +5525,38 @@ function setupEventHandlers() {
         const log = filterUsageByPeriod(APP_STATE.usagePeriod);
         spkTableEl.innerHTML = renderUsagePerSpkTable(log, event.target.value);
       }
+    }
+
+    if (event.target.matches("[data-po-item-select]")) {
+      const row = event.target.closest("[data-po-item-row]");
+      const opt = event.target.selectedOptions[0];
+      if (row && opt) {
+        row.querySelector("[data-po-unit]").value = opt.dataset.unit || "";
+        row.querySelector("[name='pricePerUnit']").value = opt.dataset.price || 0;
+        const supplierInput = document.getElementById("po-supplier");
+        if (supplierInput && !supplierInput.value) supplierInput.value = opt.dataset.supplier || "";
+        updatePurchaseOrderTotals();
+      }
+    }
+
+    if (event.target.id === "po-status-filter" || event.target.id === "po-supplier-filter") {
+      APP_STATE.poFilters.status = document.getElementById("po-status-filter")?.value || "all";
+      APP_STATE.poFilters.supplier = document.getElementById("po-supplier-filter")?.value || "all";
+      const tabContent = document.getElementById("inventory-tab-content");
+      if (tabContent) tabContent.innerHTML = renderInventoryPurchaseOrderTab();
+    }
+
+    if (event.target.matches("input[name='type']")) {
+      const label = document.getElementById("customer-name-label");
+      if (label) label.textContent = event.target.value === "individual" ? "Nama Lengkap *" : "Nama Perusahaan *";
+    }
+
+    if (event.target.id === "customers-type-filter" || event.target.id === "customers-debt-filter" || event.target.id === "customers-sort") {
+      APP_STATE.customerFilters.type = document.getElementById("customers-type-filter")?.value || "all";
+      APP_STATE.customerFilters.debt = document.getElementById("customers-debt-filter")?.value || "all";
+      APP_STATE.customerFilters.sort = document.getElementById("customers-sort")?.value || "name";
+      renderCustomersPage();
+      return;
     }
 
     if (event.target.id === "waste-item-filter" || event.target.id === "waste-cat-filter") {
@@ -3963,6 +5649,19 @@ function formatCurrency(number) {
   }).format(number || 0);
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
+}
+
 function formatDate(dateInput) {
   return new Intl.DateTimeFormat("id-ID", {
     day: "numeric",
@@ -4048,6 +5747,34 @@ function loadStoredInventory() {
   } catch (e) {}
 
   try {
+    const storedBatches = localStorage.getItem("printeoo:batches");
+    if (storedBatches && window.APP_DATA) {
+      const parsed = JSON.parse(storedBatches);
+      const existingIds = new Set((window.APP_DATA.batches || []).map((batch) => batch.batchId));
+      const newEntries = parsed.filter((batch) => !existingIds.has(batch.batchId));
+      if (!window.APP_DATA.batches) window.APP_DATA.batches = [];
+      window.APP_DATA.batches.push(...newEntries);
+    }
+  } catch (e) {}
+
+  try {
+    const storedPo = localStorage.getItem("printeoo:purchase_orders");
+    if (storedPo && window.APP_DATA) {
+      const parsed = JSON.parse(storedPo);
+      const existingIds = new Set((window.APP_DATA.purchaseOrders || []).map((po) => po.id));
+      const newEntries = parsed.filter((po) => !existingIds.has(po.id));
+      if (!window.APP_DATA.purchaseOrders) window.APP_DATA.purchaseOrders = [];
+      window.APP_DATA.purchaseOrders.push(...newEntries);
+    }
+  } catch (e) {}
+
+  try {
+    if (backfillUsageBatchIds()) {
+      localStorage.setItem("printeoo:usage_log", JSON.stringify(window.APP_DATA.usageLog || []));
+    }
+  } catch (e) {}
+
+  try {
     const storedSessions = localStorage.getItem("printeoo:opname_sessions");
     if (storedSessions && window.APP_DATA) {
       const parsed = JSON.parse(storedSessions);
@@ -4092,6 +5819,7 @@ function getIcon(name) {
   const icons = {
     dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h8V3H3v10Z"/><path d="M13 21h8V11h-8v10Z"/><path d="M13 3v6h8V3h-8Z"/><path d="M3 21h8v-6H3v6Z"/></svg>',
     orders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>',
+    customers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
     production: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="m20 4-7 7"/><path d="m4 20 7-7"/></svg>',
     queue: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',

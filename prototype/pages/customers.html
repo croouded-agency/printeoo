@@ -1,0 +1,55 @@
+<section class="customers-page" data-page="customers">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Pelanggan</h1>
+      <p class="page-subtitle">Database pelanggan, riwayat order, piutang, dan catatan relasi bisnis.</p>
+    </div>
+    <div class="flex gap-3 flex-wrap">
+      <a class="btn-secondary" href="#/order-new">+ Buat Order</a>
+      <button class="btn-primary" type="button" data-action="open-customer-modal">+ Tambah Pelanggan</button>
+    </div>
+  </div>
+
+  <section id="customer-stats" class="metric-grid" aria-label="Ringkasan pelanggan"></section>
+
+  <div class="card mb-4" style="margin-bottom:16px">
+    <div class="card-section-header">
+      <h2 class="card-title">Daftar Pelanggan</h2>
+      <span id="customers-counter" class="text-sm text-muted"></span>
+    </div>
+    <div class="grid" style="margin-top:16px">
+      <div class="col-4">
+        <label class="form-label" for="customers-search">Cari pelanggan</label>
+        <input class="form-input" id="customers-search" type="search" placeholder="Nama, nomor HP, email">
+      </div>
+      <div class="col-3">
+        <label class="form-label" for="customers-type-filter">Tipe</label>
+        <select class="form-select" id="customers-type-filter">
+          <option value="all">Semua Tipe</option>
+          <option value="individual">Individual</option>
+          <option value="perusahaan">Perusahaan</option>
+          <option value="instansi">Instansi</option>
+        </select>
+      </div>
+      <div class="col-3">
+        <label class="form-label" for="customers-debt-filter">Piutang</label>
+        <select class="form-select" id="customers-debt-filter">
+          <option value="all">Semua</option>
+          <option value="debt">Ada Piutang</option>
+          <option value="clear">Tidak Ada Piutang</option>
+        </select>
+      </div>
+      <div class="col-2">
+        <label class="form-label" for="customers-sort">Sort</label>
+        <select class="form-select" id="customers-sort">
+          <option value="name">Nama A-Z</option>
+          <option value="spending">Spending Terbesar</option>
+          <option value="last_order">Order Terbaru</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div id="customers-table-container"></div>
+  <div id="customer-modal-root"></div>
+</section>

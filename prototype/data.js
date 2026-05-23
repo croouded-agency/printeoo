@@ -153,6 +153,36 @@
     };
   });
 
+  customers.forEach((customer, index) => {
+    const customerOrders = orders.filter((order) => order.customerId === customer.id);
+    const latestOrder = customerOrders
+      .slice()
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+    const totalSpending = customerOrders.reduce((sum, order) => sum + order.total, 0);
+    const outstandingDebt = customerOrders.reduce((sum, order) => (
+      ["paid", "cancelled"].includes(order.paymentStatus)
+        ? sum
+        : sum + Math.max(order.total - (order.paidAmount || 0), 0)
+    ), 0);
+    const typeMap = {
+      individual: "individual",
+      institution: "instansi",
+      community: "instansi",
+      company: "perusahaan",
+      business: "perusahaan",
+    };
+
+    customer.type = typeMap[customer.type] || "perusahaan";
+    customer.totalSpending = totalSpending;
+    customer.totalOrders = customerOrders.length;
+    customer.outstandingDebt = outstandingDebt;
+    customer.lastOrderDate = latestOrder?.createdAt || null;
+    customer.createdAt = addDays(-180 + index * 5, 9, 0);
+    customer.notes = customerOrders.length
+      ? `Pelanggan ${customer.segment}; ${customerOrders.length} order tercatat di prototype.`
+      : `Pelanggan ${customer.segment}; belum ada order aktif.`;
+  });
+
   const employees = [
     { id: "EMP-001", name: "Ahmad Fauzi", role: "owner", position: "Owner", contractType: "bulanan", branchId: "BR-SBY-PUSAT", salary: 12000000, phone: "0812-1111-2233" },
     { id: "EMP-002", name: "Siti Aminah", role: "cashier", position: "Kasir", contractType: "bulanan", branchId: "BR-SBY-PUSAT", salary: 4200000, phone: "0813-2222-3344" },
@@ -255,6 +285,55 @@
     { id: "USE-039", spkNumber: orders[31].spkNumber, productName: orders[31].productName, itemId: "MAT-009", itemName: "Tinta Black Epson", unit: "liter", qtyUsed: 0.45, qtyWaste: 0.02, wasteCategory: "overflow", unitCost: 175000, usedAt: addDays(-28, 9, 0), operatorId: "EMP-005", operatorName: "Eko Pramono" },
   ];
 
+  const batches = [
+    { batchId: "BATCH-20260515-001", itemId: "MAT-001", itemName: "Flexi China 340gr", qtyInitial: 8, qtyRemaining: 3.2, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-8), pricePerUnit: 650000, status: "aktif" },
+    { batchId: "BATCH-20260502-002", itemId: "MAT-001", itemName: "Flexi China 340gr", qtyInitial: 6, qtyRemaining: 1.1, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-21), pricePerUnit: 640000, status: "aktif" },
+    { batchId: "BATCH-20260418-003", itemId: "MAT-001", itemName: "Flexi China 340gr", qtyInitial: 10, qtyRemaining: 0, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-35), pricePerUnit: 635000, status: "habis" },
+    { batchId: "BATCH-20260510-001", itemId: "MAT-003", itemName: "Art Paper 150gr", qtyInitial: 20, qtyRemaining: 12.5, unit: "rim", supplier: "Toko Kertas Surabaya", receivedDate: addDays(-13), pricePerUnit: 72000, status: "aktif" },
+    { batchId: "BATCH-20260429-002", itemId: "MAT-003", itemName: "Art Paper 150gr", qtyInitial: 25, qtyRemaining: 8.7, unit: "rim", supplier: "Toko Kertas Surabaya", receivedDate: addDays(-24), pricePerUnit: 71000, status: "aktif" },
+    { batchId: "BATCH-20260412-003", itemId: "MAT-003", itemName: "Art Paper 150gr", qtyInitial: 30, qtyRemaining: 0, unit: "rim", supplier: "Toko Kertas Surabaya", receivedDate: addDays(-41), pricePerUnit: 70500, status: "habis" },
+    { batchId: "BATCH-20260511-001", itemId: "MAT-007", itemName: "Tinta Magenta Epson", qtyInitial: 2, qtyRemaining: 0.5, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-12), pricePerUnit: 185000, status: "aktif" },
+    { batchId: "BATCH-20260427-002", itemId: "MAT-007", itemName: "Tinta Magenta Epson", qtyInitial: 2, qtyRemaining: 0, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-26), pricePerUnit: 182000, status: "habis" },
+    { batchId: "BATCH-20260408-003", itemId: "MAT-007", itemName: "Tinta Magenta Epson", qtyInitial: 3, qtyRemaining: 0, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-45), pricePerUnit: 180000, status: "habis" },
+    { batchId: "BATCH-20260425-001", itemId: "MAT-009", itemName: "Tinta Black Epson", qtyInitial: 4, qtyRemaining: 2.1, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-28), pricePerUnit: 175000, status: "aktif" },
+    { batchId: "BATCH-20260410-002", itemId: "MAT-009", itemName: "Tinta Black Epson", qtyInitial: 3, qtyRemaining: 0.4, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-43), pricePerUnit: 172000, status: "aktif" },
+    { batchId: "BATCH-20260328-003", itemId: "MAT-009", itemName: "Tinta Black Epson", qtyInitial: 5, qtyRemaining: 0, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-56), pricePerUnit: 170000, status: "habis" },
+    { batchId: "BATCH-20260508-001", itemId: "MAT-011", itemName: "Laminasi Doff 32cm", qtyInitial: 5, qtyRemaining: 2, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-15), pricePerUnit: 225000, status: "aktif" },
+    { batchId: "BATCH-20260422-002", itemId: "MAT-011", itemName: "Laminasi Doff 32cm", qtyInitial: 4, qtyRemaining: 0, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-31), pricePerUnit: 220000, status: "habis" },
+    { batchId: "BATCH-20260405-003", itemId: "MAT-011", itemName: "Laminasi Doff 32cm", qtyInitial: 6, qtyRemaining: 0, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-48), pricePerUnit: 218000, status: "habis" },
+  ];
+
+  [...new Set(usageLog.map((entry) => entry.itemId))].forEach((itemId, index) => {
+    if (batches.some((batch) => batch.itemId === itemId)) return;
+    const item = inventory.find((inv) => inv.id === itemId);
+    const usedQty = usageLog
+      .filter((entry) => entry.itemId === itemId)
+      .reduce((sum, entry) => sum + entry.qtyUsed + (entry.qtyWaste || 0), 0);
+    if (!item) return;
+    batches.push({
+      batchId: `BATCH-LEGACY-${String(index + 1).padStart(3, "0")}`,
+      itemId,
+      itemName: item.name,
+      qtyInitial: Math.round((usedQty + item.stock) * 1000) / 1000,
+      qtyRemaining: item.stock,
+      unit: item.unit,
+      supplier: item.supplier,
+      receivedDate: addDays(-34 - index),
+      pricePerUnit: item.avgCost,
+      status: item.stock > 0 ? "aktif" : "habis",
+    });
+  });
+
+  const batchIdsByItem = batches.reduce((acc, batch) => {
+    if (!acc[batch.itemId]) acc[batch.itemId] = [];
+    acc[batch.itemId].push(batch.batchId);
+    return acc;
+  }, {});
+  usageLog.forEach((entry, index) => {
+    const options = batchIdsByItem[entry.itemId];
+    if (options?.length) entry.batchId = options[index % options.length];
+  });
+
   const opnameSessions = [
     {
       id: "OPN-001",
@@ -309,6 +388,83 @@
   const adjustmentLog = [
     { id: "ADJ-001", opnameId: "OPN-001", itemId: "MAT-002", itemName: "Flexi Korea 440gr", oldStock: 5, newStock: 4, diff: -1, unit: "roll", adjustedAt: addDays(-22), adjustedBy: "Ahmad Fauzi" },
     { id: "ADJ-002", opnameId: "OPN-002", itemId: "MAT-007", itemName: "Tinta Magenta Epson", oldStock: 0.75, newStock: 0.5, diff: -0.25, unit: "liter", adjustedAt: addDays(-10), adjustedBy: "Ahmad Fauzi" },
+  ];
+
+  const purchaseOrders = [
+    {
+      id: "PO-20260523-001",
+      supplier: "Inkindo Surabaya",
+      status: "sent",
+      createdAt: addDays(0, 9, 15),
+      expectedAt: addDays(2, 15, 0),
+      notes: "Prioritas untuk stok tinta magenta yang menipis.",
+      createdBy: "Ahmad Fauzi",
+      sentAt: addDays(0, 9, 40),
+      receivedAt: null,
+      items: [
+        { itemId: "MAT-007", itemName: "Tinta Magenta Epson", qty: 5, receivedQty: 0, unit: "liter", pricePerUnit: 185000 },
+        { itemId: "MAT-006", itemName: "Tinta Cyan Epson", qty: 3, receivedQty: 0, unit: "liter", pricePerUnit: 185000 },
+      ],
+    },
+    {
+      id: "PO-20260522-002",
+      supplier: "UD Sumber Grafika",
+      status: "partial",
+      createdAt: addDays(-1, 11, 0),
+      expectedAt: addDays(1, 14, 0),
+      notes: "Sebagian laminasi doff sudah diterima, sisa menyusul.",
+      createdBy: "Siti Aminah",
+      sentAt: addDays(-1, 11, 25),
+      receivedAt: null,
+      items: [
+        { itemId: "MAT-011", itemName: "Laminasi Doff 32cm", qty: 6, receivedQty: 2, unit: "roll", pricePerUnit: 225000 },
+        { itemId: "MAT-001", itemName: "Flexi China 340gr", qty: 5, receivedQty: 0, unit: "roll", pricePerUnit: 650000 },
+      ],
+    },
+    {
+      id: "PO-20260519-003",
+      supplier: "Toko Alat Reklame",
+      status: "received",
+      createdAt: addDays(-4, 10, 30),
+      expectedAt: addDays(-2, 15, 0),
+      notes: "Stok display untuk kebutuhan roll banner kampus.",
+      createdBy: "Ahmad Fauzi",
+      sentAt: addDays(-4, 11, 0),
+      receivedAt: addDays(-2, 14, 10),
+      items: [
+        { itemId: "MAT-015", itemName: "Stand Roll Banner 85x200", qty: 8, receivedQty: 8, unit: "pcs", pricePerUnit: 175000 },
+        { itemId: "MAT-014", itemName: "Rangka X-Banner 60x160", qty: 12, receivedQty: 12, unit: "pcs", pricePerUnit: 42000 },
+      ],
+    },
+    {
+      id: "PO-20260518-004",
+      supplier: "Toko Kertas Surabaya",
+      status: "draft",
+      createdAt: addDays(-5, 13, 20),
+      expectedAt: addDays(3, 15, 0),
+      notes: "Draft pembelian kertas untuk promo brosur akhir bulan.",
+      createdBy: "Siti Aminah",
+      sentAt: null,
+      receivedAt: null,
+      items: [
+        { itemId: "MAT-003", itemName: "Art Paper 150gr", qty: 20, receivedQty: 0, unit: "rim", pricePerUnit: 72000 },
+        { itemId: "MAT-004", itemName: "Art Carton 260gr", qty: 10, receivedQty: 0, unit: "rim", pricePerUnit: 96000 },
+      ],
+    },
+    {
+      id: "PO-20260516-005",
+      supplier: "PT Media Visual Prima",
+      status: "cancelled",
+      createdAt: addDays(-7, 10, 0),
+      expectedAt: addDays(-3, 15, 0),
+      notes: "Dibatalkan karena supplier tidak bisa kirim Flexi Korea minggu ini.",
+      createdBy: "Ahmad Fauzi",
+      sentAt: addDays(-7, 10, 20),
+      receivedAt: null,
+      items: [
+        { itemId: "MAT-002", itemName: "Flexi Korea 440gr", qty: 6, receivedQty: 0, unit: "roll", pricePerUnit: 980000 },
+      ],
+    },
   ];
 
   const dashboard = {
@@ -377,11 +533,13 @@
     employees,
     inventory,
     materialBatches,
+    batches,
     scanLogs,
     incomingLog,
     usageLog,
     opnameSessions,
     adjustmentLog,
+    purchaseOrders,
     dashboard,
     branches,
     queueNumbers,
