@@ -32,6 +32,7 @@ const APP_STATE = {
   selectedCustomer: null,
   currentOpnameSession: null,
   usagePeriod: "month",
+  wastePeriod: "month",
 };
 
 window.APP_STATE = APP_STATE;
@@ -957,6 +958,43 @@ function renderOrderInfoCard(order) {
         <h3 class="detail-subtitle">File Upload</h3>
         <ul class="file-list">${fileList}</ul>
       </div>
+      ${["printing","finishing","ready","delivered","closed"].includes(order.status) ? `
+      <div class="mt-4" style="border-top:1px solid var(--neutral-200);padding-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
+          <h3 class="detail-subtitle" style="margin:0">Material & Waste</h3>
+          <div style="display:flex;gap:6px">
+            <button class="btn-secondary" type="button" data-action="open-qr-scan"
+              style="font-size:12px;padding:5px 10px">📷 Scan QR</button>
+            <button class="btn-primary" type="button"
+              data-action="open-usage-waste-modal"
+              data-spk-number="${order.spkNumber}"
+              style="font-size:12px;padding:5px 10px">+ Catat Pemakaian</button>
+          </div>
+        </div>
+        ${(() => {
+          const usages = (window.APP_DATA?.usageLog || []).filter((u) => u.spkNumber === order.spkNumber);
+          if (!usages.length) return `<p class="text-muted text-sm">Belum ada material dicatat untuk SPK ini.</p>`;
+          const wasteCatLabels = { cutting:"Cutting",misprint:"Gagal Cetak",overflow:"Kelebihan",calibration:"Setup Loss",damage:"Kerusakan" };
+          return `
+            <div class="data-table" style="margin:0">
+              <table>
+                <thead><tr><th>Bahan</th><th>Qty Pakai</th><th>Waste</th><th>Kategori</th></tr></thead>
+                <tbody>
+                  ${usages.map((u) => `
+                    <tr>
+                      <td>${u.itemName}</td>
+                      <td>${u.qtyUsed} ${u.unit}</td>
+                      <td class="${u.qtyWaste > 0 ? "text-warning" : "text-muted"}">${u.qtyWaste} ${u.unit}</td>
+                      <td class="text-xs text-muted">${u.wasteCategory ? (wasteCatLabels[u.wasteCategory] || u.wasteCategory) : "—"}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          `;
+        })()}
+      </div>
+      ` : ""}
     </article>
   `;
 }
@@ -1724,6 +1762,8 @@ function renderInventoryPage(activeTab = "stok") {
     tabContent.innerHTML = renderInventoryOpnameTab();
   } else if (activeTab === "usage") {
     tabContent.innerHTML = renderInventoryUsageTab(APP_STATE.usagePeriod);
+  } else if (activeTab === "waste") {
+    tabContent.innerHTML = renderInventoryWasteTab(APP_STATE.wastePeriod);
   }
 }
 
@@ -1739,6 +1779,7 @@ function renderInventoryStokTab(inventory) {
             <th>Satuan</th>
             <th>Min. Stok</th>
             <th>Status</th>
+            <th style="width:56px">QR</th>
           </tr>
         </thead>
         <tbody>
@@ -1752,6 +1793,12 @@ function renderInventoryStokTab(inventory) {
                 <td>${item.unit}</td>
                 <td>${item.minStock}</td>
                 <td><span class="badge ${status.className}">${status.label}</span></td>
+                <td>
+                  <button class="btn-icon-qr" type="button" title="Cetak Label QR"
+                    data-action="open-qr-label" data-item-id="${item.id}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3z"/><path d="M17 17h3v3h-3z"/><path d="M14 20h3"/><path d="M20 14v3"/></svg>
+                  </button>
+                </td>
               </tr>
             `;
           }).join("")}
@@ -1783,6 +1830,7 @@ function renderInventoryIncomingTab() {
             <th>Harga/Satuan</th>
             <th>Total</th>
             <th>Dicatat Oleh</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -1796,6 +1844,14 @@ function renderInventoryIncomingTab() {
               <td>${formatCurrency(entry.pricePerUnit)}</td>
               <td><strong>${formatCurrency(entry.totalPrice)}</strong></td>
               <td>${entry.receivedBy}</td>
+              <td><button class="btn-secondary text-xs" type="button"
+                data-action="open-qr-label-batch"
+                data-item-id="${entry.itemId}"
+                data-batch-id="${entry.batchId}"
+                data-item-name="${entry.itemName}"
+                data-qty="${entry.qty}"
+                data-unit="${entry.unit}"
+                data-date="${entry.receivedDate}">Label QR</button></td>
             </tr>
           `).join("")}
         </tbody>
@@ -1953,6 +2009,209 @@ function getInventoryStatus(item) {
   if (item.stock <= 0) return { label: "Habis", className: "badge-overdue" };
   if (item.stock <= item.minStock) return { label: "Menipis", className: "badge-urgent" };
   return { label: "Aman", className: "badge-ready" };
+}
+
+function openQrLabelModal(itemId, prefillBatchId = null) {
+  const root = document.getElementById("inventory-modal-root") || document.getElementById("global-modal-root");
+  if (!root) return;
+
+  const inventory = window.APP_DATA?.inventory || [];
+  const item = inventory.find((i) => i.id === itemId);
+  if (!item) return;
+
+  const batches = (window.APP_DATA?.materialBatches || []).filter((b) => b.materialId === itemId);
+  const incomingEntries = (window.APP_DATA?.incomingLog || []).filter((e) => e.itemId === itemId);
+
+  // Build batch options: prefer materialBatches, fallback to incomingLog entries
+  const batchOptions = batches.length
+    ? batches.map((b) => ({ batchId: b.batchNumber, qty: b.initialQty, date: b.receivedAt }))
+    : incomingEntries.slice(0, 5).map((e) => ({ batchId: e.batchId, qty: e.qty, date: e.receivedDate }));
+
+  if (!batchOptions.length) {
+    batchOptions.push({ batchId: `BATCH-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-001`, qty: item.stock, date: new Date().toISOString() });
+  }
+
+  const selectedBatch = batchOptions.find((b) => b.batchId === prefillBatchId) || batchOptions[0];
+
+  root.innerHTML = `
+    <div class="modal-overlay" id="qr-label-modal">
+      <div class="modal-box" style="max-width:520px">
+        <div class="modal-header">
+          <h2 class="modal-title">Label QR Bahan</h2>
+          <button class="modal-close" type="button" data-action="close-inventory-modal">×</button>
+        </div>
+        <div class="modal-form">
+          ${batchOptions.length > 1 ? `
+            <div class="form-group">
+              <label class="form-label">Pilih Batch</label>
+              <select class="form-select" id="qr-batch-select">
+                ${batchOptions.map((b) => `
+                  <option value="${b.batchId}" data-qty="${b.qty}" data-date="${b.date}"
+                    ${b.batchId === selectedBatch.batchId ? "selected" : ""}>
+                    ${b.batchId} — ${b.qty} ${item.unit}
+                  </option>
+                `).join("")}
+              </select>
+            </div>
+          ` : ""}
+          <div style="display:flex;justify-content:center;padding:8px 0">
+            <div class="qr-label-sticker" id="qr-label-print-area">
+              <div class="qr-label-left">
+                <div class="qr-brand">
+                  <span class="qr-brand-mark">P</span>
+                  <span class="qr-brand-name">PRINTEOO</span>
+                </div>
+                <div id="qr-code-render" style="width:80px;height:80px"></div>
+              </div>
+              <div class="qr-label-right">
+                <div class="qr-item-name">${item.name}</div>
+                <div class="qr-detail">Batch: <strong id="qr-batch-display">${selectedBatch.batchId.replace("BATCH-","").replace(/-/g," ").trim()}</strong></div>
+                <div class="qr-detail">Masuk: <strong>${formatDate(new Date(selectedBatch.date))}</strong></div>
+                <div class="qr-detail qty">
+                  <strong id="qr-qty-display">${selectedBatch.qty}</strong> ${item.unit}
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="text-muted text-xs" style="text-align:center;margin-top:4px">
+            Scan QR untuk akses info batch di sistem Printeoo
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" type="button" data-action="close-inventory-modal">Tutup</button>
+          <button class="btn-secondary" type="button" data-action="download-qr-png">↓ Download PNG</button>
+          <button class="btn-primary" type="button" data-action="print-qr-label">🖨 Cetak Label</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  generateQrCode(
+    `printeoo://scan?b=${selectedBatch.batchId}&t=demo&item=${encodeURIComponent(item.name)}`,
+    "qr-code-render"
+  );
+
+  // Batch selector update
+  const batchSelect = document.getElementById("qr-batch-select");
+  if (batchSelect) {
+    batchSelect.addEventListener("change", (e) => {
+      const opt = e.target.selectedOptions[0];
+      document.getElementById("qr-batch-display").textContent =
+        opt.value.replace("BATCH-","").replace(/-/g," ").trim();
+      document.getElementById("qr-qty-display").textContent = opt.dataset.qty;
+      generateQrCode(
+        `printeoo://scan?b=${opt.value}&t=demo&item=${encodeURIComponent(item.name)}`,
+        "qr-code-render"
+      );
+    });
+  }
+}
+
+function generateQrCode(data, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (window.QRCode) {
+    new window.QRCode(container, {
+      text: data,
+      width: 80,
+      height: 80,
+      colorDark: "#111827",
+      colorLight: "#ffffff",
+      correctLevel: window.QRCode.CorrectLevel.M,
+    });
+  } else {
+    // Fallback: show encoded text in small box
+    container.innerHTML = `<div style="width:80px;height:80px;background:#F3F4F6;display:flex;align-items:center;justify-content:center;font-size:8px;color:#6B7280;text-align:center;word-break:break-all;padding:4px">${data.slice(0,40)}</div>`;
+  }
+}
+
+function downloadQrPng() {
+  const canvas = document.querySelector("#qr-code-render canvas");
+  if (!canvas) {
+    showToast("QR code belum termuat. Coba lagi sebentar.", "error");
+    return;
+  }
+  const batchDisplay = document.getElementById("qr-batch-display");
+  const filename = `qr-${(batchDisplay?.textContent || "label").replace(/\s+/g, "-")}.png`;
+  canvas.toBlob((blob) => {
+    if (!blob) { showToast("Gagal download.", "error"); return; }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  });
+}
+
+function openQrScanModal() {
+  const root = document.getElementById("global-modal-root") || document.getElementById("inventory-modal-root");
+  if (!root) return;
+
+  const dummyBatches = [
+    { batchId: "BCH-FLX340-2605-001", itemId: "MAT-001", itemName: "Flexi China 340gr", qty: 8, unit: "roll" },
+    { batchId: "BCH-FLX440-2605-002", itemId: "MAT-002", itemName: "Flexi Korea 440gr", qty: 4, unit: "roll" },
+    { batchId: "BCH-INKM-2605-003", itemId: "MAT-007", itemName: "Tinta Magenta Epson", qty: 2, unit: "liter" },
+  ];
+
+  root.innerHTML = `
+    <div class="modal-overlay" id="qr-scan-modal">
+      <div class="modal-box" style="max-width:440px">
+        <div class="modal-header">
+          <h2 class="modal-title">📷 Scan QR Bahan</h2>
+          <button class="modal-close" type="button" data-action="close-inventory-modal">×</button>
+        </div>
+        <div class="modal-form">
+          <div style="background:#0F172A;border-radius:8px;width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;margin-bottom:4px;position:relative;overflow:hidden">
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px">
+              <div style="width:160px;height:160px;border:3px solid #2563EB;border-radius:8px;position:relative">
+                <div style="position:absolute;top:-3px;left:-3px;width:24px;height:24px;border-top:4px solid #60A5FA;border-left:4px solid #60A5FA;border-radius:3px 0 0 0"></div>
+                <div style="position:absolute;top:-3px;right:-3px;width:24px;height:24px;border-top:4px solid #60A5FA;border-right:4px solid #60A5FA;border-radius:0 3px 0 0"></div>
+                <div style="position:absolute;bottom:-3px;left:-3px;width:24px;height:24px;border-bottom:4px solid #60A5FA;border-left:4px solid #60A5FA;border-radius:0 0 0 3px"></div>
+                <div style="position:absolute;bottom:-3px;right:-3px;width:24px;height:24px;border-bottom:4px solid #60A5FA;border-right:4px solid #60A5FA;border-radius:0 0 3px 0"></div>
+                <div style="position:absolute;top:50%;left:0;right:0;height:2px;background:rgba(96,165,250,0.5);transform:translateY(-50%)"></div>
+              </div>
+              <span style="color:#94A3B8;font-size:13px">Arahkan kamera ke QR code</span>
+            </div>
+          </div>
+          <p class="text-muted text-xs" style="text-align:center">Kamera membutuhkan izin browser. Gunakan simulasi di bawah untuk demo.</p>
+
+          <div style="border-top:1px solid var(--neutral-200);padding-top:16px;margin-top:4px">
+            <p class="form-label" style="margin-bottom:8px">Masukkan Batch ID Manual</p>
+            <div style="display:flex;gap:8px">
+              <input class="form-input" id="qr-manual-batch" type="text" placeholder="BCH-FLX340-..." style="flex:1">
+              <button class="btn-secondary" type="button" data-action="lookup-batch-manual">Cari</button>
+            </div>
+          </div>
+
+          <div style="background:var(--primary-light);border:1px solid #BFDBFE;border-radius:8px;padding:14px">
+            <p class="form-label" style="margin-bottom:10px;color:#1D4ED8">🎯 Simulasi Scan — Demo</p>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              ${dummyBatches.map((b) => `
+                <button class="btn-secondary" type="button" style="text-align:left;font-size:13px"
+                  data-action="simulate-qr-scan"
+                  data-batch-id="${b.batchId}"
+                  data-item-id="${b.itemId}"
+                  data-item-name="${b.itemName}"
+                  data-qty="${b.qty}"
+                  data-unit="${b.unit}">
+                  <code style="font-size:11px;color:#1D4ED8">${b.batchId}</code>
+                  <span class="text-muted"> — ${b.itemName}</span>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+        <div id="qr-scan-result" style="display:none;padding:12px 20px;background:#D1FAE5;border-top:1px solid #6EE7B7">
+          <p style="font-size:13px;color:#065F46;font-weight:600">✓ Batch ditemukan:</p>
+          <p id="qr-scan-result-text" style="font-size:14px;margin-top:4px"></p>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderInventoryOpnameTab() {
@@ -2657,6 +2916,321 @@ function renderUsageBarChart(log, period) {
   `;
 }
 
+function openUsageWasteModal(spkNumber) {
+  const root = document.getElementById("global-modal-root");
+  if (!root) return;
+
+  const inventory = window.APP_DATA?.inventory || [];
+  const today = new Date().toISOString().split("T")[0];
+
+  root.innerHTML = `
+    <div class="modal-overlay" id="usage-waste-modal">
+      <div class="modal-box" style="max-width:520px">
+        <div class="modal-header">
+          <h2 class="modal-title">Catat Pemakaian Material</h2>
+          <button class="modal-close" type="button" data-action="close-inventory-modal">×</button>
+        </div>
+        <form id="usage-waste-form" novalidate>
+          <div class="modal-form">
+            <div class="form-group">
+              <label class="form-label" for="uw-item">Bahan *</label>
+              <select class="form-select" id="uw-item" name="itemId" required>
+                <option value="">-- Pilih Bahan --</option>
+                ${inventory.map((item) => `
+                  <option value="${item.id}" data-unit="${item.unit}" data-stock="${item.stock}" data-cost="${item.avgCost}">
+                    ${item.name} (stok: ${item.stock} ${item.unit})
+                  </option>
+                `).join("")}
+              </select>
+            </div>
+            <div id="uw-stock-warning" style="display:none;background:#FEF3C7;border:1px solid #FDE68A;border-radius:6px;padding:8px 12px;font-size:13px;color:#92400E"></div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="uw-qty-used">Qty Dipakai *</label>
+                <input class="form-input" id="uw-qty-used" name="qtyUsed" type="number" min="0.001" step="0.001" required placeholder="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="uw-unit">Satuan</label>
+                <input class="form-input" id="uw-unit" type="text" readonly placeholder="(auto-fill)">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="uw-qty-waste">Qty Waste</label>
+                <input class="form-input" id="uw-qty-waste" name="qtyWaste" type="number" min="0" step="0.001" value="0" placeholder="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="uw-waste-cat">Kategori Waste</label>
+                <select class="form-select" id="uw-waste-cat" name="wasteCategory">
+                  <option value="">— Tidak ada waste —</option>
+                  <option value="misprint">Gagal Cetak</option>
+                  <option value="cutting">Trim Sisa</option>
+                  <option value="damage">Kerusakan Bahan</option>
+                  <option value="calibration">Setup Loss</option>
+                  <option value="overflow">Lainnya</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="uw-notes">Catatan (opsional)</label>
+              <textarea class="form-input" id="uw-notes" name="notes" rows="2" placeholder="Keterangan tambahan tentang pemakaian atau waste"></textarea>
+            </div>
+            <input type="hidden" name="spkNumber" value="${spkNumber}">
+            <input type="hidden" name="usedAt" value="${today}">
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" type="button" data-action="close-inventory-modal">Batal</button>
+            <button class="btn-primary" type="submit">Simpan Pemakaian</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("uw-item").addEventListener("change", (e) => {
+    const opt = e.target.selectedOptions[0];
+    if (opt?.value) {
+      document.getElementById("uw-unit").value = opt.dataset.unit || "";
+      checkUsageWasteStock();
+    } else {
+      document.getElementById("uw-unit").value = "";
+    }
+  });
+
+  ["uw-qty-used", "uw-qty-waste"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", checkUsageWasteStock);
+  });
+}
+
+function checkUsageWasteStock() {
+  const itemSel = document.getElementById("uw-item");
+  const qtyUsed = parseFloat(document.getElementById("uw-qty-used")?.value) || 0;
+  const qtyWaste = parseFloat(document.getElementById("uw-qty-waste")?.value) || 0;
+  const warning = document.getElementById("uw-stock-warning");
+  if (!itemSel?.value || !warning) return;
+
+  const opt = itemSel.selectedOptions[0];
+  const stock = parseFloat(opt?.dataset.stock) || 0;
+  const unit = opt?.dataset.unit || "";
+  const total = qtyUsed + qtyWaste;
+
+  if (total > stock) {
+    warning.style.display = "block";
+    warning.textContent = `⚠ Total pemakaian (${total} ${unit}) melebihi stok tersedia (${stock} ${unit}). Stok akan menjadi negatif.`;
+  } else {
+    warning.style.display = "none";
+  }
+}
+
+function submitUsageWasteForm(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  if (!data.itemId || !data.qtyUsed) {
+    showToast("Bahan dan qty dipakai wajib diisi.", "error");
+    return;
+  }
+
+  const inventory = window.APP_DATA?.inventory || [];
+  const item = inventory.find((i) => i.id === data.itemId);
+  if (!item) return;
+
+  const qtyUsed = parseFloat(data.qtyUsed);
+  const qtyWaste = parseFloat(data.qtyWaste) || 0;
+  const totalConsumed = qtyUsed + qtyWaste;
+
+  const order = findOrderBySpk(data.spkNumber);
+  if (!window.APP_DATA.usageLog) window.APP_DATA.usageLog = [];
+
+  const entry = {
+    id: `USE-${String(window.APP_DATA.usageLog.length + 1).padStart(3, "0")}`,
+    spkNumber: data.spkNumber,
+    productName: order?.productName || "—",
+    itemId: data.itemId,
+    itemName: item.name,
+    unit: item.unit,
+    qtyUsed,
+    qtyWaste,
+    wasteCategory: data.wasteCategory || null,
+    unitCost: item.avgCost || 0,
+    usedAt: new Date(data.usedAt).toISOString(),
+    operatorId: APP_STATE.currentUser?.id || "EMP-001",
+    operatorName: APP_STATE.currentUser?.name || "—",
+    notes: data.notes || "",
+  };
+
+  window.APP_DATA.usageLog.push(entry);
+
+  item.stock = Math.max(Math.round((item.stock - totalConsumed) * 1000) / 1000, 0);
+  if (item.stock <= 0) item.status = "empty";
+  else if (item.stock <= item.minStock) item.status = "low";
+  else item.status = "safe";
+
+  const stockMap = {};
+  inventory.forEach((i) => { stockMap[i.id] = i.stock; });
+  localStorage.setItem("printeoo:inventory_stocks", JSON.stringify(stockMap));
+  localStorage.setItem("printeoo:usage_log", JSON.stringify(window.APP_DATA.usageLog));
+
+  const root = document.getElementById("global-modal-root");
+  if (root) root.innerHTML = "";
+
+  showToast(`Pemakaian ${item.name} ${qtyUsed} ${item.unit}${qtyWaste > 0 ? ` (waste: ${qtyWaste})` : ""} dicatat.`, "success");
+  renderOrderDetailPage();
+}
+
+function renderInventoryWasteTab(period = "month") {
+  const allLog = window.APP_DATA?.usageLog || [];
+  const { start, end } = getUsagePeriodRange(period);
+  const log = allLog.filter((e) => {
+    const d = new Date(e.usedAt);
+    return e.qtyWaste > 0 && d >= start && d <= end;
+  });
+
+  const periods = [
+    { key: "week", label: "Minggu Ini" },
+    { key: "month", label: "Bulan Ini" },
+    { key: "last_month", label: "Bulan Lalu" },
+    { key: "all", label: "Semua" },
+  ];
+
+  const filterBar = `
+    <div class="tabs mb-4" style="margin-bottom:16px">
+      ${periods.map((p) => `
+        <button class="tab-button ${period === p.key ? "active" : ""}" type="button" data-waste-period="${p.key}">${p.label}</button>
+      `).join("")}
+    </div>
+  `;
+
+  if (!log.length) {
+    return filterBar + `<div class="card empty-state" style="text-align:center;padding:40px"><p class="text-muted">Tidak ada data waste pada periode ini.</p></div>`;
+  }
+
+  const totalWasteValue = log.reduce((s, e) => s + e.qtyWaste * e.unitCost, 0);
+  const totalUsageValue = allLog.filter((e) => { const d = new Date(e.usedAt); return d >= start && d <= end; })
+    .reduce((s, e) => s + e.qtyUsed * e.unitCost, 0);
+  const wasteRate = totalUsageValue > 0 ? ((totalWasteValue / (totalUsageValue + totalWasteValue)) * 100).toFixed(1) : 0;
+
+  const byItem = {};
+  log.forEach((e) => {
+    if (!byItem[e.itemId]) byItem[e.itemId] = { name: e.itemName, value: 0 };
+    byItem[e.itemId].value += e.qtyWaste * e.unitCost;
+  });
+  const topWasteItem = Object.values(byItem).sort((a, b) => b.value - a.value)[0];
+
+  const metrics = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
+      <div class="card" style="text-align:center;padding:20px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--neutral-500);margin-bottom:8px">Total Waste (Nilai)</div>
+        <div style="font-size:22px;font-weight:700;color:var(--warning)">${formatCurrency(totalWasteValue)}</div>
+      </div>
+      <div class="card" style="text-align:center;padding:20px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--neutral-500);margin-bottom:8px">Waste Rate</div>
+        <div style="font-size:22px;font-weight:700;color:${parseFloat(wasteRate) > 5 ? "var(--danger)" : "var(--success)"}">${wasteRate}%</div>
+      </div>
+      <div class="card" style="text-align:center;padding:20px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--neutral-500);margin-bottom:8px">Waste Tertinggi</div>
+        <div style="font-size:15px;font-weight:700;color:var(--neutral-900)">${topWasteItem?.name || "—"}</div>
+      </div>
+    </div>
+  `;
+
+  const chart = renderWasteBarChart(log);
+
+  const catLabels = { cutting:"Trim Sisa", misprint:"Gagal Cetak", damage:"Kerusakan", calibration:"Setup Loss", overflow:"Lainnya" };
+  const allItems = [...new Set(log.map((e) => e.itemId))];
+  const allCats = [...new Set(log.map((e) => e.wasteCategory).filter(Boolean))];
+
+  const tableRows = [...log].sort((a, b) => new Date(b.usedAt) - new Date(a.usedAt)).map((e) => `
+    <tr>
+      <td class="text-sm">${formatDate(new Date(e.usedAt))}</td>
+      <td class="text-xs text-muted">${e.spkNumber}</td>
+      <td><strong>${e.itemName}</strong></td>
+      <td class="text-warning"><strong>${e.qtyWaste} ${e.unit}</strong></td>
+      <td><span class="badge badge-urgent" style="font-size:11px">${catLabels[e.wasteCategory] || e.wasteCategory || "—"}</span></td>
+      <td>${formatCurrency(e.qtyWaste * e.unitCost)}</td>
+      <td class="text-muted text-xs">${e.operatorName}</td>
+    </tr>
+  `).join("");
+
+  return `
+    ${filterBar}
+    ${metrics}
+    <div class="card mb-4" style="margin-bottom:24px">
+      <h3 style="font-size:15px;font-weight:600;margin:0 0 16px">Grafik Waste 7 Hari Terakhir</h3>
+      ${chart}
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <h3 style="font-size:15px;font-weight:600;margin:0">Detail Waste</h3>
+        <div style="display:flex;gap:8px">
+          <select class="form-select" id="waste-item-filter" style="width:170px;padding:5px 10px;font-size:13px">
+            <option value="all">Semua Bahan</option>
+            ${allItems.map((id) => { const e = log.find((x) => x.itemId === id); return `<option value="${id}">${e.itemName}</option>`; }).join("")}
+          </select>
+          <select class="form-select" id="waste-cat-filter" style="width:150px;padding:5px 10px;font-size:13px">
+            <option value="all">Semua Kategori</option>
+            ${allCats.map((c) => `<option value="${c}">${catLabels[c] || c}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div id="waste-table-container">
+        <div class="data-table">
+          <table>
+            <thead><tr><th>Tanggal</th><th>SPK</th><th>Bahan</th><th>Qty Waste</th><th>Kategori</th><th>Nilai Rp</th><th>Operator</th></tr></thead>
+            <tbody id="waste-table-body">${tableRows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderWasteBarChart(log) {
+  if (!log.length) return `<p class="text-muted text-sm">Tidak ada data.</p>`;
+
+  const msPerDay = 86400000;
+  const now = new Date();
+  const buckets = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * msPerDay);
+    d.setHours(0, 0, 0, 0);
+    buckets.push({ label: d.toLocaleDateString("id-ID", { weekday: "short" }), date: d, value: 0 });
+  }
+
+  log.forEach((e) => {
+    const d = new Date(e.usedAt);
+    d.setHours(0, 0, 0, 0);
+    const idx = buckets.findIndex((b) => b.date.getTime() === d.getTime());
+    if (idx >= 0) buckets[idx].value += e.qtyWaste * e.unitCost;
+  });
+
+  const maxVal = Math.max(...buckets.map((b) => b.value), 1);
+  const W = 560; const H = 140; const padL = 55; const padB = 26;
+  const barW = 36; const barGap = (W - padL - 16) / 7;
+
+  const bars = buckets.map((b, i) => {
+    const x = padL + i * barGap + (barGap - barW) / 2;
+    const bH = Math.max((b.value / maxVal) * (H - padB - 6), b.value > 0 ? 2 : 0);
+    const y = H - padB - bH;
+    return `
+      <rect x="${x}" y="${y}" width="${barW}" height="${bH}" fill="#D97706" rx="2" opacity="0.85">
+        <title>${b.label}: ${formatCurrency(b.value)}</title>
+      </rect>
+      <text x="${x + barW / 2}" y="${H - padB + 14}" text-anchor="middle" font-size="10" fill="#6B7280">${b.label}</text>
+    `;
+  }).join("");
+
+  const yLabels = [0, 0.5, 1].map((f) => {
+    const v = maxVal * f; const y = H - padB - f * (H - padB - 6);
+    const lbl = v >= 1000000 ? `${(v/1000000).toFixed(1)}jt` : v >= 1000 ? `${(v/1000).toFixed(0)}rb` : `${Math.round(v)}`;
+    return `<text x="${padL - 5}" y="${y + 4}" text-anchor="end" font-size="9" fill="#9CA3AF">${lbl}</text>
+             <line x1="${padL}" y1="${y}" x2="${W - 8}" y2="${y}" stroke="#F3F4F6" stroke-width="1"/>`;
+  }).join("");
+
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="overflow:visible">
+    ${yLabels}${bars}
+    <line x1="${padL}" y1="0" x2="${padL}" y2="${H - padB}" stroke="#E5E7EB" stroke-width="1"/>
+  </svg>`;
+}
+
 function renderHrPreview(activeTab = "employees") {
   const content = document.getElementById("hr-tab-content");
   if (!content) return;
@@ -2896,6 +3470,13 @@ function setupEventHandlers() {
     if (opnameStep1Form) {
       event.preventDefault();
       submitOpnameStep1(opnameStep1Form);
+      return;
+    }
+
+    const usageWasteForm = event.target.closest("#usage-waste-form");
+    if (usageWasteForm) {
+      event.preventDefault();
+      submitUsageWasteForm(usageWasteForm);
     }
   });
 
@@ -2909,6 +3490,7 @@ function setupEventHandlers() {
     const hrTabButton = event.target.closest("[data-hr-tab]");
     const invTabButton = event.target.closest("[data-inv-tab]");
     const usagePeriodButton = event.target.closest("[data-usage-period]");
+    const wastePeriodButton = event.target.closest("[data-waste-period]");
     const dashboardFilter = event.target.closest("[data-dashboard-filter]");
 
     if (customerOption) {
@@ -2930,6 +3512,13 @@ function setupEventHandlers() {
       APP_STATE.usagePeriod = usagePeriodButton.dataset.usagePeriod;
       const tabContent = document.getElementById("inventory-tab-content");
       if (tabContent) tabContent.innerHTML = renderInventoryUsageTab(APP_STATE.usagePeriod);
+      return;
+    }
+
+    if (wastePeriodButton) {
+      APP_STATE.wastePeriod = wastePeriodButton.dataset.wastePeriod;
+      const tabContent = document.getElementById("inventory-tab-content");
+      if (tabContent) tabContent.innerHTML = renderInventoryWasteTab(APP_STATE.wastePeriod);
       return;
     }
 
@@ -2984,6 +3573,82 @@ function setupEventHandlers() {
 
       if (actionButton.dataset.action === "open-usage-report") {
         renderInventoryPage("usage");
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-usage-waste-modal") {
+        openUsageWasteModal(actionButton.dataset.spkNumber);
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-qr-label") {
+        openQrLabelModal(actionButton.dataset.itemId);
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-qr-label-batch") {
+        openQrLabelModal(actionButton.dataset.itemId, actionButton.dataset.batchId);
+        return;
+      }
+
+      if (actionButton.dataset.action === "close-inventory-modal") {
+        const r1 = document.getElementById("inventory-modal-root");
+        const r2 = document.getElementById("global-modal-root");
+        if (r1) r1.innerHTML = "";
+        if (r2) r2.innerHTML = "";
+        return;
+      }
+
+      if (actionButton.dataset.action === "download-qr-png") {
+        downloadQrPng();
+        return;
+      }
+
+      if (actionButton.dataset.action === "print-qr-label") {
+        window.print();
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-qr-scan") {
+        openQrScanModal();
+        return;
+      }
+
+      if (actionButton.dataset.action === "lookup-batch-manual") {
+        const input = document.getElementById("qr-manual-batch");
+        const batchId = input?.value?.trim();
+        if (!batchId) { showToast("Masukkan Batch ID terlebih dahulu.", "error"); return; }
+        const batch = (window.APP_DATA?.materialBatches || []).find((b) => b.batchNumber === batchId);
+        const entry = (window.APP_DATA?.incomingLog || []).find((e) => e.batchId === batchId);
+        const resultEl = document.getElementById("qr-scan-result");
+        const resultText = document.getElementById("qr-scan-result-text");
+        if (resultEl && resultText) {
+          if (batch || entry) {
+            const name = batch
+              ? (window.APP_DATA?.inventory || []).find((i) => i.id === batch.materialId)?.name || "—"
+              : entry.itemName;
+            const qty = batch ? batch.initialQty : entry.qty;
+            const unit = batch ? batch.unit : entry.unit;
+            resultEl.style.display = "block";
+            resultText.textContent = `${name} — ${qty} ${unit} (Batch: ${batchId})`;
+            showToast(`Batch ditemukan: ${name}`, "success");
+          } else {
+            resultEl.style.display = "none";
+            showToast("Batch ID tidak ditemukan.", "error");
+          }
+        }
+        return;
+      }
+
+      if (actionButton.dataset.action === "simulate-qr-scan") {
+        const { batchId, itemName, qty, unit } = actionButton.dataset;
+        const resultEl = document.getElementById("qr-scan-result");
+        const resultText = document.getElementById("qr-scan-result-text");
+        if (resultEl && resultText) {
+          resultEl.style.display = "block";
+          resultText.textContent = `${itemName} — ${qty} ${unit} (Batch: ${batchId})`;
+        }
+        showToast(`✓ Simulasi scan: ${itemName}`, "success");
         return;
       }
 
@@ -3207,6 +3872,34 @@ function setupEventHandlers() {
         spkTableEl.innerHTML = renderUsagePerSpkTable(log, event.target.value);
       }
     }
+
+    if (event.target.id === "waste-item-filter" || event.target.id === "waste-cat-filter") {
+      const itemFilter = document.getElementById("waste-item-filter")?.value || "all";
+      const catFilter = document.getElementById("waste-cat-filter")?.value || "all";
+      const { start, end } = getUsagePeriodRange(APP_STATE.wastePeriod);
+      const allLog = window.APP_DATA?.usageLog || [];
+      const filtered = allLog.filter((e) => {
+        const d = new Date(e.usedAt);
+        return e.qtyWaste > 0 && d >= start && d <= end
+          && (itemFilter === "all" || e.itemId === itemFilter)
+          && (catFilter === "all" || e.wasteCategory === catFilter);
+      });
+      const catLabels = { cutting:"Trim Sisa", misprint:"Gagal Cetak", damage:"Kerusakan", calibration:"Setup Loss", overflow:"Lainnya" };
+      const tbody = document.getElementById("waste-table-body");
+      if (tbody) {
+        tbody.innerHTML = filtered.sort((a, b) => new Date(b.usedAt) - new Date(a.usedAt)).map((e) => `
+          <tr>
+            <td class="text-sm">${formatDate(new Date(e.usedAt))}</td>
+            <td class="text-xs text-muted">${e.spkNumber}</td>
+            <td><strong>${e.itemName}</strong></td>
+            <td class="text-warning"><strong>${e.qtyWaste} ${e.unit}</strong></td>
+            <td><span class="badge badge-urgent" style="font-size:11px">${catLabels[e.wasteCategory] || e.wasteCategory || "—"}</span></td>
+            <td>${formatCurrency(e.qtyWaste * e.unitCost)}</td>
+            <td class="text-muted text-xs">${e.operatorName}</td>
+          </tr>
+        `).join("") || `<tr><td colspan="7" class="text-center text-muted" style="padding:16px">Tidak ada data untuk filter ini.</td></tr>`;
+      }
+    }
   });
 }
 
@@ -3340,6 +4033,17 @@ function loadStoredInventory() {
           else item.status = "safe";
         }
       });
+    }
+  } catch (e) {}
+
+  try {
+    const storedUsage = localStorage.getItem("printeoo:usage_log");
+    if (storedUsage && window.APP_DATA) {
+      const parsed = JSON.parse(storedUsage);
+      const existingIds = new Set((window.APP_DATA.usageLog || []).map((e) => e.id));
+      const newEntries = parsed.filter((e) => !existingIds.has(e.id));
+      if (!window.APP_DATA.usageLog) window.APP_DATA.usageLog = [];
+      window.APP_DATA.usageLog.push(...newEntries);
     }
   } catch (e) {}
 

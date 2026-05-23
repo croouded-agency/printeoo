@@ -2380,3 +2380,117 @@ button:disabled {
     overflow-x: auto;
   }
 }
+
+/* ─── QR Label & Scan ─────────────────────────────────────────── */
+
+.btn-icon-qr {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  color: var(--neutral-500);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.btn-icon-qr:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: #BFDBFE;
+}
+
+.qr-label-sticker {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 340px;
+  padding: 14px 16px;
+  border: 2px solid var(--neutral-200);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.qr-label-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.qr-brand {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.qr-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.qr-brand-name {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--neutral-700);
+  letter-spacing: .03em;
+}
+
+.qr-label-right {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.qr-item-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--neutral-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qr-detail {
+  font-size: 11px;
+  color: var(--neutral-600, #4B5563);
+}
+
+.qr-detail.qty {
+  font-size: 13px;
+  color: var(--neutral-900);
+  margin-top: 2px;
+}
+
+/* Print: only show the label sticker */
+@media print {
+  body > * { display: none !important; }
+  #app-shell { display: none !important; }
+  #qr-label-print-area {
+    display: flex !important;
+    position: fixed !important;
+    inset: 0 !important;
+    margin: auto !important;
+    width: fit-content !important;
+    height: fit-content !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    border: 2px solid #000 !important;
+    box-shadow: none !important;
+  }
+}

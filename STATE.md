@@ -18,8 +18,8 @@
 | 4 — Display & Audio | 2 | 2 | 100% |
 | 5 — Supporting Pages | 3 | 3 | 100% |
 | 6 — Polish & Integration | 3 | 1 | 33% |
-| 7 — Inventory Fully Functional | 7 | 3 | 43% |
-| **Total** | **31** | **22** | **71%** |
+| 7 — Inventory Fully Functional | 7 | 5 | 71% |
+| **Total** | **31** | **24** | **77%** |
 
 ---
 
@@ -804,7 +804,7 @@ Menampilkan analitik pemakaian bahan: per periode, per produk, per SPK, termasuk
 ---
 
 #### TASK-026 — Inventory: Generate & Scan QR Label
-**Status:** `[ ]` Belum dikerjakan
+**Status:** `[x]` Selesai
 **Estimasi:** 90 menit
 **Depends on:** TASK-023
 **File yang diubah:** `prototype/pages/inventory.html`, `prototype/data.js`
@@ -862,7 +862,7 @@ Dua arah: generate QR saat penerimaan, scan QR saat input usage di SPK.
 ---
 
 #### TASK-027 — Inventory: Waste Tracking per SPK
-**Status:** `[ ]` Belum dikerjakan
+**Status:** `[x]` Selesai
 **Estimasi:** 60 menit
 **Depends on:** TASK-025, TASK-026
 **File yang diubah:** `prototype/pages/inventory.html`, `prototype/pages/order-detail.html`, `prototype/data.js`
@@ -1061,12 +1061,14 @@ dan dari batch material → lihat SPK mana yang menggunakannya.
 | 22 | 2026-05-23 | TASK-023 — Inventory: Catat Penerimaan Barang | TASK-023 | Button "+ Catat Penerimaan" functional, modal form lengkap, tab Stok & Riwayat, incomingLog dummy 12 entry, persist ke localStorage, loadStoredInventory() saat init. |
 | 23 | 2026-05-23 | TASK-024 — Inventory: Stok Opname | TASK-024 | Wizard 3 langkah: Step 1 buat sesi, Step 2 input stok fisik + live diff, Step 3 review & approve. Tab "Stok Opname" + Riwayat session. 2 sesi opname dummy + adjustmentLog. Draft tersimpan ke localStorage. Adjust stok setelah approval. |
 | 24 | 2026-05-23 | TASK-025 — Inventory: Laporan Penggunaan | TASK-025 | Tab "Laporan Penggunaan" + tombol di header. Filter periode: Minggu Ini / Bulan Ini / Bulan Lalu / Semua. Metric cards (pemakaian, waste, waste rate). SVG bar chart harian/mingguan. Tabel ringkasan per bahan. Tabel per SPK + filter dropdown by bahan. 39 entry dummy usageLog tersebar 35 hari. |
+| 25 | 2026-05-23 | TASK-026 — Inventory: QR Label Generate & Scan | TASK-026 | Kolom QR icon di tabel stok → modal label (preview stiker + QR code via qrcode.js CDN + dropdown batch). Tombol "Label QR" per entry riwayat penerimaan. Download PNG (canvas.toBlob), Cetak Label (window.print + @media print CSS). Modal Scan QR dengan viewfinder animasi, input manual batch lookup, dan 3 tombol simulasi scan demo. CSS `.qr-label-sticker`, `.btn-icon-qr`, print CSS. |
+| 26 | 2026-05-23 | TASK-027 — Inventory: Waste Tracking per SPK | TASK-027 | Section "Material & Waste" di order-detail (status printing+), tombol "+ Catat Pemakaian" → modal form (bahan, qty, waste, kategori, notes) + stock warning jika melebihi stok. Submit: tambah usageLog, kurangi stok, persist localStorage. Tab "Laporan Waste" di inventory: filter periode, 3 metric cards, SVG bar chart 7 hari, tabel detail + filter by bahan & kategori inline. loadStoredInventory() extend untuk usageLog. |
 
 ---
 
 ## NEXT TASK
 
-**Task berikutnya yang harus dikerjakan: TASK-026**
+**Task berikutnya yang harus dikerjakan: TASK-028**
 
 Urutan eksekusi Fase 7 (ikuti urutan ini, jangan loncat):
 1. **TASK-023** — Incoming (foundation data untuk task lain)

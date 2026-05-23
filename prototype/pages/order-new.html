@@ -50,9 +50,16 @@
       <div class="form-grid">
         <div class="form-group">
           <label for="order-product">Produk</label>
-          <select id="order-product" name="productId">
-            <option value="">Pilih produk</option>
-          </select>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <select id="order-product" name="productId" style="flex:1">
+              <option value="">Pilih produk</option>
+            </select>
+            <button class="btn-secondary" type="button" data-action="open-qr-scan"
+              title="Scan QR label bahan untuk lookup batch"
+              style="flex-shrink:0;white-space:nowrap;height:40px">
+              📷 Scan QR
+            </button>
+          </div>
         </div>
 
         <div id="dynamic-specs" class="dynamic-specs"></div>
