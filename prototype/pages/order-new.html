@@ -2,12 +2,13 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">Pesanan Baru</h1>
-      <p class="page-subtitle">Input SPK baru dengan harga dan total otomatis.</p>
+      <p class="page-subtitle">Input SPK baru dengan satu atau lebih item produk.</p>
     </div>
     <a class="btn-secondary" href="#/orders">Batal</a>
   </div>
 
   <form id="order-new-form" class="order-form">
+    <!-- Section 1: Customer -->
     <section class="card form-section">
       <div class="form-section-header">
         <span class="section-number">1</span>
@@ -40,56 +41,25 @@
       <div id="order-customer-info" class="mt-4"></div>
     </section>
 
+    <!-- Section 2: Detail Pesanan (Multi-Item) -->
     <section class="card form-section">
       <div class="form-section-header">
         <span class="section-number">2</span>
         <div>
           <h2 class="card-title">Detail Pesanan</h2>
-          <p class="card-description">Pilih produk, spesifikasi, finishing, dan harga.</p>
+          <p class="card-description">Tambahkan satu atau lebih produk ke pesanan ini.</p>
         </div>
       </div>
 
-      <div class="form-grid">
-        <div class="form-group">
-          <label for="order-product">Produk</label>
-          <div style="display:flex;gap:8px;align-items:flex-start">
-            <select id="order-product" name="productId" style="flex:1">
-              <option value="">Pilih produk</option>
-            </select>
-            <button class="btn-secondary" type="button" data-action="open-qr-scan"
-              title="Scan QR label bahan untuk lookup batch"
-              style="flex-shrink:0;white-space:nowrap;height:40px">
-              📷 Scan QR
-            </button>
-          </div>
-        </div>
+      <!-- Item cards rendered by JS -->
+      <div id="order-items-list"></div>
 
-        <div id="dynamic-specs" class="dynamic-specs"></div>
-
-        <div class="form-group">
-          <label for="order-qty">Qty</label>
-          <input id="order-qty" name="qty" type="number" min="1" value="1">
-          <p id="qty-help" class="form-help">Jumlah item pesanan.</p>
-        </div>
-
-        <div class="form-group">
-          <label for="order-unit-price">Harga Satuan</label>
-          <input id="order-unit-price" name="unitPrice" type="number" min="0" step="500">
-        </div>
-      </div>
-
-      <div class="checkbox-grid mt-4">
-        <label><input type="checkbox" name="finishing" value="Laminasi Doff"> Laminasi Doff</label>
-        <label><input type="checkbox" name="finishing" value="Laminasi Glossy"> Laminasi Glossy</label>
-        <label><input type="checkbox" name="finishing" value="Mata Ayam"> Mata Ayam</label>
-        <label><input type="checkbox" name="finishing" value="Cutting"> Cutting</label>
-        <label><input type="checkbox" name="finishing" value="Lipat"> Lipat</label>
-      </div>
+      <button type="button" id="add-order-item" class="btn-secondary mt-4" style="width:100%;justify-content:center">+ Tambah Item</button>
 
       <div class="order-total-box mt-4">
         <div>
-          <span>Total</span>
-          <strong id="order-total">Rp 0</strong>
+          <span>Subtotal</span>
+          <strong id="order-subtotal">Rp 0</strong>
         </div>
         <div class="discount-row">
           <select id="discount-type" aria-label="Tipe diskon">
@@ -99,18 +69,19 @@
           <input id="order-discount" type="number" min="0" value="0" aria-label="Nilai diskon">
         </div>
         <div>
-          <span>Total Setelah Diskon</span>
+          <span>Total</span>
           <strong id="order-grand-total">Rp 0</strong>
         </div>
       </div>
     </section>
 
+    <!-- Section 3: Produksi & Pembayaran -->
     <section class="card form-section">
       <div class="form-section-header">
         <span class="section-number">3</span>
         <div>
           <h2 class="card-title">Produksi & Pembayaran</h2>
-          <p class="card-description">Deadline, prioritas, catatan produksi, dan DP.</p>
+          <p class="card-description">Deadline, prioritas, dan informasi pembayaran awal.</p>
         </div>
       </div>
 
@@ -118,10 +89,11 @@
         <div class="form-group">
           <label for="order-deadline-date">Deadline</label>
           <input id="order-deadline-date" name="deadlineDate" type="date">
+          <span id="deadline-date-display" class="date-display-helper"></span>
         </div>
 
         <div class="form-group">
-          <label for="order-deadline-time">Jam Deadline</label>
+          <label for="order-deadline-time">Jam Deadline (format 24 jam)</label>
           <input id="order-deadline-time" name="deadlineTime" type="time" value="16:00">
         </div>
       </div>
@@ -133,14 +105,6 @@
       </div>
 
       <div class="form-grid mt-4">
-        <div class="form-group">
-          <label for="needs-design">Butuh Desain</label>
-          <select id="needs-design" name="needsDesign">
-            <option value="yes">Ya</option>
-            <option value="no">Tidak</option>
-          </select>
-        </div>
-
         <div class="form-group">
           <label for="dp-method">Metode DP</label>
           <select id="dp-method" name="dpMethod">
@@ -160,24 +124,26 @@
           <div id="order-balance" class="readonly-value">Rp 0</div>
         </div>
       </div>
+    </section>
 
-      <div class="form-group mt-4">
-        <label for="operator-notes">Catatan untuk Operator</label>
-        <textarea id="operator-notes" name="notes" placeholder="Contoh: warna harus sesuai file, finishing jangan terlalu mepet tepi"></textarea>
-      </div>
+    <div class="form-actions">
+      <a class="btn-secondary" href="#/orders">Batal</a>
+      <button class="btn-primary" type="submit">Simpan Pesanan</button>
+    </div>
 
-      <div class="file-drop mt-4">
+    <!-- Upload file: opsional, setelah tombol simpan untuk kurangi cognitive load kasir -->
+    <div class="card mt-4" style="background:var(--neutral-50)">
+      <p class="text-sm" style="margin:0 0 8px;font-weight:600;color:var(--neutral-700)">
+        Upload File Desain
+        <span class="text-muted" style="font-weight:400"> — opsional, bisa dilakukan setelah pesanan disimpan</span>
+      </p>
+      <div class="file-drop">
         <input id="order-file" type="file" hidden>
         <label for="order-file" class="file-drop-label">
           <strong>Upload file desain</strong>
           <span id="file-name">Drop file atau klik untuk browse</span>
         </label>
       </div>
-    </section>
-
-    <div class="form-actions">
-      <a class="btn-secondary" href="#/orders">Batal</a>
-      <button class="btn-primary" type="submit">Simpan Pesanan</button>
     </div>
   </form>
 </section>

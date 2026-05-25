@@ -19,8 +19,8 @@
 | 5 — Polish & Integration | 4 | 4 | 100% |
 | 6 — Inventory Fully Functional | 7 | 7 | 100% |
 | 7 — Manajemen Pelanggan | 4 | 4 | 100% |
-| 8 â€” v1.1 Update | 10 | 6 | 60% |
-| **Total** | **43** | **39** | **91%** |
+| 8 â€” v1.1 Update | 10 | 7 | 70% |
+| **Total** | **43** | **40** | **93%** |
 
 ---
 
@@ -1365,6 +1365,28 @@ Update papan produksi agar card kanban merepresentasikan item produksi individua
 
 ---
 
+#### TASK-106 — Update Form Input Pesanan Baru untuk Multi-Item
+**Status:** `[x]` Selesai  
+**Estimasi:** 60 menit  
+**Depends on:** TASK-102  
+**Deskripsi:**  
+Update form input pesanan baru agar mendukung satu atau lebih item produk dalam satu SPK.
+
+**Checklist:**
+- [x] Form mendukung input minimal 1 item, tombol `+ Tambah Item` untuk tambah lebih
+- [x] Setiap item punya card terpisah: produk, qty, harga satuan, specs dinamis (large format/tiered), finishing, butuh desain, catatan, total item
+- [x] Harga Satuan locked (disabled) sampai produk dipilih
+- [x] Jika harga di-override dari default: field alasan perubahan harga muncul dan wajib diisi sebelum save
+- [x] Format tanggal tampil Indonesia (DD MMMM YYYY) via `date-display-helper` di bawah date input
+- [x] Format waktu 24 jam via `type="time"`
+- [x] Upload file dipindah ke bawah tombol Simpan Pesanan
+- [x] Submit form: validasi minimal 1 produk dipilih, validasi alasan harga, kemudian bangun array `items` multi-item ke `APP_DATA.orders`
+- [x] `app.js` dan `style.css` lolos syntax check
+
+**Progress Terakhir:** 2026-05-25 — TASK-106 selesai. Form pesanan baru sepenuhnya multi-item aware dengan item cards, locks harga, alasan override, tanggal Indonesia, dan upload file di bawah.
+
+---
+
 ## BUGS & ISSUES
 
 *Catat di sini setiap bug yang ditemukan saat development.*
@@ -1451,12 +1473,13 @@ Update papan produksi agar card kanban merepresentasikan item produksi individua
 ---
 
 | 46 | 2026-05-25 | TASK-105 — Update Production Board untuk Multi-Item | TASK-105 | Kanban produksi sekarang card per item, label SPK + Item X/Y, counter item-level, modal detail item dengan link ke detail SPK, update status item-level, dan scrollbar/hint horizontal. |
+| 47 | 2026-05-25 | TASK-106 — Update Form Input Pesanan Baru untuk Multi-Item | TASK-106 | Form pesanan baru sekarang mendukung multi-item: container order-items-list, tombol + Tambah Item, per-item card (produk, qty, harga satuan locked, specs dinamis, finishing, needsDesign, catatan, total item), harga satuan locked sampai produk dipilih, field alasan perubahan harga muncul jika harga di-override, format tanggal Indonesia dengan date-display-helper, format jam 24 jam, upload file dipindah ke bawah form-actions. Submit membangun struktur multi-item ke APP_DATA.orders. |
 
 ---
 
 ## NEXT TASK
 
-**Task berikutnya:** TASK-106 — Update Form Input Pesanan Baru untuk Multi-Item.
+**Task berikutnya:** TASK-107 — Tambah Role Kurir: Navigation dan Interface.
 
 Recheck terakhir (sesi 37, 2026-05-23) mengkonfirmasi:
 - 33/33 task selesai, tidak ada yang tertinggal

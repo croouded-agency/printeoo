@@ -47,6 +47,7 @@ const APP_STATE = {
   },
   customerDetailTab: "orders",
   customerOrderFilter: "all",
+  orderItems: [],
 };
 
 window.APP_STATE = APP_STATE;
@@ -1365,20 +1366,16 @@ function submitCustomerPayment(form) {
 }
 
 function initOrderNewPage() {
-  const productSelect = document.getElementById("order-product");
   const deadlineDate = document.getElementById("order-deadline-date");
-  if (!productSelect || !deadlineDate) return;
-
-  productSelect.innerHTML = [
-    '<option value="">Pilih produk</option>',
-    ...(window.APP_DATA?.products || []).map((product) => (
-      `<option value="${product.id}">${product.name}</option>`
-    )),
-  ].join("");
+  if (!deadlineDate) return;
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   deadlineDate.value = toDateInputValue(tomorrow);
+  updateDeadlineDateDisplay();
+
+  initOrderItems();
+  renderAllOrderItems();
 
   try {
     const prefill = localStorage.getItem("printeoo:prefill_customer");
@@ -1393,7 +1390,292 @@ function initOrderNewPage() {
     }
   } catch (e) {}
 
-  updateOrderCalculation();
+  updateOrderTotals();
+}
+
+function updateDeadlineDateDisplay() {
+  const dateInput = document.getElementById("order-deadline-date");
+  const display = document.getElementById("deadline-date-display");
+  if (!dateInput || !display) return;
+  display.textContent = dateInput.value ? formatDate(dateInput.value + "T00:00:00") : "";
+}
+
+function initOrderItems() {
+  APP_STATE.orderItems = [createEmptyOrderItem()];
+}
+
+function createEmptyOrderItem() {
+  return {
+    productId: "",
+    product: null,
+    qty: 1,
+    unitPrice: 0,
+    originalPrice: 0,
+    specs: {},
+    finishing: [],
+    needsDesign: "yes",
+    notes: "",
+    priceOverrideReason: "",
+  };
+}
+
+function renderOrderItemCard(index) {
+  const item = APP_STATE.orderItems[index];
+  if (!item) return "";
+
+  const products = window.APP_DATA?.products || [];
+  const productOptions = products.map((p) =>
+    `<option value="${p.id}" ${item.productId === p.id ? "selected" : ""}>${escapeHtml(p.name)}</option>`
+  ).join("");
+
+  const hasProduct = !!item.product;
+  const priceOverridden = hasProduct && item.originalPrice > 0 && item.unitPrice !== item.originalPrice;
+  const isLargeFormat = hasProduct && /Banner|Spanduk|Backdrop|Billboard|Neon Box/i.test(item.product.name);
+
+  let qtyHelp = "Jumlah item pesanan.";
+  if (hasProduct) {
+    if (isLargeFormat) {
+      qtyHelp = "Qty otomatis dihitung dalam m² dari ukuran di bawah.";
+    } else {
+      qtyHelp = `Minimal ${item.product.minQty || 1} ${item.product.unit || "pcs"}.`;
+    }
+  }
+
+  const finishingOptions = ["Laminasi Doff", "Laminasi Glossy", "Mata Ayam", "Cutting", "Lipat"];
+
+  const specsHtml = buildItemSpecsHtml(index, item.product, item.specs);
+
+  const priceReasonHtml = (priceOverridden || item.priceOverrideReason) ? `
+    <div class="form-group mt-2 price-reason-group" data-price-reason-for="${index}">
+      <label>Alasan Perubahan Harga <span class="text-danger">*</span></label>
+      <input type="text" class="item-price-reason" data-item-index="${index}"
+        value="${escapeHtml(item.priceOverrideReason || "")}"
+        placeholder="Contoh: Harga negosiasi pelanggan VIP">
+    </div>
+  ` : `<div class="price-reason-group" data-price-reason-for="${index}" style="display:none"></div>`;
+
+  return `
+    <div class="order-item-card" data-item-index="${index}">
+      <div class="order-item-header">
+        <span class="order-item-label">Item ${index + 1}</span>
+        ${index > 0 ? `<button type="button" class="btn-remove-item" data-action="remove-order-item" data-item-index="${index}">× Hapus</button>` : ""}
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Produk</label>
+          <select data-action="select-item-product" data-item-index="${index}">
+            <option value="">Pilih produk...</option>
+            ${productOptions}
+          </select>
+        </div>
+
+        ${specsHtml}
+
+        <div class="form-group">
+          <label>Qty</label>
+          <input type="number" class="item-qty" data-item-index="${index}" value="${item.qty}" min="1" step="1" ${isLargeFormat ? "readonly" : ""}>
+          <p class="form-help">${qtyHelp}</p>
+        </div>
+
+        <div class="form-group">
+          <label>Harga Satuan</label>
+          <input type="number" class="item-unit-price" data-item-index="${index}" value="${item.unitPrice || ""}" min="0" step="500" ${!hasProduct ? 'disabled placeholder="Pilih produk dulu"' : ""}>
+        </div>
+      </div>
+
+      ${priceReasonHtml}
+
+      <div class="checkbox-grid mt-4">
+        ${finishingOptions.map((opt) => `
+          <label>
+            <input type="checkbox" class="item-finishing" data-item-index="${index}" value="${opt}" ${item.finishing.includes(opt) ? "checked" : ""}>
+            ${opt}
+          </label>
+        `).join("")}
+      </div>
+
+      <div class="form-grid mt-4" style="grid-template-columns:200px 1fr">
+        <div class="form-group">
+          <label>Butuh Desain</label>
+          <select class="item-needs-design" data-item-index="${index}">
+            <option value="yes" ${item.needsDesign !== "no" ? "selected" : ""}>Ya</option>
+            <option value="no" ${item.needsDesign === "no" ? "selected" : ""}>Tidak</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group mt-2">
+        <label>Catatan untuk Operator</label>
+        <textarea class="item-notes" data-item-index="${index}" rows="2"
+          placeholder="Contoh: warna sesuai file referensi, finishing jangan terlalu mepet tepi">${escapeHtml(item.notes || "")}</textarea>
+      </div>
+
+      <div class="item-total-row">
+        <span>Total Item ${index + 1}</span>
+        <strong id="item-total-${index}">${formatCurrency(item.qty * item.unitPrice)}</strong>
+      </div>
+    </div>
+  `;
+}
+
+function buildItemSpecsHtml(index, product, specs) {
+  if (!product) return "";
+
+  const isLargeFormat = /Banner|Spanduk|Backdrop|Billboard|Neon Box/i.test(product.name);
+  const isTiered = /Brosur|Stiker/i.test(product.name);
+
+  if (isLargeFormat) {
+    const w = specs.width || 100;
+    const h = specs.height || 100;
+    return `
+      <div class="spec-inline">
+        <div class="form-group">
+          <label>Lebar (cm)</label>
+          <input type="number" class="item-spec-width" data-item-index="${index}" value="${w}" min="1">
+        </div>
+        <div class="form-group">
+          <label>Tinggi (cm)</label>
+          <input type="number" class="item-spec-height" data-item-index="${index}" value="${h}" min="1">
+        </div>
+      </div>
+    `;
+  }
+
+  if (isTiered) {
+    return `<div class="spec-info">Harga tier otomatis: 500+ diskon 10%, 1000+ diskon 18%.</div>`;
+  }
+
+  if (product.specs && product.specs.length) {
+    return `<div class="spec-info">${product.specs.join(" · ")}</div>`;
+  }
+
+  return "";
+}
+
+function renderAllOrderItems() {
+  const container = document.getElementById("order-items-list");
+  if (!container) return;
+  container.innerHTML = APP_STATE.orderItems.map((_, i) => renderOrderItemCard(i)).join("");
+  updateOrderTotals();
+}
+
+function addOrderItem() {
+  APP_STATE.orderItems.push(createEmptyOrderItem());
+  renderAllOrderItems();
+  const container = document.getElementById("order-items-list");
+  const lastCard = container?.lastElementChild;
+  if (lastCard) lastCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function removeOrderItem(index) {
+  if (APP_STATE.orderItems.length <= 1) return;
+  APP_STATE.orderItems.splice(index, 1);
+  renderAllOrderItems();
+}
+
+function selectProductForItem(index, productId) {
+  const item = APP_STATE.orderItems[index];
+  if (!item) return;
+
+  const product = (window.APP_DATA?.products || []).find((p) => p.id === productId) || null;
+
+  item.productId = productId;
+  item.product = product;
+  item.originalPrice = product ? product.basePrice : 0;
+  item.unitPrice = product ? product.basePrice : 0;
+  item.specs = {};
+  item.priceOverrideReason = "";
+
+  if (product && /Banner|Spanduk|Backdrop|Billboard|Neon Box/i.test(product.name)) {
+    item.specs = { width: 100, height: 100 };
+  }
+
+  if (product && /Brosur|Stiker/i.test(product.name)) {
+    const tierMultiplier = item.qty >= 1000 ? 0.82 : item.qty >= 500 ? 0.9 : 1;
+    item.unitPrice = Math.round(product.basePrice * tierMultiplier);
+    item.originalPrice = product.basePrice;
+  }
+
+  const container = document.getElementById("order-items-list");
+  const card = container?.querySelector(`[data-item-index="${index}"]`);
+  if (card) {
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = renderOrderItemCard(index);
+    card.replaceWith(tempDiv.firstElementChild);
+  }
+
+  updateItemCalc(index);
+}
+
+function updateItemCalc(index) {
+  const item = APP_STATE.orderItems[index];
+  if (!item) return;
+
+  const product = item.product;
+  const isLargeFormat = product && /Banner|Spanduk|Backdrop|Billboard|Neon Box/i.test(product.name);
+  const isTiered = product && /Brosur|Stiker/i.test(product.name);
+
+  if (isLargeFormat && item.specs) {
+    const w = Number(item.specs.width || 100);
+    const h = Number(item.specs.height || 100);
+    const area = parseFloat(Math.max((w * h) / 10000, 0.01).toFixed(2));
+    item.qty = area;
+    const qtyInput = document.querySelector(`.item-qty[data-item-index="${index}"]`);
+    if (qtyInput) qtyInput.value = area;
+  }
+
+  if (isTiered) {
+    const tierMultiplier = item.qty >= 1000 ? 0.82 : item.qty >= 500 ? 0.9 : 1;
+    const newPrice = Math.round(product.basePrice * tierMultiplier);
+    if (newPrice !== item.unitPrice) {
+      item.unitPrice = newPrice;
+      const priceInput = document.querySelector(`.item-unit-price[data-item-index="${index}"]`);
+      if (priceInput) priceInput.value = newPrice;
+    }
+  }
+
+  const itemTotal = item.qty * item.unitPrice;
+  const totalEl = document.getElementById(`item-total-${index}`);
+  if (totalEl) totalEl.textContent = formatCurrency(itemTotal);
+
+  const priceOverridden = product && item.originalPrice > 0 && item.unitPrice !== item.originalPrice;
+  const reasonGroup = document.querySelector(`[data-price-reason-for="${index}"]`);
+  if (reasonGroup) {
+    if (priceOverridden || item.priceOverrideReason) {
+      reasonGroup.style.display = "";
+      reasonGroup.className = "form-group mt-2 price-reason-group";
+      if (!reasonGroup.querySelector("input")) {
+        reasonGroup.innerHTML = `
+          <label>Alasan Perubahan Harga <span class="text-danger">*</span></label>
+          <input type="text" class="item-price-reason" data-item-index="${index}"
+            value="${escapeHtml(item.priceOverrideReason || "")}"
+            placeholder="Contoh: Harga negosiasi pelanggan VIP">
+        `;
+      }
+    } else {
+      reasonGroup.style.display = "none";
+    }
+  }
+
+  updateOrderTotals();
+}
+
+function updateOrderTotals() {
+  const subtotal = APP_STATE.orderItems.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0);
+  const discountType = document.getElementById("discount-type")?.value || "nominal";
+  const discountValue = Number(document.getElementById("order-discount")?.value || 0);
+  const discount = discountType === "percent" ? subtotal * Math.min(discountValue, 100) / 100 : discountValue;
+  const grandTotal = Math.max(subtotal - discount, 0);
+  const dp = Number(document.getElementById("order-dp")?.value || 0);
+  const balance = Math.max(grandTotal - dp, 0);
+
+  const subtotalEl = document.getElementById("order-subtotal");
+  if (subtotalEl) subtotalEl.textContent = formatCurrency(subtotal);
+  const grandTotalEl = document.getElementById("order-grand-total");
+  if (grandTotalEl) grandTotalEl.textContent = formatCurrency(grandTotal);
+  const balanceEl = document.getElementById("order-balance");
+  if (balanceEl) balanceEl.textContent = formatCurrency(balance);
 }
 
 function renderCustomerSuggestions(query) {
@@ -1569,56 +1851,87 @@ function submitNewOrder(event) {
   event.preventDefault();
 
   const form = event.target;
-  const product = APP_STATE.selectedProduct || (window.APP_DATA?.products || []).find((item) => item.id === form.productId.value);
-  if (!product) {
-    showToast("Pilih produk terlebih dahulu.", "error");
+
+  const validItems = APP_STATE.orderItems.filter((item) => item.product);
+  if (validItems.length === 0) {
+    showToast("Pilih minimal satu produk untuk pesanan ini.", "error");
     return;
+  }
+
+  for (let i = 0; i < APP_STATE.orderItems.length; i++) {
+    const item = APP_STATE.orderItems[i];
+    if (!item.product) continue;
+    const priceChanged = item.originalPrice > 0 && item.unitPrice !== item.originalPrice;
+    if (priceChanged && !item.priceOverrideReason.trim()) {
+      showToast(`Item ${i + 1}: Isi alasan perubahan harga sebelum menyimpan.`, "error");
+      document.querySelector(`.item-price-reason[data-item-index="${i}"]`)?.focus();
+      return;
+    }
   }
 
   const customerName = form.customerName.value.trim() || "Customer Walk-in";
   const customerId = form.customerId.value || `NEW-${Date.now()}`;
   const deadlineAt = new Date(`${form.deadlineDate.value}T${form.deadlineTime.value || "16:00"}`);
-  const qty = Number(form.qty.value || 1);
-  const unitPrice = Number(form.unitPrice.value || product.basePrice);
-  const subtotal = qty * unitPrice;
+  const priority = new FormData(form).get("priority") || "normal";
+
   const discountType = document.getElementById("discount-type").value;
   const discountValue = Number(document.getElementById("order-discount").value || 0);
+  const subtotal = validItems.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0);
   const discount = discountType === "percent" ? subtotal * Math.min(discountValue, 100) / 100 : discountValue;
   const total = Math.max(subtotal - discount, 0);
   const paidAmount = Math.min(Number(form.dp.value || 0), total);
-  const priority = new FormData(form).get("priority") || "normal";
+
   const sequence = String((window.APP_DATA.orders || []).length + 1).padStart(4, "0");
   const spkNumber = `SPK-SBY-${toCompactDate(new Date())}-${sequence}`;
-  const finishing = Array.from(form.querySelectorAll("input[name='finishing']:checked")).map((input) => input.value);
+
+  const items = validItems.map((item, idx) => ({
+    itemId: `ITEM-${sequence}-${String(idx + 1).padStart(2, "0")}`,
+    seq: idx + 1,
+    product: item.product.name,
+    productId: item.productId,
+    specs: item.specs || {},
+    qty: item.qty,
+    unit: item.product.unit || "pcs",
+    unitPrice: item.unitPrice,
+    total: item.qty * item.unitPrice,
+    finishing: item.finishing,
+    needsDesign: item.needsDesign !== "no",
+    notes: item.notes || "",
+    priceOverrideReason: item.priceOverrideReason || null,
+    status: item.needsDesign !== "no" ? "design_queue" : "confirmed",
+    assignedTo: null,
+    materialEstimate: [],
+    materialActual: [],
+  }));
+
+  const anyNeedsDesign = items.some((item) => item.needsDesign);
+  const firstItem = items[0];
 
   const newOrder = {
     id: `ORD-${sequence}`,
     spkNumber,
     customerId,
     customerName,
-    productId: product.id,
-    productName: product.name,
-    qty,
-    unit: product.unit,
+    productId: firstItem?.productId || "",
+    productName: firstItem?.product || "",
+    qty: firstItem?.qty || 1,
+    unit: firstItem?.unit || "pcs",
     total,
     paidAmount,
     paymentStatus: paidAmount <= 0 ? "unpaid" : paidAmount >= total ? "paid" : "partial",
-    status: form.needsDesign.value === "yes" ? "design_queue" : "confirmed",
+    status: anyNeedsDesign ? "design_queue" : "confirmed",
     priority,
-    productionStage: form.needsDesign.value === "yes" ? "Antrian Desain" : "Antrian Cetak",
     branchId: "BR-SBY-PUSAT",
     createdAt: new Date().toISOString(),
     deadlineAt: deadlineAt.toISOString(),
     updatedAt: new Date().toISOString(),
-    designerId: form.needsDesign.value === "yes" ? "EMP-003" : null,
-    operatorId: null,
-    notes: form.notes.value,
+    notes: items.map((i) => i.notes).filter(Boolean).join("; "),
     channel: new FormData(form).get("channel") || "walk-in",
     phone: form.phone.value,
-    finishing,
     files: document.getElementById("order-file").files[0]
       ? [{ name: document.getElementById("order-file").files[0].name, type: "file", uploadedAt: new Date().toISOString() }]
       : [],
+    items,
     timeline: [
       { at: new Date().toISOString(), status: "created", user: APP_STATE.currentUser.name, note: "Order dibuat dari form input" },
     ],
@@ -6376,7 +6689,20 @@ function setupEventHandlers() {
 
       if (actionButton.dataset.action === "enable-queue-audio") {
         enableQueueAudio();
+        return;
       }
+
+      if (actionButton.dataset.action === "remove-order-item") {
+        const idx = parseInt(actionButton.dataset.itemIndex, 10);
+        removeOrderItem(idx);
+        return;
+      }
+    }
+
+    // Add new item button (not a data-action, identified by id)
+    if (event.target.id === "add-order-item") {
+      addOrderItem();
+      return;
     }
   });
 
@@ -6444,6 +6770,66 @@ function setupEventHandlers() {
       updateOrderCalculation();
     }
 
+    // Multi-item form: qty
+    if (event.target.matches(".item-qty")) {
+      const idx = parseInt(event.target.dataset.itemIndex, 10);
+      APP_STATE.orderItems[idx].qty = Number(event.target.value) || 1;
+      updateItemCalc(idx);
+      return;
+    }
+
+    // Multi-item form: unit price
+    if (event.target.matches(".item-unit-price")) {
+      const idx = parseInt(event.target.dataset.itemIndex, 10);
+      APP_STATE.orderItems[idx].unitPrice = Number(event.target.value) || 0;
+      updateItemCalc(idx);
+      return;
+    }
+
+    // Multi-item form: large format width
+    if (event.target.matches(".item-spec-width")) {
+      const idx = parseInt(event.target.dataset.itemIndex, 10);
+      if (!APP_STATE.orderItems[idx].specs) APP_STATE.orderItems[idx].specs = {};
+      APP_STATE.orderItems[idx].specs.width = Number(event.target.value) || 100;
+      updateItemCalc(idx);
+      return;
+    }
+
+    // Multi-item form: large format height
+    if (event.target.matches(".item-spec-height")) {
+      const idx = parseInt(event.target.dataset.itemIndex, 10);
+      if (!APP_STATE.orderItems[idx].specs) APP_STATE.orderItems[idx].specs = {};
+      APP_STATE.orderItems[idx].specs.height = Number(event.target.value) || 100;
+      updateItemCalc(idx);
+      return;
+    }
+
+    // Multi-item form: notes
+    if (event.target.matches(".item-notes")) {
+      const idx = parseInt(event.target.dataset.itemIndex, 10);
+      APP_STATE.orderItems[idx].notes = event.target.value;
+      return;
+    }
+
+    // Multi-item form: price override reason
+    if (event.target.matches(".item-price-reason")) {
+      const idx = parseInt(event.target.dataset.itemIndex, 10);
+      APP_STATE.orderItems[idx].priceOverrideReason = event.target.value;
+      return;
+    }
+
+    // Multi-item form: discount/dp recalculate totals
+    if (event.target.matches("#order-discount, #order-dp")) {
+      updateOrderTotals();
+      return;
+    }
+
+    // Deadline date display update
+    if (event.target.id === "order-deadline-date") {
+      updateDeadlineDateDisplay();
+      return;
+    }
+
     if (event.target.matches("[data-po-line-input]")) {
       updatePurchaseOrderTotals();
     }
@@ -6462,6 +6848,34 @@ function setupEventHandlers() {
 
     if (event.target.id === "discount-type") {
       updateOrderCalculation();
+      updateOrderTotals();
+    }
+
+    // Multi-item form: product selection per item
+    if (event.target.matches("[data-action='select-item-product']")) {
+      const idx = parseInt(event.target.dataset.itemIndex, 10);
+      selectProductForItem(idx, event.target.value);
+      return;
+    }
+
+    // Multi-item form: finishing checkboxes per item
+    if (event.target.matches(".item-finishing")) {
+      const idx = parseInt(event.target.dataset.itemIndex, 10);
+      const item = APP_STATE.orderItems[idx];
+      if (!item) return;
+      if (event.target.checked) {
+        if (!item.finishing.includes(event.target.value)) item.finishing.push(event.target.value);
+      } else {
+        item.finishing = item.finishing.filter((f) => f !== event.target.value);
+      }
+      return;
+    }
+
+    // Multi-item form: needsDesign per item
+    if (event.target.matches(".item-needs-design")) {
+      const idx = parseInt(event.target.dataset.itemIndex, 10);
+      if (APP_STATE.orderItems[idx]) APP_STATE.orderItems[idx].needsDesign = event.target.value;
+      return;
     }
 
     if (event.target.id === "order-file") {
