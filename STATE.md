@@ -1,5 +1,5 @@
 # STATE.md — Printeoo Prototype Progress
-**Last Updated:** 2026-05-25 (v1.1 update TASK-104)
+**Last Updated:** 2026-05-25 (v1.1 update TASK-105)
 **Status Keseluruhan:** 🟡 Update v1.1 berjalan  
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
@@ -19,8 +19,8 @@
 | 5 — Polish & Integration | 4 | 4 | 100% |
 | 6 — Inventory Fully Functional | 7 | 7 | 100% |
 | 7 — Manajemen Pelanggan | 4 | 4 | 100% |
-| 8 â€” v1.1 Update | 10 | 5 | 50% |
-| **Total** | **43** | **38** | **88%** |
+| 8 â€” v1.1 Update | 10 | 6 | 60% |
+| **Total** | **43** | **39** | **91%** |
 
 ---
 
@@ -1343,6 +1343,28 @@ Update halaman detail SPK agar menampilkan item produksi individual, material es
 
 ---
 
+#### TASK-105 — Update Production Board (Kanban) untuk Multi-Item
+**Status:** `[x]` Selesai  
+**Estimasi:** 45 menit  
+**Depends on:** TASK-102  
+**Deskripsi:**  
+Update papan produksi agar card kanban merepresentasikan item produksi individual, bukan satu SPK penuh.
+
+**Checklist:**
+- [x] Card kanban = item produksi, bukan SPK
+- [x] SPK dengan 3 item tampil sebagai 3 card terpisah
+- [x] Label `SPK-xxx · Item X/Y` tampil di setiap card
+- [x] Counter per kolom menghitung jumlah item
+- [x] Modal detail produksi menampilkan detail item, status item, qty, assignee, total, catatan, dan estimasi material
+- [x] Modal punya link `Buka Detail SPK Lengkap →` ke route detail SPK
+- [x] Update status dari modal hanya mengubah item terkait dan menghitung ulang status derived SPK
+- [x] Scrollbar horizontal dan scroll hint terlihat pada board produksi
+- [x] `app.js` dan `data.js` lolos syntax check
+
+**Progress Terakhir:** 2026-05-25 — TASK-105 selesai. Production Board sekarang item-level: kolom, counter, card, modal, dan update status membaca `order.items`.
+
+---
+
 ## BUGS & ISSUES
 
 *Catat di sini setiap bug yang ditemukan saat development.*
@@ -1428,9 +1450,13 @@ Update halaman detail SPK agar menampilkan item produksi individual, material es
 
 ---
 
+| 46 | 2026-05-25 | TASK-105 — Update Production Board untuk Multi-Item | TASK-105 | Kanban produksi sekarang card per item, label SPK + Item X/Y, counter item-level, modal detail item dengan link ke detail SPK, update status item-level, dan scrollbar/hint horizontal. |
+
+---
+
 ## NEXT TASK
 
-**Task berikutnya:** TASK-105 â€” Update Production Board (Kanban) untuk Multi-Item.
+**Task berikutnya:** TASK-106 — Update Form Input Pesanan Baru untuk Multi-Item.
 
 Recheck terakhir (sesi 37, 2026-05-23) mengkonfirmasi:
 - 33/33 task selesai, tidak ada yang tertinggal

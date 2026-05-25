@@ -22,6 +22,7 @@ const APP_STATE = {
   },
   productionFilter: "all",
   selectedProductionSpk: null,
+  selectedProductionItemId: null,
   productionDisplayTimer: null,
   productionDisplayNotificationTimer: null,
   queueDisplayTimer: null,
@@ -2209,136 +2210,178 @@ function renderProductionBoard() {
   });
 
   const columns = PRODUCTION_COLUMNS.filter((column) => !(APP_STATE.currentRole === "operator" && column.operatorHidden));
-  const activeOrders = getProductionOrders();
+  const activeItems = getProductionItems();
+  const scrollHint = document.getElementById("production-scroll-hint");
+  if (scrollHint) {
+    scrollHint.textContent = columns.length > 3
+      ? "Geser horizontal untuk melihat semua kolom produksi."
+      : "";
+  }
 
   board.innerHTML = columns.map((column) => {
-    const orders = activeOrders.filter((order) => orderBelongsToColumn(order, column));
+    const items = activeItems.filter((productionItem) => itemBelongsToColumn(productionItem, column));
     return `
       <section class="kanban-column">
         <header class="kanban-column-header">
           <h2>${column.label}</h2>
-          <span class="nav-badge">${orders.length}</span>
+          <span class="nav-badge">${items.length}</span>
         </header>
         <div class="kanban-card-list">
-          ${orders.length ? orders.map(renderProductionCard).join("") : '<div class="kanban-empty">Tidak ada SPK</div>'}
+          ${items.length ? items.map(renderProductionCard).join("") : '<div class="kanban-empty">Tidak ada item</div>'}
         </div>
       </section>
     `;
   }).join("");
 }
 
-function getProductionOrders() {
-  return (window.APP_DATA?.orders || []).filter((order) => {
-    const isActive = !["closed"].includes(order.status);
-    const matchesFilter = APP_STATE.productionFilter === "all"
-      || (APP_STATE.productionFilter === "urgent" && ["urgent", "VIP"].includes(order.priority))
-      || (APP_STATE.productionFilter === "overdue" && isOrderOverdue(order));
-    return isActive && matchesFilter;
+function getProductionItems() {
+  return (window.APP_DATA?.orders || []).flatMap((order) => {
+    const isActive = !["cancelled", "closed", "delivered"].includes(order.status);
+    if (!isActive) return [];
+
+    const items = getOrderItems(order);
+    return items.map((item, index) => ({
+      order,
+      item,
+      itemIndex: index + 1,
+      itemTotal: items.length,
+    })).filter(({ item }) => {
+      const isItemOpen = !["ready", "delivered", "closed", "cancelled"].includes(item.status);
+      return APP_STATE.productionFilter === "all"
+        || (APP_STATE.productionFilter === "urgent" && ["urgent", "VIP"].includes(order.priority))
+        || (APP_STATE.productionFilter === "overdue" && isOrderOverdue(order) && isItemOpen);
+    });
   });
 }
 
-function orderBelongsToColumn(order, column) {
-  if (column.printQueue) {
-    return column.statuses.includes(order.status)
-      || order.status === "draft"
-      || (order.status === "confirmed" && order.productionStage === "Antrian Cetak");
-  }
-  return column.statuses.includes(order.status);
+function itemBelongsToColumn(productionItem, column) {
+  const itemStatus = productionItem.item.status || productionItem.order.status || "confirmed";
+  return column.statuses.includes(itemStatus);
 }
 
-function renderProductionCard(order) {
+function renderProductionCard(productionItem) {
+  const { order, item, itemIndex, itemTotal } = productionItem;
   const overdue = isOrderOverdue(order);
   const dueToday = formatRelativeDate(order.deadlineAt) === "Hari ini";
   const priorityClass = order.priority === "VIP" ? "badge-vip" : order.priority === "urgent" ? "badge-urgent" : "";
   const cardTone = overdue ? "overdue" : ["urgent", "VIP"].includes(order.priority) ? "urgent" : "";
-  const operator = (window.APP_DATA?.employees || []).find((employee) => employee.id === order.operatorId || employee.id === order.designerId);
+  const assignee = item.assignedTo || "";
+  const operator = (window.APP_DATA?.employees || []).find((employee) => employee.name === assignee || employee.id === order.operatorId || employee.id === order.designerId);
+  const assigneeName = assignee || operator?.name || "Belum assigned";
+  const itemLabel = `Item ${item.seq || itemIndex}/${itemTotal}`;
 
   return `
-    <article class="kanban-card ${cardTone}" data-production-spk="${order.spkNumber}">
-      <div class="text-xs text-muted">${order.spkNumber}</div>
-      <h3>${order.productName}</h3>
+    <article class="kanban-card ${cardTone}" data-production-spk="${escapeAttr(order.spkNumber)}" data-production-item-id="${escapeAttr(item.itemId)}">
+      <div class="kanban-item-label">${order.spkNumber} · ${itemLabel}</div>
+      <h3>${item.product}</h3>
       <p>${order.customerName}</p>
       <div class="kanban-card-meta">
         <span class="${overdue ? "text-danger font-semibold" : dueToday ? "text-warning font-semibold" : "text-muted"}">${formatRelativeDate(order.deadlineAt)}</span>
         ${priorityClass ? `<span class="badge ${priorityClass}">${window.APP_DATA.priorityLabels[order.priority]}</span>` : ""}
       </div>
+      <div class="kanban-card-meta">
+        <span class="badge badge-${item.status || "confirmed"}">${window.APP_DATA.statusLabels[item.status] || item.status || "Terkonfirmasi"}</span>
+        <span class="text-xs text-muted">${item.qty || 0} ${item.unit || ""}</span>
+      </div>
       <div class="kanban-card-footer">
-        <span class="mini-avatar">${operator ? operator.name.charAt(0) : "?"}</span>
-        <span>${operator ? operator.name : "Belum assigned"}</span>
+        <span class="mini-avatar">${assigneeName.charAt(0)}</span>
+        <span>${assigneeName}</span>
       </div>
     </article>
   `;
 }
 
-function openProductionModal(spkNumber) {
+function openProductionModal(spkNumber, itemId) {
   APP_STATE.selectedProductionSpk = spkNumber;
+  APP_STATE.selectedProductionItemId = itemId || null;
   const modalRoot = document.getElementById("production-modal-root");
   const order = findOrderBySpk(spkNumber);
   if (!modalRoot || !order) return;
 
-  const nextAction = getNextProductionAction(order);
+  const items = getOrderItems(order);
+  const item = items.find((candidate) => candidate.itemId === itemId) || items[0];
+  const itemIndex = Math.max(items.findIndex((candidate) => candidate.itemId === item.itemId), 0) + 1;
+  const itemLabel = `Item ${item.seq || itemIndex}/${items.length}`;
+  const nextAction = getNextProductionAction(item);
+  const materialRows = formatMaterialRows(item.materialEstimate || [], false) || `<p class="text-muted text-sm">Belum ada estimasi material.</p>`;
   modalRoot.innerHTML = `
     <div class="modal-overlay" data-action="close-production-modal">
       <section class="modal-box production-modal" role="dialog" aria-modal="true" aria-label="Detail produksi">
         <header class="modal-header">
           <div>
             <h2 class="card-title">${order.spkNumber}</h2>
-            <p class="card-description">${order.customerName} · ${order.productName}</p>
+            <p class="card-description">${order.customerName} · ${itemLabel}</p>
           </div>
         </header>
         <div class="modal-body">
           <dl class="detail-list">
-            <div><dt>Status</dt><dd>${window.APP_DATA.statusLabels[order.status] || order.status}</dd></div>
+            <div><dt>Produk</dt><dd>${item.product}</dd></div>
+            <div><dt>Status Item</dt><dd>${window.APP_DATA.statusLabels[item.status] || item.status}</dd></div>
             <div><dt>Prioritas</dt><dd>${window.APP_DATA.priorityLabels[order.priority] || order.priority}</dd></div>
             <div><dt>Deadline</dt><dd>${formatRelativeDate(order.deadlineAt)}</dd></div>
-            <div><dt>Qty</dt><dd>${order.qty} ${order.unit}</dd></div>
-            <div><dt>Total</dt><dd>${formatCurrency(order.total)}</dd></div>
+            <div><dt>Qty</dt><dd>${item.qty} ${item.unit}</dd></div>
+            <div><dt>Assignee</dt><dd>${item.assignedTo || "Belum assigned"}</dd></div>
+            <div><dt>Total Item</dt><dd>${formatCurrency(item.total)}</dd></div>
           </dl>
           <div class="note-box mt-4">
+            <strong>Estimasi Material</strong>
+            ${materialRows}
+          </div>
+          <div class="note-box mt-4">
             <strong>Catatan</strong>
-            <p>${order.notes || "Tidak ada catatan operator."}</p>
+            <p>${item.notes || order.notes || "Tidak ada catatan operator."}</p>
           </div>
         </div>
         <footer class="modal-footer">
+          <a class="btn-secondary" href="#/order/${encodeURIComponent(order.spkNumber)}" data-action="close-production-modal">Buka Detail SPK Lengkap →</a>
           <button class="btn-secondary" type="button" data-action="close-production-modal">Tutup</button>
-          ${nextAction ? `<button class="btn-primary" type="button" data-action="production-update-status" data-status="${nextAction.nextStatus}" data-note="${nextAction.note}">Update Status</button>` : ""}
+          ${nextAction ? `<button class="btn-primary" type="button" data-action="production-update-status" data-status="${nextAction.nextStatus}" data-note="${nextAction.note}">${nextAction.label}</button>` : ""}
         </footer>
       </section>
     </div>
   `;
 }
 
-function getNextProductionAction(order) {
-  const actions = ORDER_ACTIONS[order.status] || [];
-  return actions[0] || null;
+function getNextProductionAction(item) {
+  const actions = ORDER_ACTIONS[item.status] || [];
+  return actions.find((action) => action.nextStatus) || null;
 }
 
 function closeProductionModal() {
   const modalRoot = document.getElementById("production-modal-root");
   if (modalRoot) modalRoot.innerHTML = "";
   APP_STATE.selectedProductionSpk = null;
+  APP_STATE.selectedProductionItemId = null;
 }
 
 function updateProductionStatus(nextStatus, note) {
   const order = findOrderBySpk(APP_STATE.selectedProductionSpk);
   if (!order) return;
+  const items = getOrderItems(order);
+  const item = items.find((candidate) => candidate.itemId === APP_STATE.selectedProductionItemId) || items[0];
+  if (!item) return;
 
-  order.status = nextStatus;
+  item.status = nextStatus;
+  const derivedStatus = getOrderStatus(order);
+  order.derivedStatus = derivedStatus;
+  if (!["delivered", "closed", "cancelled"].includes(order.status)) {
+    order.status = derivedStatus;
+  }
   order.updatedAt = new Date().toISOString();
-  order.productionStage = window.APP_DATA.statusLabels[nextStatus] || nextStatus;
+  order.productionStage = window.APP_DATA.statusLabels[derivedStatus] || derivedStatus;
   order.timeline = order.timeline || [];
   order.timeline.push({
     at: new Date().toISOString(),
     status: nextStatus,
     user: APP_STATE.currentUser.name,
-    note: note || "Status diperbarui dari papan produksi",
+    note: `${item.product}: ${note || "Status item diperbarui dari papan produksi"}`,
   });
 
   persistStoredOrders();
   closeProductionModal();
   renderProductionBoard();
   updateSidebar(APP_STATE.currentRole);
-  showToast(`SPK pindah ke ${window.APP_DATA.statusLabels[nextStatus] || nextStatus}.`, "success");
+  showToast(`Item pindah ke ${window.APP_DATA.statusLabels[nextStatus] || nextStatus}.`, "success");
 }
 
 function initQueuePage() {
@@ -5916,7 +5959,7 @@ function setupEventHandlers() {
     }
 
     if (productionCard) {
-      openProductionModal(productionCard.dataset.productionSpk);
+      openProductionModal(productionCard.dataset.productionSpk, productionCard.dataset.productionItemId);
       return;
     }
 

@@ -1479,6 +1479,30 @@ textarea:focus {
   gap: var(--space-4);
   overflow-x: auto;
   padding-bottom: var(--space-3);
+  scrollbar-color: var(--neutral-400) var(--neutral-100);
+  scrollbar-width: thin;
+}
+
+.production-board::-webkit-scrollbar {
+  height: 10px;
+}
+
+.production-board::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: var(--neutral-100);
+}
+
+.production-board::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--neutral-400);
+}
+
+.production-scroll-hint {
+  margin-top: var(--space-2);
+  color: var(--neutral-500);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-align: center;
 }
 
 .kanban-column {
@@ -1540,6 +1564,12 @@ textarea:focus {
   font-size: var(--text-base);
   font-weight: 800;
   line-height: 1.35;
+}
+
+.kanban-item-label {
+  color: var(--neutral-500);
+  font-size: var(--text-xs);
+  font-weight: 800;
 }
 
 .kanban-card p {
