@@ -308,11 +308,7 @@ function canAccessRoute(route, role) {
 }
 
 function getOverdueOrders() {
-  const today = new Date();
-  return (window.APP_DATA?.orders || []).filter((order) => {
-    const isDone = ["ready", "delivered", "closed"].includes(order.status);
-    return new Date(order.deadlineAt) < today && !isDone;
-  });
+  return (window.APP_DATA?.orders || []).filter(isOrderOverdue);
 }
 
 function initPage(route, params = {}) {
@@ -583,7 +579,8 @@ function renderOrdersPage() {
   statusSelect.value = APP_STATE.orderFilters.status;
   searchInput.value = APP_STATE.orderFilters.search;
   document.querySelectorAll("[data-date-filter]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.dateFilter === APP_STATE.orderFilters.date);
+    const activeFilter = APP_STATE.orderFilters.overdue ? "overdue" : APP_STATE.orderFilters.date;
+    button.classList.toggle("active", button.dataset.dateFilter === activeFilter);
   });
 
   renderOrdersTable(orders);
@@ -636,6 +633,16 @@ function renderOrdersTable(orders) {
 function renderOrderRow(order) {
   const overdue = isOrderOverdue(order);
   const detailHash = `#/order/${encodeURIComponent(order.spkNumber)}`;
+  const items = getOrderItems(order);
+  const firstItem = items[0];
+  const extraCount = Math.max(items.length - 1, 0);
+  const productLabel = firstItem?.product || order.productName || "-";
+  const qtyLabel = items.length > 1
+    ? `${items.length} item`
+    : `${firstItem?.qty ?? order.qty} ${firstItem?.unit || order.unit || ""}`.trim();
+  const displayStatus = getOrderStatus(order);
+  const statusLabel = window.APP_DATA.statusLabels[displayStatus] || displayStatus;
+  const statusTooltip = getOrderStatusBreakdown(order);
 
   return `
     <tr class="${overdue ? "row-overdue" : ""}" data-order-link="${detailHash}">
@@ -646,14 +653,19 @@ function renderOrderRow(order) {
         <div class="font-semibold">${order.customerName}</div>
         <div class="text-xs text-muted">${order.paymentStatus === "paid" ? "Lunas" : order.paymentStatus === "partial" ? "DP / Parsial" : "Belum bayar"}</div>
       </td>
-      <td>${order.productName}</td>
-      <td>${order.qty} ${order.unit}</td>
+      <td>
+        <div class="order-product-cell">
+          <span>${productLabel}</span>
+          ${extraCount ? `<span class="badge badge-draft">+${extraCount} lagi</span>` : ""}
+        </div>
+      </td>
+      <td>${qtyLabel}</td>
       <td>${formatCurrency(order.total)}</td>
       <td>
         <span class="${overdue ? "text-danger font-semibold" : ""}">${formatRelativeDate(order.deadlineAt)}</span>
       </td>
       <td>
-        <span class="badge badge-${order.status}">${window.APP_DATA.statusLabels[order.status] || order.status}</span>
+        <span class="badge badge-${displayStatus}" title="${escapeAttr(statusTooltip)}">${statusLabel}</span>
       </td>
       <td>
         <a class="btn-secondary btn-sm" href="${detailHash}">Detail</a>
@@ -667,10 +679,12 @@ function filterOrders(orders) {
   const searchText = search.trim().toLowerCase();
 
   return orders.filter((order) => {
+    const displayStatus = getOrderStatus(order);
     const matchesSearch = !searchText
       || order.customerName.toLowerCase().includes(searchText)
-      || order.spkNumber.toLowerCase().includes(searchText);
-    const matchesStatus = status === "all" || order.status === status;
+      || order.spkNumber.toLowerCase().includes(searchText)
+      || getOrderItems(order).some((item) => String(item.product || "").toLowerCase().includes(searchText));
+    const matchesStatus = status === "all" || displayStatus === status;
     const matchesDate = matchesDateFilter(order.deadlineAt, date);
     const matchesOverdue = !APP_STATE.orderFilters.overdue || isOrderOverdue(order);
 
@@ -704,8 +718,41 @@ function isOrderOverdue(order) {
   today.setHours(0, 0, 0, 0);
   const deadline = new Date(order.deadlineAt);
   deadline.setHours(0, 0, 0, 0);
-  const isDone = ["ready", "delivered", "closed"].includes(order.status);
-  return deadline < today && !isDone;
+  const hasUnfinishedItem = getOrderItems(order).some((item) => item.status !== "ready");
+  const legacyDone = !order.items?.length && ["ready", "delivered", "closed"].includes(order.status);
+  return deadline < today && hasUnfinishedItem && !legacyDone;
+}
+
+function getOrderItems(order) {
+  if (Array.isArray(order.items) && order.items.length) return order.items;
+  return [{
+    itemId: `${order.spkNumber || order.id}-LEGACY-01`,
+    seq: 1,
+    product: order.productName || "-",
+    qty: order.qty || 0,
+    unit: order.unit || "",
+    status: order.status || "confirmed",
+  }];
+}
+
+function getOrderStatus(order) {
+  if (typeof window.getOrderDerivedStatus === "function" && Array.isArray(order.items) && order.items.length) {
+    return window.getOrderDerivedStatus(order);
+  }
+  return order.derivedStatus || order.status || "confirmed";
+}
+
+function getOrderStatusBreakdown(order) {
+  const items = getOrderItems(order);
+  const counts = items.reduce((acc, item) => {
+    const status = item.status || "confirmed";
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.entries(counts)
+    .map(([status, count]) => `${count} item ${window.APP_DATA.statusLabels[status] || status}`)
+    .join(", ");
 }
 
 function getCustomerTypeMeta(type) {
@@ -5637,8 +5684,9 @@ function setupEventHandlers() {
     }
 
     if (dateFilterButton) {
-      APP_STATE.orderFilters.date = dateFilterButton.dataset.dateFilter || "all";
-      APP_STATE.orderFilters.overdue = false;
+      const filter = dateFilterButton.dataset.dateFilter || "all";
+      APP_STATE.orderFilters.date = filter === "overdue" ? "all" : filter;
+      APP_STATE.orderFilters.overdue = filter === "overdue";
       document.querySelectorAll("[data-date-filter]").forEach((button) => {
         button.classList.toggle("active", button === dateFilterButton);
       });

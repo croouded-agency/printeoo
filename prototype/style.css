@@ -994,6 +994,13 @@ textarea:focus {
   cursor: pointer;
 }
 
+.order-product-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
 .empty-illustration {
   display: inline-flex;
   width: 72px;

@@ -1,5 +1,5 @@
 # STATE.md — Printeoo Prototype Progress
-**Last Updated:** 2026-05-25 (v1.1 update TASK-109)
+**Last Updated:** 2026-05-25 (v1.1 update TASK-103)
 **Status Keseluruhan:** 🟡 Update v1.1 berjalan  
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
@@ -19,8 +19,8 @@
 | 5 — Polish & Integration | 4 | 4 | 100% |
 | 6 — Inventory Fully Functional | 7 | 7 | 100% |
 | 7 — Manajemen Pelanggan | 4 | 4 | 100% |
-| 8 â€” v1.1 Update | 10 | 3 | 30% |
-| **Total** | **43** | **36** | **84%** |
+| 8 â€” v1.1 Update | 10 | 4 | 40% |
+| **Total** | **43** | **37** | **86%** |
 
 ---
 
@@ -1298,6 +1298,28 @@ Perbaiki isu UX kritis di dashboard, keuangan, dan pengaturan sesuai audit v1.1.
 
 ---
 
+#### TASK-103 â€” Update Daftar Pesanan untuk Multi-Item
+**Status:** `[x]` Selesai  
+**Estimasi:** 30 menit  
+**Depends on:** TASK-102  
+**Deskripsi:**  
+Update halaman daftar pesanan agar membaca struktur `order.items`, menampilkan ringkasan multi-item, dan memakai status derived.
+
+**Checklist:**
+- [x] SPK multi-item menampilkan produk pertama + badge `+N lagi`
+- [x] Kolom Qty menampilkan jumlah item untuk SPK multi-item
+- [x] Status badge memakai `getOrderDerivedStatus(order)` via helper `getOrderStatus`
+- [x] Status badge punya tooltip breakdown status item
+- [x] Search juga mencocokkan nama produk di dalam item
+- [x] Filter status memakai status derived
+- [x] Tombol filter cepat `Overdue` ditambahkan dan aktif
+- [x] Logika overdue memakai deadline lewat + ada item belum `ready`
+- [x] `app.js` dan `data.js` lolos syntax check
+
+**Progress Terakhir:** 2026-05-25 â€” TASK-103 selesai. Daftar pesanan sudah compatible dengan SPK multi-item dan tetap fallback untuk order lama dari localStorage.
+
+---
+
 ## BUGS & ISSUES
 
 *Catat di sini setiap bug yang ditemukan saat development.*
@@ -1378,12 +1400,13 @@ Perbaiki isu UX kritis di dashboard, keuangan, dan pengaturan sesuai audit v1.1.
 | 41 | 2026-05-25 | TASK-101 â€” Hapus stage Review Pelanggan | TASK-101 | Kolom kanban Review Pelanggan dihapus, status `production_queue` ditambahkan sebagai Antrian Cetak, progress detail dan state machine diperbarui, serta validasi statis tidak menemukan `design_review` atau "Review Pelanggan" di folder `prototype`. |
 | 42 | 2026-05-25 | TASK-102 â€” Implementasi SPK Multi-Item: Update data.js | TASK-102 | Semua 32 order sekarang punya `items` array, 5 SPK dibuat multi-item, helper `window.getOrderDerivedStatus` ditambahkan, dan validasi runtime memastikan field wajib lengkap. |
 | 43 | 2026-05-25 | TASK-109 â€” Fix UX Issues Kritis dari Audit | TASK-109 | Dashboard chart punya label nilai, konteks metric diperjelas, completion rate diperbaiki, chart Finance memakai format compact, dark mode toggle disabled, notifikasi kurir ditambahkan, dan matriks akses punya kolom Gudang/Kurir. |
+| 44 | 2026-05-25 | TASK-103 â€” Update Daftar Pesanan untuk Multi-Item | TASK-103 | Tabel Pesanan sekarang menampilkan produk pertama + badge `+N lagi`, Qty multi-item menjadi jumlah item, status menggunakan derived status dengan tooltip breakdown, search membaca item produk, dan filter cepat Overdue ditambahkan. |
 
 ---
 
 ## NEXT TASK
 
-**Task berikutnya:** TASK-103 â€” Update Daftar Pesanan untuk Multi-Item.
+**Task berikutnya:** TASK-104 â€” Update Detail SPK untuk Multi-Item.
 
 Recheck terakhir (sesi 37, 2026-05-23) mengkonfirmasi:
 - 33/33 task selesai, tidak ada yang tertinggal
