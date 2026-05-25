@@ -1671,7 +1671,8 @@ const ORDER_ACTIONS = {
     { label: "Selesai, Siap Diambil", nextStatus: "ready", note: "Pesanan selesai dan siap diambil" },
   ],
   ready: [
-    { label: "Tandai Sudah Diambil & Lunas", nextStatus: "closed", note: "Pesanan diambil customer dan ditutup" },
+    { label: "Tandai Diambil", customAction: "mark-order-picked-up", note: "Pesanan ditandai sudah diambil customer" },
+    { label: "Tandai Lunas", customAction: "mark-order-paid", secondary: true, note: "Pembayaran pesanan ditandai lunas" },
   ],
 };
 
@@ -1692,30 +1693,37 @@ function renderOrderDetailPage() {
     return;
   }
 
-  const statusLabel = window.APP_DATA.statusLabels[order.status] || order.status;
+  const displayStatus = getOrderStatus(order);
+  const statusLabel = window.APP_DATA.statusLabels[displayStatus] || displayStatus;
   const priorityClass = order.priority === "VIP" ? "badge-vip" : order.priority === "urgent" ? "badge-urgent" : "badge-confirmed";
+  const items = getOrderItems(order);
 
   container.innerHTML = `
     <div class="detail-header">
       <div>
         <div class="flex items-center gap-3 flex-wrap">
           <h1 class="page-title">${order.spkNumber}</h1>
-          <span class="badge badge-${order.status}">${statusLabel}</span>
+          <span class="badge badge-${displayStatus}">${statusLabel}</span>
           <span class="badge ${priorityClass}">${window.APP_DATA.priorityLabels[order.priority] || order.priority}</span>
         </div>
-        <p class="page-subtitle">Dibuat ${formatDate(order.createdAt)} · Deadline ${formatRelativeDate(order.deadlineAt)}</p>
+        <p class="page-subtitle">Dibuat ${formatDate(order.createdAt)} · Deadline ${formatRelativeDate(order.deadlineAt)} · ${items.length} item · Total ${formatCurrency(order.total)}</p>
       </div>
       <div class="flex gap-3 flex-wrap">
         <button class="btn-secondary" type="button" data-action="print-spk">Cetak SPK</button>
         <button class="btn-secondary" type="button" data-action="duplicate-order">Duplikat</button>
-        <button class="btn-danger" type="button" data-action="cancel-order">Batalkan</button>
+        <details class="more-actions">
+          <summary class="btn-secondary">Lainnya</summary>
+          <div class="more-actions-menu">
+            <button class="btn-secondary btn-outline-danger" type="button" data-action="cancel-order">Batalkan SPK</button>
+          </div>
+        </details>
       </div>
     </div>
 
     ${renderProgressTracker(order)}
 
     <section class="order-detail-grid">
-      ${renderOrderInfoCard(order)}
+      ${renderOrderInfoCardV2(order)}
       ${renderTimelineCard(order)}
       ${renderActionCard(order)}
     </section>
@@ -1723,7 +1731,9 @@ function renderOrderDetailPage() {
 }
 
 function renderProgressTracker(order) {
-  const currentIndex = getStageIndex(order.status);
+  const currentStatus = getOrderStatus(order);
+  const currentIndex = getStageIndex(currentStatus);
+  const summary = getOrderStatusBreakdown(order);
   return `
     <section class="card progress-card" aria-label="Progress SPK">
       <div class="progress-track">
@@ -1737,6 +1747,7 @@ function renderProgressTracker(order) {
           `;
         }).join("")}
       </div>
+      <p class="progress-summary">${getOrderItems(order).length} item: ${summary}</p>
     </section>
   `;
 }
@@ -1826,6 +1837,150 @@ function renderOrderInfoCard(order) {
   `;
 }
 
+function renderOrderInfoCardV2(order) {
+  const fileList = order.files?.length
+    ? order.files.map((file) => `<li>${escapeHtml(file.name)}</li>`).join("")
+    : "<li>Belum ada file</li>";
+  const customer = (window.APP_DATA?.customers || []).find((item) => item.id === order.customerId);
+  const customerLabel = customer
+    ? `<a class="table-link" href="#/customer/${encodeURIComponent(customer.id)}">${escapeHtml(order.customerName)}</a>`
+    : escapeHtml(order.customerName);
+  const items = getOrderItems(order);
+
+  return `
+    <article class="card detail-card">
+      <h2 class="card-title">Daftar Item</h2>
+      <dl class="detail-list">
+        <div><dt>Customer</dt><dd>${customerLabel}</dd></div>
+        <div><dt>Jumlah Item</dt><dd>${items.length} item</dd></div>
+        <div><dt>Total</dt><dd>${formatCurrency(order.total)}</dd></div>
+        <div><dt>Dibayar</dt><dd>${formatCurrency(order.paidAmount || 0)}</dd></div>
+        <div><dt>Sisa</dt><dd>${formatCurrency(Math.max(order.total - (order.paidAmount || 0), 0))}</dd></div>
+        <div><dt>Deadline</dt><dd>${formatDate(order.deadlineAt)}</dd></div>
+      </dl>
+
+      <div class="order-item-list">
+        ${items.map((item) => renderOrderDetailItem(order, item)).join("")}
+      </div>
+
+      <div class="mt-4">
+        <h3 class="detail-subtitle">File Upload</h3>
+        <ul class="file-list">${fileList}</ul>
+      </div>
+
+      ${shouldShowMaterialSection(order) ? `
+        <div class="mt-4" style="border-top:1px solid var(--neutral-200);padding-top:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
+            <h3 class="detail-subtitle" style="margin:0">Material & Waste per Item</h3>
+            <div style="display:flex;gap:6px">
+              <button class="btn-secondary" type="button" data-action="open-qr-scan" style="font-size:12px;padding:5px 10px">Scan QR</button>
+              <button class="btn-primary" type="button" data-action="open-usage-waste-modal" data-spk-number="${order.spkNumber}" style="font-size:12px;padding:5px 10px">+ Catat Pemakaian</button>
+            </div>
+          </div>
+          <div class="material-accordion">
+            ${items.map((item) => renderMaterialWasteForItem(order, item)).join("")}
+          </div>
+        </div>
+      ` : ""}
+    </article>
+  `;
+}
+
+function renderOrderDetailItem(order, item) {
+  const status = item.status || getOrderStatus(order);
+  const estimateText = formatMaterialRows(item.materialEstimate);
+  const actualText = formatMaterialRows(item.materialActual, true);
+  const deviationText = formatItemDeviation(item);
+
+  return `
+    <section class="order-item-card">
+      <div class="order-item-card-header">
+        <div>
+          <span class="text-xs text-muted">ITEM ${item.seq || 1}</span>
+          <h3>${escapeHtml(item.product || order.productName || "-")}</h3>
+        </div>
+        <span class="badge badge-${status}">${window.APP_DATA.statusLabels[status] || status}</span>
+      </div>
+      <p class="text-sm text-muted">${item.qty || 0} ${item.unit || ""} · ${formatCurrency(item.total || 0)} · ${escapeHtml(item.assignedTo || "Belum assigned")}</p>
+      <p class="text-sm"><strong>Estimasi:</strong> ${estimateText}</p>
+      <p class="text-sm"><strong>Aktual:</strong> ${actualText}</p>
+      <p class="text-sm ${deviationText.includes('+') ? "text-warning" : "text-muted"}"><strong>Deviasi:</strong> ${deviationText}</p>
+      ${item.notes ? `<p class="text-xs text-muted">${escapeHtml(item.notes)}</p>` : ""}
+    </section>
+  `;
+}
+
+function formatMaterialRows(rows = [], includeBatch = false) {
+  if (!rows.length) return "belum direcord";
+  return rows.map((row) => {
+    const batch = includeBatch && row.batch ? ` (${row.batch})` : "";
+    return `${row.qty} ${row.unit} ${row.material}${batch}`;
+  }).join(", ");
+}
+
+function formatItemDeviation(item) {
+  const estimate = item.materialEstimate || [];
+  const actual = item.materialActual || [];
+  if (!estimate.length) return "-";
+  if (!actual.length) return "belum ada aktual";
+  const firstEstimate = estimate[0];
+  const firstActual = actual.find((row) => row.material === firstEstimate.material) || actual[0];
+  const diff = Math.round(((Number(firstActual.qty) || 0) - (Number(firstEstimate.qty) || 0)) * 100) / 100;
+  const pct = firstEstimate.qty ? Math.round((diff / firstEstimate.qty) * 1000) / 10 : 0;
+  const sign = diff > 0 ? "+" : "";
+  return `${sign}${diff} ${firstEstimate.unit} (${sign}${pct}%)`;
+}
+
+function shouldShowMaterialSection(order) {
+  return getOrderItems(order).some((item) => ["printing", "finishing", "ready"].includes(item.status));
+}
+
+function renderMaterialWasteForItem(order, item) {
+  const usages = (window.APP_DATA?.usageLog || []).filter((u) => (
+    u.spkNumber === order.spkNumber
+    && (!u.orderItemId || u.orderItemId === item.itemId || u.productName === item.product)
+  ));
+  const rows = usages.length
+    ? usages.map((usage, index) => renderUsageRow(usage, index)).join("")
+    : `<tr><td colspan="5" class="text-muted text-sm">Belum ada material dicatat untuk item ini.</td></tr>`;
+
+  return `
+    <details class="material-item" open>
+      <summary>Material — Item ${item.seq || 1}: ${escapeHtml(item.product || order.productName || "-")}</summary>
+      <div class="data-table" style="margin-top:10px">
+        <table>
+          <thead><tr><th>Bahan</th><th>Qty Pakai</th><th>Waste</th><th>Batch</th><th>Kategori</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </details>
+  `;
+}
+
+function renderUsageRow(usage, index) {
+  const wasteCatLabels = { cutting: "Cutting", misprint: "Gagal Cetak", overflow: "Kelebihan", calibration: "Setup Loss", damage: "Kerusakan" };
+  const batch = getBatchById(usage.batchId) || getFallbackBatchForUsage(usage, index);
+  const batchId = usage.batchId || batch?.batchId;
+  return `
+    <tr>
+      <td>${escapeHtml(usage.itemName)}</td>
+      <td>${usage.qtyUsed} ${usage.unit}</td>
+      <td class="${usage.qtyWaste > 0 ? "text-warning" : "text-muted"}">${usage.qtyWaste} ${usage.unit}</td>
+      <td>
+        ${batchId ? `
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+            <code class="text-xs text-muted">${batchId}</code>
+            <button class="btn-secondary text-xs" type="button" data-action="open-batch-usage" data-batch-id="${batchId}">Lihat Batch</button>
+          </div>
+        ` : `
+          <button class="btn-secondary text-xs" type="button" data-action="open-item-batches" data-item-id="${usage.itemId}">Pilih Batch</button>
+        `}
+      </td>
+      <td class="text-xs text-muted">${usage.wasteCategory ? (wasteCatLabels[usage.wasteCategory] || usage.wasteCategory) : "-"}</td>
+    </tr>
+  `;
+}
+
 function renderTimelineCard(order) {
   const timeline = [...(order.timeline || [])].sort((a, b) => new Date(a.at) - new Date(b.at));
   return `
@@ -1848,13 +2003,21 @@ function renderTimelineCard(order) {
 }
 
 function renderActionCard(order) {
-  const actions = ORDER_ACTIONS[order.status] || [];
+  const displayStatus = getOrderStatus(order);
+  let actions = ORDER_ACTIONS[displayStatus] || [];
+  if (displayStatus === "ready") {
+    actions = actions.filter((action) => {
+      if (action.customAction === "mark-order-picked-up") return !["delivered", "closed"].includes(order.status);
+      if (action.customAction === "mark-order-paid") return order.paymentStatus !== "paid";
+      return true;
+    });
+  }
   return `
     <article class="card detail-card">
       <h2 class="card-title">Aksi & Catatan</h2>
       <div class="action-stack">
         ${actions.length ? actions.map((action) => `
-          <button class="btn-primary w-full" type="button" data-action="advance-order" data-status="${action.nextStatus}" data-note="${action.note}">
+          <button class="${action.secondary ? "btn-secondary" : "btn-primary"} w-full" type="button" data-action="${action.customAction || "advance-order"}" data-status="${action.nextStatus || ""}" data-note="${action.note}">
             ${action.label}
           </button>
         `).join("") : '<p class="text-muted">Tidak ada aksi lanjutan untuk status ini.</p>'}
@@ -1889,9 +2052,18 @@ function advanceCurrentOrder(nextStatus, note) {
   const order = findOrderBySpk(APP_STATE.routeParams.spkNumber);
   if (!order) return;
 
-  order.status = nextStatus;
+  const currentStatus = getOrderStatus(order);
+  if (Array.isArray(order.items) && order.items.length) {
+    order.items.forEach((item) => {
+      if (item.status === currentStatus) item.status = nextStatus;
+    });
+    order.derivedStatus = getOrderStatus(order);
+    order.status = ["delivered", "closed"].includes(order.status) ? order.status : order.derivedStatus;
+  } else {
+    order.status = nextStatus;
+  }
   order.updatedAt = new Date().toISOString();
-  order.productionStage = window.APP_DATA.statusLabels[nextStatus] || nextStatus;
+  order.productionStage = window.APP_DATA.statusLabels[getOrderStatus(order)] || getOrderStatus(order);
   if (nextStatus === "closed") {
     order.paidAmount = order.total;
     order.paymentStatus = "paid";
@@ -1908,6 +2080,42 @@ function advanceCurrentOrder(nextStatus, note) {
   renderOrderDetailPage();
   updateSidebar(APP_STATE.currentRole);
   showToast(`Status SPK diperbarui ke ${window.APP_DATA.statusLabels[nextStatus] || nextStatus}.`, "success");
+}
+
+function markCurrentOrderPickedUp() {
+  const order = findOrderBySpk(APP_STATE.routeParams.spkNumber);
+  if (!order) return;
+  order.status = "delivered";
+  order.updatedAt = new Date().toISOString();
+  order.timeline = order.timeline || [];
+  order.timeline.push({
+    at: new Date().toISOString(),
+    status: "delivered",
+    user: APP_STATE.currentUser.name,
+    note: "Pesanan ditandai sudah diambil customer",
+  });
+  persistStoredOrders();
+  renderOrderDetailPage();
+  showToast("Pesanan ditandai sudah diambil.", "success");
+}
+
+function markCurrentOrderPaid() {
+  const order = findOrderBySpk(APP_STATE.routeParams.spkNumber);
+  if (!order) return;
+  order.paidAmount = order.total;
+  order.paymentStatus = "paid";
+  order.status = order.status === "delivered" ? "closed" : order.status;
+  order.updatedAt = new Date().toISOString();
+  order.timeline = order.timeline || [];
+  order.timeline.push({
+    at: new Date().toISOString(),
+    status: order.status === "closed" ? "closed" : "payment",
+    user: APP_STATE.currentUser.name,
+    note: "Pembayaran pesanan ditandai lunas",
+  });
+  persistStoredOrders();
+  renderOrderDetailPage();
+  showToast("Pembayaran ditandai lunas.", "success");
 }
 
 function addCurrentOrderNote() {
@@ -1938,6 +2146,14 @@ function duplicateCurrentOrder() {
     id: `ORD-${sequence}`,
     spkNumber,
     status: "draft",
+    derivedStatus: "confirmed",
+    items: getOrderItems(order).map((item, index) => ({
+      ...item,
+      itemId: `ITEM-${sequence}-${String(index + 1).padStart(2, "0")}`,
+      seq: index + 1,
+      status: "confirmed",
+      materialActual: [],
+    })),
     paidAmount: 0,
     paymentStatus: "unpaid",
     createdAt: new Date().toISOString(),
@@ -4413,6 +4629,8 @@ function openUsageWasteModal(spkNumber) {
 
   const inventory = window.APP_DATA?.inventory || [];
   const today = new Date().toISOString().split("T")[0];
+  const order = findOrderBySpk(spkNumber);
+  const orderItems = order ? getOrderItems(order) : [];
 
   root.innerHTML = `
     <div class="modal-overlay" id="usage-waste-modal">
@@ -4423,6 +4641,14 @@ function openUsageWasteModal(spkNumber) {
         </div>
         <form id="usage-waste-form" novalidate>
           <div class="modal-form">
+            ${orderItems.length ? `
+              <div class="form-group">
+                <label class="form-label" for="uw-order-item">Item SPK *</label>
+                <select class="form-select" id="uw-order-item" name="orderItemId" required>
+                  ${orderItems.map((item) => `<option value="${item.itemId}">Item ${item.seq || 1} - ${escapeHtml(item.product || order.productName || "-")}</option>`).join("")}
+                </select>
+              </div>
+            ` : ""}
             <div class="form-group">
               <label class="form-label" for="uw-item">Bahan *</label>
               <select class="form-select" id="uw-item" name="itemId" required>
@@ -4546,12 +4772,14 @@ function submitUsageWasteForm(form) {
   const totalConsumed = qtyUsed + qtyWaste;
 
   const order = findOrderBySpk(data.spkNumber);
+  const orderItem = getOrderItems(order || {}).find((orderLine) => orderLine.itemId === data.orderItemId);
   if (!window.APP_DATA.usageLog) window.APP_DATA.usageLog = [];
 
   const entry = {
     id: `USE-${String(window.APP_DATA.usageLog.length + 1).padStart(3, "0")}`,
     spkNumber: data.spkNumber,
-    productName: order?.productName || "—",
+    orderItemId: data.orderItemId || null,
+    productName: orderItem?.product || order?.productName || "-",
     itemId: data.itemId,
     itemName: item.name,
     batchId: data.batchId || null,
@@ -4567,6 +4795,15 @@ function submitUsageWasteForm(form) {
   };
 
   window.APP_DATA.usageLog.push(entry);
+  if (orderItem) {
+    orderItem.materialActual = orderItem.materialActual || [];
+    orderItem.materialActual.push({
+      material: item.name,
+      qty: qtyUsed,
+      unit: item.unit,
+      batch: data.batchId || null,
+    });
+  }
 
   item.stock = Math.max(Math.round((item.stock - totalConsumed) * 1000) / 1000, 0);
   if (item.stock <= 0) item.status = "empty";
@@ -5999,6 +6236,16 @@ function setupEventHandlers() {
 
       if (actionButton.dataset.action === "advance-order") {
         advanceCurrentOrder(actionButton.dataset.status, actionButton.dataset.note);
+        return;
+      }
+
+      if (actionButton.dataset.action === "mark-order-picked-up") {
+        markCurrentOrderPickedUp();
+        return;
+      }
+
+      if (actionButton.dataset.action === "mark-order-paid") {
+        markCurrentOrderPaid();
         return;
       }
 

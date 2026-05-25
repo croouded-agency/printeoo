@@ -1,5 +1,5 @@
 # STATE.md — Printeoo Prototype Progress
-**Last Updated:** 2026-05-25 (v1.1 update TASK-103)
+**Last Updated:** 2026-05-25 (v1.1 update TASK-104)
 **Status Keseluruhan:** 🟡 Update v1.1 berjalan  
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
@@ -19,8 +19,8 @@
 | 5 — Polish & Integration | 4 | 4 | 100% |
 | 6 — Inventory Fully Functional | 7 | 7 | 100% |
 | 7 — Manajemen Pelanggan | 4 | 4 | 100% |
-| 8 â€” v1.1 Update | 10 | 4 | 40% |
-| **Total** | **43** | **37** | **86%** |
+| 8 â€” v1.1 Update | 10 | 5 | 50% |
+| **Total** | **43** | **38** | **88%** |
 
 ---
 
@@ -1320,6 +1320,29 @@ Update halaman daftar pesanan agar membaca struktur `order.items`, menampilkan r
 
 ---
 
+#### TASK-104 â€” Update Detail SPK untuk Multi-Item
+**Status:** `[x]` Selesai  
+**Estimasi:** 60 menit  
+**Depends on:** TASK-102  
+**Deskripsi:**  
+Update halaman detail SPK agar menampilkan item produksi individual, material estimate/actual/deviation per item, dan aksi pembayaran/pengambilan yang lebih jelas.
+
+**Checklist:**
+- [x] Header SPK memakai status derived dan menampilkan jumlah item + total nilai SPK
+- [x] Progress bar memakai status item paling tertinggal
+- [x] Ringkasan status item tampil di bawah progress bar
+- [x] Section Info Pesanan diganti menjadi daftar item individual
+- [x] Setiap item menampilkan status, qty, total, assignee, estimasi material, aktual material, dan deviasi
+- [x] Section Material & Waste ditampilkan per item
+- [x] Modal catat pemakaian material bisa memilih item SPK
+- [x] Tombol "Batalkan SPK" dipindah ke dropdown "Lainnya" dan memakai style outline
+- [x] Tombol lama "Tandai Sudah Diambil & Lunas" diganti menjadi "Tandai Diambil" dan "Tandai Lunas"
+- [x] `app.js` dan `data.js` lolos syntax check
+
+**Progress Terakhir:** 2026-05-25 â€” TASK-104 selesai. Detail SPK sekarang multi-item aware dan aksi ready dipisah sesuai audit UX.
+
+---
+
 ## BUGS & ISSUES
 
 *Catat di sini setiap bug yang ditemukan saat development.*
@@ -1401,12 +1424,13 @@ Update halaman daftar pesanan agar membaca struktur `order.items`, menampilkan r
 | 42 | 2026-05-25 | TASK-102 â€” Implementasi SPK Multi-Item: Update data.js | TASK-102 | Semua 32 order sekarang punya `items` array, 5 SPK dibuat multi-item, helper `window.getOrderDerivedStatus` ditambahkan, dan validasi runtime memastikan field wajib lengkap. |
 | 43 | 2026-05-25 | TASK-109 â€” Fix UX Issues Kritis dari Audit | TASK-109 | Dashboard chart punya label nilai, konteks metric diperjelas, completion rate diperbaiki, chart Finance memakai format compact, dark mode toggle disabled, notifikasi kurir ditambahkan, dan matriks akses punya kolom Gudang/Kurir. |
 | 44 | 2026-05-25 | TASK-103 â€” Update Daftar Pesanan untuk Multi-Item | TASK-103 | Tabel Pesanan sekarang menampilkan produk pertama + badge `+N lagi`, Qty multi-item menjadi jumlah item, status menggunakan derived status dengan tooltip breakdown, search membaca item produk, dan filter cepat Overdue ditambahkan. |
+| 45 | 2026-05-25 | TASK-104 â€” Update Detail SPK untuk Multi-Item | TASK-104 | Detail SPK menampilkan daftar item individual, progress berdasarkan item paling tertinggal, material estimate/actual/deviation per item, Material & Waste per item, tombol Batalkan pindah ke dropdown Lainnya, dan aksi ready dipisah menjadi Tandai Diambil serta Tandai Lunas. |
 
 ---
 
 ## NEXT TASK
 
-**Task berikutnya:** TASK-104 â€” Update Detail SPK untuk Multi-Item.
+**Task berikutnya:** TASK-105 â€” Update Production Board (Kanban) untuk Multi-Item.
 
 Recheck terakhir (sesi 37, 2026-05-23) mengkonfirmasi:
 - 33/33 task selesai, tidak ada yang tertinggal

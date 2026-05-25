@@ -1225,7 +1225,7 @@ textarea:focus {
 
 .progress-track {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: var(--space-3);
 }
 
@@ -1280,6 +1280,80 @@ textarea:focus {
 .progress-step.current span {
   background: var(--primary);
   color: var(--white);
+}
+
+.progress-summary {
+  margin-top: var(--space-3);
+  color: var(--neutral-600);
+  font-size: var(--text-sm);
+}
+
+.more-actions {
+  position: relative;
+}
+
+.more-actions summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.more-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.more-actions-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 15;
+  min-width: 180px;
+  border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  padding: var(--space-2);
+  box-shadow: var(--shadow-popover);
+}
+
+.btn-outline-danger {
+  border-color: #FCA5A5;
+  color: var(--danger);
+}
+
+.order-item-list,
+.material-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.order-item-card,
+.material-item {
+  border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-lg);
+  background: var(--neutral-50);
+  padding: var(--space-4);
+}
+
+.order-item-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.order-item-card h3 {
+  margin: 2px 0 0;
+  color: var(--neutral-900);
+  font-size: var(--text-base);
+}
+
+.material-item summary {
+  cursor: pointer;
+  color: var(--neutral-900);
+  font-size: var(--text-sm);
+  font-weight: 800;
 }
 
 .order-detail-grid {

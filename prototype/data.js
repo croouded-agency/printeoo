@@ -677,6 +677,7 @@
       delivered: "Terkirim",
       closed: "Selesai",
       note: "Catatan",
+      payment: "Pembayaran",
       cancelled: "Dibatalkan",
     },
     priorityLabels: {
