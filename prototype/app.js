@@ -3,10 +3,13 @@ const ROLE_USERS = {
   owner: { name: "Yanuar Firnandy", role: "owner", label: "Owner" },
   branch_manager: { name: "Novi Rahma", role: "branch_manager", label: "Branch Manager" },
   cashier: { name: "Siti Aminah", role: "cashier", label: "Kasir" },
+  designer: { name: "Maya Lestari", role: "designer", label: "Desainer" },
   operator: { name: "Eko Pramono", role: "operator", label: "Operator" },
   display: { name: "Display Produksi", role: "display", label: "Display" },
   courier: { name: "Budi Kurir", role: "courier", label: "Kurir" },
   warehouse: { name: "Taufik Hidayat", role: "warehouse", label: "Gudang" },
+  hr_admin: { name: "Rina HR", role: "hr_admin", label: "HR Admin" },
+  accountant: { name: "Novi Akuntansi", role: "accountant", label: "Akuntan" },
 };
 
 const APP_STATE = {
@@ -95,27 +98,31 @@ const ROUTES = {
 };
 
 const MENU_ITEMS = [
-  { id: "dashboard", label: "Dashboard", hash: "#/dashboard", roles: ["owner"], icon: "dashboard" },
-  { id: "orders", label: "Pesanan", hash: "#/orders", roles: ["owner", "cashier", "warehouse"], icon: "orders", badge: "overdue" },
+  { id: "dashboard", label: "Dashboard", hash: "#/dashboard", roles: ["owner", "branch_manager"], icon: "dashboard" },
+  { id: "orders", label: "Pesanan", hash: "#/orders", roles: ["owner", "branch_manager", "cashier", "designer", "operator"], icon: "orders", badge: "overdue" },
   { id: "customers", label: "Pelanggan", hash: "#/customers", roles: ["owner", "branch_manager", "cashier"], icon: "customers" },
-  { id: "order-new", label: "+ Pesanan Baru", hash: "#/order-new", roles: ["owner", "cashier"], icon: "plus" },
-  { id: "production", label: "Produksi", hash: "#/production", roles: ["owner", "operator"], icon: "production" },
-  { id: "queue", label: "Antrian", hash: "#/queue", roles: ["owner", "cashier"], icon: "queue" },
-  { id: "products", label: "Produk & BOM", hash: "#/produk-bom", roles: ["owner"], icon: "products" },
-  { id: "inventory", label: "Inventaris", hash: "#/inventory", roles: ["owner", "warehouse"], icon: "inventory" },
-  { id: "hr", label: "Karyawan", hash: "#/hr", roles: ["owner"], icon: "users" },
-  { id: "finance", label: "Keuangan", hash: "#/finance", roles: ["owner"], icon: "finance" },
-  { id: "settings", label: "Pengaturan", hash: "#/settings", roles: ["owner"], icon: "settings" },
+  { id: "order-new", label: "+ Pesanan Baru", hash: "#/order-new", roles: ["owner", "branch_manager", "cashier"], icon: "plus" },
+  { id: "production", label: "Produksi", hash: "#/production", roles: ["owner", "branch_manager", "cashier", "designer", "operator"], icon: "production" },
+  { id: "queue", label: "Antrian", hash: "#/queue", roles: ["owner", "branch_manager", "cashier"], icon: "queue" },
+  { id: "products", label: "Produk & BOM", hash: "#/produk-bom", roles: ["owner", "branch_manager", "designer", "operator"], icon: "products" },
+  { id: "inventory", label: "Inventaris", hash: "#/inventory", roles: ["owner", "branch_manager", "operator", "warehouse"], icon: "inventory" },
+  { id: "hr", label: "Karyawan", hash: "#/hr", roles: ["owner", "branch_manager", "hr_admin"], icon: "users" },
+  { id: "finance", label: "Keuangan", hash: "#/finance", roles: ["owner", "branch_manager", "accountant"], icon: "finance" },
+  { id: "settings", label: "Pengaturan", hash: "#/settings", roles: ["owner", "branch_manager"], icon: "settings" },
+  { id: "delivery", label: "Pengiriman", hash: "#/delivery", roles: ["owner", "branch_manager", "cashier"], icon: "delivery" },
 ];
 
 const ROLE_DEFAULT_ROUTES = {
   owner: "#/dashboard",
-  branch_manager: "#/customers",
+  branch_manager: "#/dashboard",
   cashier: "#/orders",
+  designer: "#/production",
   operator: "#/production",
-  display: "#/display-production",
-  courier: "#/delivery",
   warehouse: "#/inventory",
+  courier: "#/delivery",
+  hr_admin: "#/hr",
+  accountant: "#/finance",
+  display: "#/display-production",
 };
 
 
@@ -302,6 +309,10 @@ function updateSidebar(role) {
   const footer = document.getElementById("sidebar-footer");
   const visibleItems = MENU_ITEMS.filter((item) => item.roles.includes(role));
   const overdueCount = getOverdueOrders().length;
+  const profileRoles = ["owner", "branch_manager"];
+  const portalRoles = ["cashier", "designer", "operator", "warehouse", "courier"];
+  const portalLabel = profileRoles.includes(role) ? "Profil &amp; Akun Saya" : "Portal Saya";
+  const showPortalLink = profileRoles.includes(role) || portalRoles.includes(role);
 
   nav.innerHTML = visibleItems.map((item) => {
     const isActive = getActiveMenuId() === item.id;
@@ -327,9 +338,9 @@ function updateSidebar(role) {
         <div class="text-xs text-muted">${APP_STATE.currentUser.label} · ${APP_STATE.currentBranch}</div>
       </div>
     </div>
-    ${role !== "display" ? `<a class="nav-item${isPortalActive ? " active" : ""} mt-3" href="#/portal-karyawan" style="font-size:var(--text-sm);">
+    ${showPortalLink ? `<a class="nav-item${isPortalActive ? " active" : ""} mt-3" href="#/portal-karyawan" style="font-size:var(--text-sm);">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-      <span>${(role === "owner" || role === "branch_manager") ? "Profil &amp; Akun Saya" : "Portal Saya"}</span>
+      <span>${portalLabel}</span>
     </a>` : ""}
     <button class="btn-secondary btn-sm w-full mt-3" type="button" data-action="logout">Keluar</button>
   `;
@@ -338,6 +349,7 @@ function updateSidebar(role) {
 function getActiveMenuId() {
   if (APP_STATE.currentRoute === "order") return "orders";
   if (APP_STATE.currentRoute === "customer") return "customers";
+  if (APP_STATE.currentRoute === "produk-bom") return "products";
   if (APP_STATE.currentRoute === "product") return "products";
   if (APP_STATE.currentRoute === "settings") return "settings";
   return APP_STATE.currentRoute;
@@ -348,12 +360,12 @@ function canAccessRoute(route, role) {
   if (route === "portal-karyawan") return role !== "display";
   if (role === "display") return route === "display-production" || route === "display-queue";
   if (role === "courier") return route === "delivery" || route === "portal-karyawan" || route === "order";
-  if (route === "delivery") return role === "courier" || role === "owner";
-  if (route === "products" || route === "product") return role === "owner";
-  if (role === "warehouse") return ["inventory", "orders", "order", "portal-karyawan"].includes(route);
-  if (route === "order") return ["owner", "branch_manager", "cashier", "designer", "operator", "warehouse", "courier", "hr_admin", "accountant"].includes(role);
+  if (route === "delivery") return ["owner", "branch_manager", "cashier", "courier"].includes(role);
+  if (route === "products" || route === "produk-bom" || route === "product") return ["owner", "branch_manager", "designer", "operator"].includes(role);
+  if (route === "inventory") return ["owner", "branch_manager", "operator", "warehouse"].includes(role);
+  if (route === "order") return ["owner", "branch_manager", "cashier", "designer", "operator", "warehouse", "courier", "accountant"].includes(role);
   if (route === "customer") return role === "owner" || role === "branch_manager" || role === "cashier";
-  if (route === "settings") return role === "owner";
+  if (route === "settings") return role === "owner" || role === "branch_manager";
 
   const menuItem = MENU_ITEMS.find((item) => item.id === route);
   return menuItem ? menuItem.roles.includes(role) : true;
@@ -6314,8 +6326,9 @@ function renderDeliveryPage() {
   loadStoredDeliveries();
 
   const courier = APP_STATE.currentUser;
+  const canViewAllDeliveries = ["owner", "branch_manager", "cashier"].includes(APP_STATE.currentRole);
   const deliveries = (window.APP_DATA?.deliveries || []).filter(
-    (d) => d.courierName === courier.name || APP_STATE.currentRole === "owner"
+    (d) => d.courierName === courier.name || canViewAllDeliveries
   );
 
   const assigned = deliveries.filter((d) => d.status === "assigned");
@@ -6470,8 +6483,15 @@ function openDeliveryNoteModal(deliveryId) {
 function renderSettingsPage(activeTab = "profil") {
   const container = document.getElementById("settings-tab-content");
   if (!container) return;
+  const isBranchManager = APP_STATE.currentRole === "branch_manager";
+  const allowedTabs = isBranchManager
+    ? ["profil", "cabang", "notifikasi"]
+    : ["profil", "cabang", "users", "notifikasi", "tampilan", "langganan"];
+
+  if (!allowedTabs.includes(activeTab)) activeTab = "profil";
 
   document.querySelectorAll("[data-settings-tab]").forEach((btn) => {
+    btn.hidden = !allowedTabs.includes(btn.dataset.settingsTab);
     btn.classList.toggle("active", btn.dataset.settingsTab === activeTab);
   });
 
@@ -6481,6 +6501,14 @@ function renderSettingsPage(activeTab = "profil") {
   else if (activeTab === "notifikasi") container.innerHTML = renderSettingsNotifikasiTab();
   else if (activeTab === "tampilan") container.innerHTML = renderSettingsTampilanTab();
   else if (activeTab === "langganan") container.innerHTML = renderSettingsLanggananTab();
+
+  if (isBranchManager) {
+    container.insertAdjacentHTML("afterbegin", `
+      <div class="mb-4" style="padding:12px 14px;border:1px solid var(--neutral-200);border-radius:8px;background:var(--neutral-50);font-size:var(--text-sm);color:var(--neutral-600);">
+        Data pengaturan ditampilkan untuk cabang yang ditugaskan. Tab Pengguna &amp; Akses, Tampilan global, dan Paket &amp; Langganan hanya tersedia untuk Owner.
+      </div>
+    `);
+  }
 }
 
 function renderSettingsProfilTab() {
@@ -9628,6 +9656,7 @@ function getIcon(name) {
     finance: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>',
     settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6 1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.31.23.65.23 1H21a2 2 0 1 1 0 4h-1.37c0 .35-.09.69-.23 1Z"/></svg>',
     products: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>',
+    delivery: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 17h4V5H2v12h3"/><path d="M14 17h1"/><path d="M14 8h4l4 4v5h-3"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
   };
 
   return icons[name] || icons.dashboard;

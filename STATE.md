@@ -1,6 +1,6 @@
 # STATE.md — Printeoo Prototype Progress
-**Last Updated:** 2026-05-25 (TASK-115 — Role-Based UI Detail SPK)
-**Status Keseluruhan:** ✅ Prototype v1.1 complete + TASK-115 selesai  
+**Last Updated:** 2026-05-25 (TASK-117 — Fix Sidebar Branch Manager)
+**Status Keseluruhan:** ✅ Prototype v1.1 complete + TASK-117 selesai  
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
 > Ini adalah memori kerja AI antar sesi. Jangan hapus entry yang sudah selesai.
@@ -1510,6 +1510,7 @@ Final wrap-up: update STATE.md untuk mencerminkan seluruh task v1.1 sudah selesa
 | Dropdown Pilih Bahan di form BOM dan Catat Penerimaan mendukung inline create | User tidak perlu keluar dari flow saat bahan yang dibutuhkan belum terdaftar | 2026-05-25 |
 | Nota dan tracking customer dipisah dari route internal SPK | Nota memakai route print-ready `#/nota/{spk}`; QR mengarah ke URL tracking publik `https://app.printeoo.com/track?spk=...` tanpa informasi harga/internal | 2026-05-25 |
 | Halaman Detail SPK menggunakan role-based rendering | Section dan tombol dirender berdasarkan kombinasi role + status item. Kasir hanya pickup/lunas saat semua item siap ambil; Material & Waste hanya untuk owner, branch_manager, operator, warehouse. Informasi/aksi tidak relevan tidak dirender. | 2026-05-25 |
+| Sidebar dirender berdasarkan role secara ketat | Branch Manager mendapat sidebar operasional lengkap seperti permission matrix; Kurir tetap micro-interface pengiriman; Gudang, Designer, Operator, HR Admin, dan Akuntan punya landing page sesuai role. | 2026-05-25 |
 
 ---
 
@@ -1581,6 +1582,7 @@ Final wrap-up: update STATE.md untuk mencerminkan seluruh task v1.1 sudah selesa
 | 55 | 2026-05-25 | TASK-113 — Nota Pesanan: Cetak, WA, QR Tracking | TASK-113 | Route full-screen `#/nota/{spk}` dan `#/track/{spk}` ditambahkan. Nota print-ready menampilkan bisnis, customer, item, subtotal/diskon/total/DP/sisa, deadline, prioritas, dan QR tracking. Detail SPK dan daftar pesanan punya aksi Cetak Nota/Kirim WA/Download PDF. Submit order baru menampilkan modal sukses dengan opsi cetak, WA, dan detail SPK. `APP_DATA.settings.business` ditambahkan. Catatan production: tracking publik perlu rate-limit, SPK QR sebaiknya hash/UUID, WA production via API, PDF server-side, logo dari upload pengaturan. Syntax check `app.js` dan `data.js` pass. |
 | 56 | 2026-05-25 | TASK-115 — Role-Based UI Detail SPK | TASK-115 | Detail SPK kini merender aksi berdasarkan role + status item: kasir tidak melihat aksi produksi dan hanya melihat pickup/lunas saat item siap ambil; operator/designer dibatasi ke stage relevan dan assignment; owner/branch manager tetap full action. Section Material & Waste disembunyikan dari kasir/designer/courier/hr/accountant/display dan hanya tampil untuk owner/branch_manager/operator/warehouse. Detail finansial disembunyikan dari operator/warehouse/courier/display. Syntax check `app.js` pass. |
 | 57 | 2026-05-25 | TASK-116 — Portal Karyawan: Owner View, Role Clarity, Konfigurasi Insentif | TASK-116 | (1) Portal Karyawan pisah experience: owner/branch_manager buka "Profil & Akun Saya" (3 tab: Profil Bisnis, Pengaturan Akun, Pengumuman) tanpa metrik kehadiran/absen/insentif; karyawan lain tetap Portal Karyawan. (2) Sidebar label owner berubah ke "Profil & Akun Saya". (3) Tab "Insentif" ditambahkan di hr.html + renderInsentifConfigTab() dengan toggle eligible/calcType/nilai per role dan riwayat insentif + Approve/Export. (4) Deskripsi singkat setiap role tampil sebagai teks kecil di bawah badge di Settings → Pengguna & Akses. Data: incentiveConfig + incentiveHistory ditambahkan ke data.js. Syntax check `app.js` dan `data.js` pass. |
+| 58 | 2026-05-25 | TASK-117 — Fix Sidebar Branch Manager | TASK-117 | Sidebar diaudit ulang sesuai matrix TASK-117. Branch Manager kini landing ke Dashboard dan melihat Dashboard, Pesanan, Pesanan Baru, Pelanggan, Produksi, Antrian, Produk & BOM, Inventaris, Karyawan, Keuangan, Pengaturan, dan Pengiriman. Role Designer/HR Admin/Akuntan ditambahkan ke role switcher + shortcut login dengan landing page sesuai task. Settings Branch Manager hanya menampilkan Profil Bisnis, Cabang, dan Notifikasi; Pengguna & Akses, Tampilan global, serta Paket & Langganan disembunyikan. Syntax check `app.js` pass. |
 
 ---
 
@@ -1594,14 +1596,24 @@ Final wrap-up: update STATE.md untuk mencerminkan seluruh task v1.1 sudah selesa
 
 ---
 
+## KEPUTUSAN TEKNIS (TASK-117)
+
+| Keputusan | Alasan | Tanggal |
+|---|---|---|
+| Branch Manager memakai sidebar operasional hampir sama dengan Owner. | Branch Manager adalah pengelola cabang penuh; pembatasan cabang cukup ditandai sebagai copy prototype sampai filtering data cabang diimplementasikan. | 2026-05-25 |
+| Kurir tidak mendapat sidebar standar dan default ke `#/delivery`. | Flow kurir tetap micro-interface pengiriman yang ringan untuk pemakaian mobile. | 2026-05-25 |
+| Gudang default ke Inventaris, Designer/Operator default ke Produksi, HR Admin default ke Karyawan, Akuntan default ke Keuangan. | Landing page diarahkan ke pekerjaan utama masing-masing role sesuai TASK-117. | 2026-05-25 |
+
+---
+
 ## NEXT TASK
 
-**Semua task selesai. Prototype v1.1 complete (43/43) + TASK-115 + TASK-116.**
+**Semua task selesai. Prototype v1.1 complete (43/43) + TASK-115 + TASK-116 + TASK-117.**
 
-Recheck terakhir (sesi 57, 2026-05-25):
+Recheck terakhir (sesi 58, 2026-05-25):
 - Semua task TASK-001 s/d TASK-033 (prototype v1.0) ✅
-- Semua task TASK-101 s/d TASK-116 (update v1.1 + tambahan) ✅
-- `app.js` dan `data.js` lolos syntax check
+- Semua task TASK-101 s/d TASK-117 (update v1.1 + tambahan) ✅
+- `app.js` lolos syntax check
 - Tidak ada task yang tertinggal
 
 Instruksi untuk AI:
