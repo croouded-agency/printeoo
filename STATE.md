@@ -1580,16 +1580,27 @@ Final wrap-up: update STATE.md untuk mencerminkan seluruh task v1.1 sudah selesa
 | 54 | 2026-05-25 | TASK-114 — Sederhanakan Daftar Bahan | TASK-114 | Semua label "Master Bahan" diganti ke "Daftar Bahan". Form tambah bahan disederhanakan menjadi nama, kategori, satuan, stok minimum. Tabel Daftar Bahan punya empty state 3 langkah, tooltip untuk bahan tanpa penerimaan, CTA Catat Penerimaan Pertama dengan prefill bahan, modal detail bahan dua tab, serta inline create bahan dari form BOM dan Catat Penerimaan. Syntax check `app.js` dan `data.js` pass. |
 | 55 | 2026-05-25 | TASK-113 — Nota Pesanan: Cetak, WA, QR Tracking | TASK-113 | Route full-screen `#/nota/{spk}` dan `#/track/{spk}` ditambahkan. Nota print-ready menampilkan bisnis, customer, item, subtotal/diskon/total/DP/sisa, deadline, prioritas, dan QR tracking. Detail SPK dan daftar pesanan punya aksi Cetak Nota/Kirim WA/Download PDF. Submit order baru menampilkan modal sukses dengan opsi cetak, WA, dan detail SPK. `APP_DATA.settings.business` ditambahkan. Catatan production: tracking publik perlu rate-limit, SPK QR sebaiknya hash/UUID, WA production via API, PDF server-side, logo dari upload pengaturan. Syntax check `app.js` dan `data.js` pass. |
 | 56 | 2026-05-25 | TASK-115 — Role-Based UI Detail SPK | TASK-115 | Detail SPK kini merender aksi berdasarkan role + status item: kasir tidak melihat aksi produksi dan hanya melihat pickup/lunas saat item siap ambil; operator/designer dibatasi ke stage relevan dan assignment; owner/branch manager tetap full action. Section Material & Waste disembunyikan dari kasir/designer/courier/hr/accountant/display dan hanya tampil untuk owner/branch_manager/operator/warehouse. Detail finansial disembunyikan dari operator/warehouse/courier/display. Syntax check `app.js` pass. |
+| 57 | 2026-05-25 | TASK-116 — Portal Karyawan: Owner View, Role Clarity, Konfigurasi Insentif | TASK-116 | (1) Portal Karyawan pisah experience: owner/branch_manager buka "Profil & Akun Saya" (3 tab: Profil Bisnis, Pengaturan Akun, Pengumuman) tanpa metrik kehadiran/absen/insentif; karyawan lain tetap Portal Karyawan. (2) Sidebar label owner berubah ke "Profil & Akun Saya". (3) Tab "Insentif" ditambahkan di hr.html + renderInsentifConfigTab() dengan toggle eligible/calcType/nilai per role dan riwayat insentif + Approve/Export. (4) Deskripsi singkat setiap role tampil sebagai teks kecil di bawah badge di Settings → Pengguna & Akses. Data: incentiveConfig + incentiveHistory ditambahkan ke data.js. Syntax check `app.js` dan `data.js` pass. |
+
+---
+
+## KEPUTUSAN TEKNIS (TASK-116)
+
+| Keputusan | Alasan | Tanggal |
+|---|---|---|
+| Owner dan branch_manager tidak menggunakan Portal Karyawan. Mereka menggunakan "Profil & Akun Saya" — konten berbeda, tanpa metrik karyawan. | Owner adalah pemilik bisnis, bukan karyawan. Mental model berbeda. | 2026-05-25 |
+| Konfigurasi insentif ada di Karyawan → tab Insentif. Hanya owner dan hr_admin yang bisa mengkonfigurasi. Output (riwayat insentif per karyawan) tampil di Portal Karyawan masing-masing. | Pemisahan input (konfigurasi) dan output (portal karyawan) yang logis. | 2026-05-25 |
+| Role owner = akses semua cabang + billing + user management global. Role branch_manager = akses satu cabang yang ditugaskan, tanpa billing/subscription. | Untuk "manager kepercayaan" yang pegang semua: gunakan role owner (co-owner). | 2026-05-25 |
 
 ---
 
 ## NEXT TASK
 
-**Semua task selesai. Prototype v1.1 complete (43/43) + TASK-115.**
+**Semua task selesai. Prototype v1.1 complete (43/43) + TASK-115 + TASK-116.**
 
-Recheck terakhir (sesi 56, 2026-05-25):
+Recheck terakhir (sesi 57, 2026-05-25):
 - Semua task TASK-001 s/d TASK-033 (prototype v1.0) ✅
-- Semua task TASK-101 s/d TASK-115 (update v1.1 + tambahan) ✅
+- Semua task TASK-101 s/d TASK-116 (update v1.1 + tambahan) ✅
 - `app.js` dan `data.js` lolos syntax check
 - Tidak ada task yang tertinggal
 

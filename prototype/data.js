@@ -760,6 +760,27 @@
     ],
   };
 
+  const incentiveConfig = {
+    active: true,
+    roles: [
+      { role: "designer", label: "Desainer",  eligible: true,  calcType: "flat_per_item", value: 5000,  since: "01 Mei 2026" },
+      { role: "operator", label: "Operator",  eligible: true,  calcType: "pct_of_item",  value: 1.5,   since: "01 Mei 2026" },
+      { role: "finishing",label: "Finishing", eligible: true,  calcType: "flat_per_item", value: 3000,  since: "01 Mei 2026" },
+      { role: "courier",  label: "Kurir",     eligible: false, calcType: "flat_per_spk",  value: 10000, since: null },
+      { role: "warehouse",label: "Gudang",    eligible: false, calcType: "flat_per_item", value: 2000,  since: null },
+    ],
+  };
+
+  const incentiveHistory = [
+    { id: "INC-H-001", employeeName: "Eko Pramono",   role: "Operator", spk: "SPK-SBY-20260525-0001", item: "SPK-001 · Item 1 — Banner Flexi", amount: 8500,  status: "pending" },
+    { id: "INC-H-002", employeeName: "Maya Lestari",  role: "Desainer", spk: "SPK-SBY-20260525-0001", item: "SPK-001 · Item 2 — Kartu Nama",   amount: 5000,  status: "pending" },
+    { id: "INC-H-003", employeeName: "Rizky Maulana", role: "Operator", spk: "SPK-SBY-20260523-0003", item: "SPK-003 · Item 1 — Spanduk Kain",  amount: 6500,  status: "pending" },
+    { id: "INC-H-004", employeeName: "Eko Pramono",   role: "Operator", spk: "SPK-SBY-20260523-0003", item: "SPK-003 · Item 2 — Backdrop 3×2m", amount: 9000,  status: "pending" },
+    { id: "INC-H-005", employeeName: "Maya Lestari",  role: "Desainer", spk: "SPK-SBY-20260522-0007", item: "SPK-007 · Item 1 — Brosur A4",     amount: 5000,  status: "pending" },
+    { id: "INC-H-006", employeeName: "Rizky Maulana", role: "Finishing",spk: "SPK-SBY-20260521-0006", item: "SPK-006 · Laminasi Kalender",       amount: 3000,  status: "paid"    },
+    { id: "INC-H-007", employeeName: "Eko Pramono",   role: "Operator", spk: "SPK-SBY-20260520-0011", item: "SPK-011 · Item 1 — Mug Cetak",     amount: 6500,  status: "paid"    },
+  ];
+
   const portalAnnouncements = [
     { id: "ANN-001", title: "Libur Waisak 12 Mei 2026", body: "Operasional tutup pada Senin 12 Mei 2026. Pesanan yang sudah masuk akan diproses mulai 13 Mei.", date: addDays(-13), type: "info" },
     { id: "ANN-002", title: "Perubahan jadwal lembur Juni", body: "Mulai Juni 2026, lembur hari Sabtu dibatasi maksimal 4 jam. Kompensasi lembur tetap Rp 35.000/jam.", date: addDays(-5), type: "info" },
@@ -815,6 +836,8 @@
     adjustmentLog,
     purchaseOrders,
     deliveries,
+    incentiveConfig,
+    incentiveHistory,
     incentives,
     portalAnnouncements,
     portalWarnings,

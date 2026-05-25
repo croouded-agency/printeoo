@@ -329,7 +329,7 @@ function updateSidebar(role) {
     </div>
     ${role !== "display" ? `<a class="nav-item${isPortalActive ? " active" : ""} mt-3" href="#/portal-karyawan" style="font-size:var(--text-sm);">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-      <span>Portal Saya</span>
+      <span>${(role === "owner" || role === "branch_manager") ? "Profil &amp; Akun Saya" : "Portal Saya"}</span>
     </a>` : ""}
     <button class="btn-secondary btn-sm w-full mt-3" type="button" data-action="logout">Keluar</button>
   `;
@@ -6004,6 +6004,11 @@ function renderHrPreview(activeTab = "employees") {
     return;
   }
 
+  if (activeTab === "insentif") {
+    content.innerHTML = renderInsentifConfigTab();
+    return;
+  }
+
   content.innerHTML = renderLockedHrPreview(activeTab);
 }
 
@@ -6052,6 +6057,138 @@ function renderLockedHrPreview(tab) {
       </div>
       <div class="locked-overlay">Terkunci sampai upgrade tier Studio</div>
     </section>
+  `;
+}
+
+function renderInsentifConfigTab() {
+  const cfg = window.APP_DATA?.incentiveConfig || { active: true, roles: [] };
+  const history = window.APP_DATA?.incentiveHistory || [];
+
+  const calcTypeLabels = {
+    flat_per_item: "Flat per item",
+    pct_of_item:   "% dari harga item",
+    flat_per_spk:  "Flat per SPK",
+  };
+
+  const totalPending = history.filter((h) => h.status === "pending").reduce((s, h) => s + h.amount, 0);
+
+  return `
+    <div class="card mb-4">
+      <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">
+        <div>
+          <h2 class="settings-section-title" style="margin-bottom:4px">Pengaturan Insentif Karyawan</h2>
+          <p class="text-muted" style="font-size:var(--text-sm)">Tentukan siapa yang mendapat insentif dan bagaimana cara menghitungnya.<br>Insentif dihitung otomatis setiap kali item SPK diselesaikan.</p>
+        </div>
+        <div class="flex items-center gap-2 ml-auto">
+          <span class="text-sm" style="color:var(--neutral-700)">Status:</span>
+          <span class="badge ${cfg.active ? "badge-ready" : "badge-overdue"}">${cfg.active ? "Aktif" : "Nonaktif"}</span>
+          <button class="btn-secondary" style="padding:4px 12px;font-size:13px" type="button"
+            onclick="window.APP_DATA.incentiveConfig.active=!window.APP_DATA.incentiveConfig.active;renderHrPreview('insentif');showToast('Pengaturan insentif diperbarui.','success')">
+            ${cfg.active ? "Nonaktifkan" : "Aktifkan"}
+          </button>
+        </div>
+      </div>
+
+      <div class="data-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Eligible?</th>
+              <th>Tipe Perhitungan</th>
+              <th>Nilai</th>
+              <th>Berlaku Mulai</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${cfg.roles.map((r) => `
+              <tr>
+                <td><strong>${r.label}</strong></td>
+                <td>
+                  <label class="flex items-center gap-2" style="cursor:pointer">
+                    <input type="checkbox" ${r.eligible ? "checked" : ""} style="width:16px;height:16px;cursor:pointer"
+                      onchange="r=window.APP_DATA.incentiveConfig.roles.find(x=>x.role==='${r.role}');if(r)r.eligible=this.checked;renderHrPreview('insentif');showToast('Konfigurasi ${r.label} diperbarui.','success')">
+                    <span class="text-sm">${r.eligible ? "Ya" : "Tidak"}</span>
+                  </label>
+                </td>
+                <td>
+                  ${r.eligible ? `<select class="form-select" style="padding:4px 8px;font-size:13px;width:auto"
+                    onchange="r=window.APP_DATA.incentiveConfig.roles.find(x=>x.role==='${r.role}');if(r)r.calcType=this.value;renderHrPreview('insentif')">
+                    ${Object.entries(calcTypeLabels).map(([k,v]) => `<option value="${k}" ${r.calcType===k?"selected":""}>${v}</option>`).join("")}
+                  </select>` : '<span class="text-muted">—</span>'}
+                </td>
+                <td>
+                  ${r.eligible
+                    ? r.calcType === "pct_of_item"
+                      ? `<input type="number" class="form-input" value="${r.value}" min="0" step="0.1" style="width:80px;padding:4px 8px;font-size:13px" onchange="r=window.APP_DATA.incentiveConfig.roles.find(x=>x.role==='${r.role}');if(r)r.value=parseFloat(this.value)||0"> %`
+                      : `<input type="number" class="form-input" value="${r.value}" min="0" step="500" style="width:100px;padding:4px 8px;font-size:13px" onchange="r=window.APP_DATA.incentiveConfig.roles.find(x=>x.role==='${r.role}');if(r)r.value=parseInt(this.value)||0"> Rp`
+                    : '<span class="text-muted">—</span>'}
+                </td>
+                <td class="text-sm text-muted">${r.eligible && r.since ? r.since : "—"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex gap-3 mt-4">
+        <button class="btn-primary" type="button"
+          onclick="showToast('Konfigurasi insentif berhasil disimpan.','success')">Simpan Konfigurasi</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">
+        <h3 class="card-title" style="margin-bottom:0">Riwayat Insentif Bulan Ini</h3>
+        <div class="ml-auto">
+          <select class="form-select" style="padding:4px 8px;font-size:13px;width:auto">
+            <option>Semua Role</option>
+            <option>Desainer</option>
+            <option>Operator</option>
+            <option>Finishing</option>
+          </select>
+          <select class="form-select" style="padding:4px 8px;font-size:13px;width:auto;margin-left:8px">
+            <option>Semua Status</option>
+            <option>Belum Dibayar</option>
+            <option>Sudah Dibayar</option>
+          </select>
+        </div>
+      </div>
+
+      ${history.length === 0 ? `<p class="text-muted">Belum ada riwayat insentif bulan ini.</p>` : `
+        <div class="data-table">
+          <table>
+            <thead>
+              <tr><th>Karyawan</th><th>Role</th><th>SPK / Item</th><th>Nilai</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              ${history.map((h) => `
+                <tr>
+                  <td><strong>${escapeHtml(h.employeeName)}</strong></td>
+                  <td class="text-sm">${escapeHtml(h.role)}</td>
+                  <td class="text-sm text-muted">${escapeHtml(h.item)}</td>
+                  <td><strong>${formatCurrency(h.amount)}</strong></td>
+                  <td>${h.status === "pending"
+                    ? '<span class="badge badge-printing">Belum Dibayar</span>'
+                    : '<span class="badge badge-ready">Sudah Dibayar</span>'}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center gap-4 mt-4 pt-3" style="border-top:1px solid var(--neutral-200);flex-wrap:wrap">
+          <div>
+            <span class="text-muted text-sm">Total Belum Dibayar: </span>
+            <strong style="color:var(--warning)">${formatCurrency(totalPending)}</strong>
+          </div>
+          <div class="ml-auto flex gap-2">
+            <button class="btn-primary" type="button"
+              onclick="showToast('Semua insentif pending telah di-approve.','success')">Approve Semua</button>
+            <button class="btn-secondary" type="button"
+              onclick="showToast('Export data insentif berhasil.','success')">Export</button>
+          </div>
+        </div>
+      `}
+    </div>
   `;
 }
 
@@ -6517,6 +6654,17 @@ function renderSettingsUsersTab() {
     owner: "Owner", cashier: "Kasir", designer: "Desainer",
     operator: "Operator", warehouse: "Gudang", courier: "Kurir", finance: "Keuangan", installer: "Teknisi",
   };
+  const roleDescriptions = {
+    owner:       "Akses penuh ke semua cabang, modul, dan pengaturan bisnis. Termasuk billing, subscription, dan manajemen user global.",
+    branch_manager: "Akses penuh ke satu cabang yang ditugaskan. Tidak bisa akses cabang lain, billing, atau subscription.",
+    cashier:     "Input order, proses pembayaran, kelola antrian.",
+    designer:    "Lihat dan kerjakan antrian desain yang di-assign.",
+    operator:    "Lihat dan update status produksi yang di-assign.",
+    warehouse:   "Kelola inventory, catat penerimaan barang, cetak label QR.",
+    courier:     "Lihat dan update status pengiriman yang di-assign.",
+    finance:     "Akses laporan keuangan dan ekspor data.",
+    installer:   "Kerjakan proyek pemasangan di lapangan.",
+  };
   const accessRows = [
     ["Dashboard & Laporan", "Ya", "-", "-", "-", "-", "-"],
     ["Input & Kelola Pesanan", "Ya", "Ya", "-", "-", "R", "-"],
@@ -6567,7 +6715,10 @@ function renderSettingsUsersTab() {
                       </div>
                     </td>
                     <td class="text-sm">${escapeHtml(e.position)}</td>
-                    <td><span class="badge ${roleColors[e.role] || "badge-confirmed"}">${roleLabels[e.role] || e.role}</span></td>
+                    <td>
+                      <span class="badge ${roleColors[e.role] || "badge-confirmed"}" title="${roleDescriptions[e.role] || ""}">${roleLabels[e.role] || e.role}</span>
+                      ${roleDescriptions[e.role] ? `<div class="text-xs text-muted mt-1" style="max-width:200px;line-height:1.4">${roleDescriptions[e.role]}</div>` : ""}
+                    </td>
                     <td class="text-sm">${capitalize(e.contractType)}</td>
                     <td class="text-sm text-muted">${branch ? branch.name : "—"}</td>
                     <td><span class="badge badge-ready">Aktif</span></td>
@@ -7052,6 +7203,7 @@ function setupEventHandlers() {
     const settingsTabButton = event.target.closest("[data-settings-tab]");
     const invTabButton = event.target.closest("[data-inv-tab]");
     const portalTabButton = event.target.closest("[data-action='portal-tab']");
+    const ownerProfileTabButton = event.target.closest("[data-action='owner-profile-tab']");
     const productMainTabButton = event.target.closest("[data-action='products-main-tab']");
     const productPanelTabButton = event.target.closest("[data-action='product-detail-tab']");
     const usagePeriodButton = event.target.closest("[data-usage-period]");
@@ -7081,6 +7233,13 @@ function setupEventHandlers() {
       const warnings = (window.APP_DATA?.portalWarnings || {})[user.name] || [];
       const announcements = window.APP_DATA?.portalAnnouncements || [];
       if (content) content.innerHTML = renderPortalTabContent(activeTab, { userName: user.name, emp, incentiveList, attendance, warnings, announcements });
+      return;
+    }
+
+    if (ownerProfileTabButton) {
+      const activeTab = ownerProfileTabButton.dataset.tab;
+      const container = document.querySelector(".portal-karyawan-page");
+      if (container) renderOwnerProfilePage(container, activeTab);
       return;
     }
 
@@ -9029,10 +9188,19 @@ function formatBomNumber(value) {
 
 // ── PORTAL KARYAWAN ──
 
-function renderPortalKaryawanPage(activeTab = "ringkasan") {
+function renderPortalKaryawanPage(activeTab = null) {
   const container = document.querySelector(".portal-karyawan-page");
   if (!container) return;
 
+  const role = APP_STATE.currentRole;
+  const isOwnerView = role === "owner" || role === "branch_manager";
+
+  if (isOwnerView) {
+    renderOwnerProfilePage(container, activeTab || "profil");
+    return;
+  }
+
+  const defaultTab = activeTab || "ringkasan";
   const user = APP_STATE.currentUser;
   const userName = user.name;
   const emp = (window.APP_DATA?.employees || []).find((e) => e.name === userName);
@@ -9059,14 +9227,157 @@ function renderPortalKaryawanPage(activeTab = "ringkasan") {
     <div class="tabs-scroll-wrapper">
       <div class="tabs mb-4">
         ${tabs.map(t => `
-          <button class="tab-button${t.id === activeTab ? " active" : ""}" type="button" data-action="portal-tab" data-tab="${t.id}">
+          <button class="tab-button${t.id === defaultTab ? " active" : ""}" type="button" data-action="portal-tab" data-tab="${t.id}">
             ${t.label}
           </button>`).join("")}
       </div>
     </div>
 
     <div id="portal-tab-content" class="portal-tab-content">
-      ${renderPortalTabContent(activeTab, { userName, emp, incentiveList, attendance, warnings, announcements })}
+      ${renderPortalTabContent(defaultTab, { userName, emp, incentiveList, attendance, warnings, announcements })}
+    </div>
+  `;
+}
+
+function renderOwnerProfilePage(container, activeTab) {
+  const user = APP_STATE.currentUser;
+  const userName = user.name;
+  const role = APP_STATE.currentRole;
+  const roleLabel = role === "owner" ? "Owner" : "Branch Manager";
+  const branch = role === "owner" ? "Surabaya Pusat (dan semua cabang)" : APP_STATE.currentBranch;
+  const announcements = window.APP_DATA?.portalAnnouncements || [];
+
+  const tabs = [
+    { id: "profil",   label: "Profil Bisnis Saya" },
+    { id: "akun",     label: "Pengaturan Akun" },
+    { id: "pengumuman", label: "Teguran & Pengumuman" },
+  ];
+
+  let tabContent = "";
+  if (activeTab === "profil") {
+    tabContent = `
+      <div class="card">
+        <div class="portal-profile-header">
+          <div class="brand-mark" style="width:64px;height:64px;font-size:28px;border-radius:50%;background:var(--primary);color:white">${userName.charAt(0)}</div>
+          <div>
+            <h2 style="font-size:var(--text-xl);font-weight:700">${escapeHtml(userName)}</h2>
+            <span class="badge badge-VIP">${roleLabel}</span>
+          </div>
+        </div>
+        <div class="content-grid mt-4">
+          <div class="col-6">
+            <label class="form-label">Nama</label>
+            <div class="portal-info-value">${escapeHtml(userName)}</div>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Role</label>
+            <div class="portal-info-value">${roleLabel}</div>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Cabang</label>
+            <div class="portal-info-value">${escapeHtml(branch)}</div>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Bergabung</label>
+            <div class="portal-info-value">15 Januari 2024</div>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Email</label>
+            <div class="portal-info-value">yanuar@titaniumprint.id</div>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Nomor HP</label>
+            <div class="portal-info-value">0812-3456-7890</div>
+          </div>
+        </div>
+        <div class="portal-info-note mt-4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          Untuk mengubah data bisnis seperti nama toko atau alamat, kunjungi <a href="#/settings" style="color:var(--primary)">Pengaturan → Profil Bisnis</a>.
+        </div>
+      </div>
+    `;
+  } else if (activeTab === "akun") {
+    tabContent = `
+      <div class="card mb-4">
+        <h3 class="card-title mb-3">Ganti Password</h3>
+        <div class="content-grid" style="max-width:480px">
+          <div class="col-12">
+            <label class="form-label">Password Saat Ini</label>
+            <input type="password" class="form-input" placeholder="••••••••" value="">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Password Baru</label>
+            <input type="password" class="form-input" placeholder="Minimal 8 karakter">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Konfirmasi Password Baru</label>
+            <input type="password" class="form-input" placeholder="Ulangi password baru">
+          </div>
+        </div>
+        <button class="btn-primary mt-3" type="button" onclick="showToast('Password berhasil diperbarui.','success')">Simpan Password Baru</button>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title mb-3">Preferensi Notifikasi Personal</h3>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          ${[
+            ["Email saat ada SPK overdue", true],
+            ["Ringkasan harian via WhatsApp", false],
+            ["Notifikasi saldo kas di bawah batas", true],
+          ].map(([label, checked]) => `
+            <label class="flex items-center gap-3" style="cursor:pointer">
+              <input type="checkbox" ${checked ? "checked" : ""} style="width:16px;height:16px;cursor:pointer">
+              <span style="font-size:var(--text-base)">${label}</span>
+            </label>`).join("")}
+        </div>
+        <button class="btn-secondary mt-3" type="button" onclick="showToast('Preferensi notifikasi disimpan.','success')">Simpan Preferensi</button>
+      </div>
+    `;
+  } else if (activeTab === "pengumuman") {
+    tabContent = `
+      <div class="card">
+        <h3 class="card-title mb-3">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="vertical-align:middle;margin-right:6px"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3Z"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          Pengumuman ke Seluruh Staff
+        </h3>
+        <p class="text-muted text-sm mb-3">Sebagai owner, Anda tidak bisa ditegur oleh sistem. Tab ini menampilkan pengumuman yang dikirim ke semua staff.</p>
+        ${announcements.length === 0 ? `<p class="text-muted">Tidak ada pengumuman saat ini.</p>` : `
+          <div class="portal-announcements">
+            ${announcements.map((ann) => `
+              <div class="portal-announcement-item portal-announcement-item--${ann.type}">
+                <div class="portal-announcement-date">${formatDate(new Date(ann.date))}</div>
+                <div class="portal-announcement-title">${escapeHtml(ann.title)}</div>
+                <div class="portal-announcement-body">${escapeHtml(ann.body)}</div>
+              </div>`).join("")}
+          </div>
+        `}
+        <div class="mt-4 pt-3" style="border-top:1px solid var(--neutral-200)">
+          <button class="btn-primary" type="button"
+            onclick="showToast('Fitur buat pengumuman tersedia di versi berikutnya.','info')">+ Buat Pengumuman Baru</button>
+        </div>
+      </div>
+    `;
+  }
+
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Profil &amp; Akun Saya</h1>
+        <p class="text-muted" style="font-size:var(--text-sm)">Halo, ${escapeHtml(userName)} 👋</p>
+      </div>
+    </div>
+
+    <div class="tabs-scroll-wrapper">
+      <div class="tabs mb-4">
+        ${tabs.map(t => `
+          <button class="tab-button${t.id === activeTab ? " active" : ""}" type="button" data-action="owner-profile-tab" data-tab="${t.id}">
+            ${t.label}
+          </button>`).join("")}
+      </div>
+    </div>
+
+    <div id="owner-profile-tab-content">
+      ${tabContent}
     </div>
   `;
 }
