@@ -473,6 +473,7 @@ function renderDashboard() {
   const productionLabels = {
     design_queue: "Antrian Desain",
     in_design: "Sedang Desain",
+    production_queue: "Antrian Cetak",
     printing: "Sedang Cetak",
     finishing: "Finishing",
     ready: "Siap Ambil",
@@ -557,6 +558,7 @@ function getDashboardMetrics() {
     productionStatus: {
       design_queue: orders.filter((order) => order.status === "design_queue").length,
       in_design: orders.filter((order) => order.status === "in_design").length,
+      production_queue: orders.filter((order) => order.status === "production_queue").length,
       printing: orders.filter((order) => order.status === "printing").length,
       finishing: orders.filter((order) => order.status === "finishing").length,
       ready: orders.filter((order) => order.status === "ready").length,
@@ -1592,7 +1594,8 @@ const ORDER_STAGES = [
   { status: "confirmed", label: "Terkonfirmasi" },
   { status: "design_queue", label: "Antrian Desain" },
   { status: "in_design", label: "Sedang Desain" },
-  { status: "printing", label: "Cetak" },
+  { status: "production_queue", label: "Antrian Cetak" },
+  { status: "printing", label: "Sedang Cetak" },
   { status: "finishing", label: "Finishing" },
   { status: "ready", label: "Siap Ambil" },
   { status: "closed", label: "Selesai" },
@@ -1607,7 +1610,11 @@ const ORDER_ACTIONS = {
     { label: "Mulai Desain", nextStatus: "in_design", note: "Desain mulai dikerjakan" },
   ],
   in_design: [
-    { label: "Selesai Desain, Minta Approval", nextStatus: "printing", note: "Desain selesai dan masuk proses cetak" },
+    { label: "Kirim ke Antrian Cetak", nextStatus: "production_queue", note: "Desain selesai dan masuk antrian cetak" },
+    { label: "Catat Revisi Desain", nextStatus: "in_design", note: "Revisi desain dicatat dan tetap dikerjakan" },
+  ],
+  production_queue: [
+    { label: "Mulai Cetak", nextStatus: "printing", note: "Pesanan mulai proses cetak" },
   ],
   printing: [
     { label: "Selesai Cetak, Masuk Finishing", nextStatus: "finishing", note: "Cetak selesai dan masuk finishing" },
@@ -1923,8 +1930,7 @@ function cancelCurrentOrder() {
 const PRODUCTION_COLUMNS = [
   { id: "design_queue", label: "Antrian Desain", statuses: ["confirmed", "design_queue"], operatorHidden: true },
   { id: "in_design", label: "Sedang Desain", statuses: ["in_design"], operatorHidden: true },
-  { id: "review", label: "Review Pelanggan", statuses: ["delivered"], operatorHidden: true },
-  { id: "print_queue", label: "Antrian Cetak", statuses: ["draft"], printQueue: true },
+  { id: "print_queue", label: "Antrian Cetak", statuses: ["production_queue"], printQueue: true },
   { id: "printing", label: "Sedang Cetak", statuses: ["printing"] },
   { id: "finishing", label: "Finishing", statuses: ["finishing"] },
   { id: "ready", label: "Siap Ambil", statuses: ["ready"] },
@@ -1969,7 +1975,9 @@ function getProductionOrders() {
 
 function orderBelongsToColumn(order, column) {
   if (column.printQueue) {
-    return order.status === "draft" || (order.status === "confirmed" && order.productionStage === "Antrian Cetak");
+    return column.statuses.includes(order.status)
+      || order.status === "draft"
+      || (order.status === "confirmed" && order.productionStage === "Antrian Cetak");
   }
   return column.statuses.includes(order.status);
 }

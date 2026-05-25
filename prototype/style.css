@@ -451,6 +451,7 @@ table {
 .badge-confirmed { background: #DBEAFE; color: #1D4ED8; }
 .badge-design_queue,
 .badge-in_design { background: #E0E7FF; color: #3730A3; }
+.badge-production_queue { background: #E0F2FE; color: #075985; }
 .badge-printing { background: #FEF3C7; color: #92400E; }
 .badge-finishing { background: #FCE7F3; color: #9D174D; }
 .badge-ready { background: #D1FAE5; color: #065F46; }

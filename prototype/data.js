@@ -65,18 +65,29 @@
     { id: "PROD-017", name: "Backdrop Foto 3x2m", category: "Event", unit: "set", basePrice: 650000, minQty: 1, specs: ["Flexi Korea", "Rangka pipa"] },
   ];
 
-  const statuses = ["draft", "confirmed", "design_queue", "in_design", "printing", "finishing", "ready", "delivered", "closed"];
+  const statuses = ["draft", "confirmed", "design_queue", "in_design", "production_queue", "printing", "finishing", "ready", "delivered", "closed"];
   const productionStageByStatus = {
     draft: "Draft",
     confirmed: "Antrian Desain",
     design_queue: "Antrian Desain",
     in_design: "Sedang Desain",
+    production_queue: "Antrian Cetak",
     printing: "Sedang Cetak",
     finishing: "Finishing",
     ready: "Siap Ambil",
     delivered: "Diantar",
     closed: "Selesai",
   };
+  const statusPriority = ["confirmed", "design_queue", "in_design", "production_queue", "printing", "finishing", "ready"];
+
+  function getOrderDerivedStatus(order) {
+    if (!order.items || order.items.length === 0) return "confirmed";
+    const lowestPriority = Math.min(...order.items.map((item) => {
+      const index = statusPriority.indexOf(item.status);
+      return index >= 0 ? index : 0;
+    }));
+    return statusPriority[lowestPriority] || "confirmed";
+  }
 
   const orderSeeds = [
     ["CUST-002", "PROD-001", 12, 336000, "urgent", "printing", -1, "DP 50%, banner grand opening gudang baru"],
@@ -113,28 +124,138 @@
     ["CUST-008", "PROD-016", 1, 7400000, "VIP", "finishing", 3, "Papan billboard area pelabuhan"],
   ];
 
+  const multiItemOverrides = {
+    0: [
+      { productId: "PROD-001", qty: 12, total: 336000, status: "printing", specs: { width: 300, height: 400, finishing: ["Mata Ayam"] }, notes: "Banner grand opening gudang baru" },
+      { productId: "PROD-002", qty: 6, total: 270000, status: "production_queue", specs: { width: 200, height: 300, finishing: ["Jahit tepi"] }, notes: "Spanduk kain untuk area resepsionis" },
+      { productId: "PROD-005", qty: 500, total: 1250000, status: "ready", specs: { finishing: ["Lipat 1"] }, notes: "Flyer grand opening untuk sales" },
+    ],
+    1: [
+      { productId: "PROD-005", qty: 1500, total: 3750000, status: "finishing", specs: { finishing: ["Lipat 1"] }, notes: "Brosur penerimaan mahasiswa baru" },
+      { productId: "PROD-010", qty: 2, total: 570000, status: "ready", specs: { finishing: ["Stand roll banner"] }, notes: "Roll banner booth pameran kampus" },
+    ],
+    4: [
+      { productId: "PROD-017", qty: 1, total: 650000, status: "printing", specs: { width: 300, height: 200, finishing: ["Rangka pipa"] }, notes: "Backdrop sosialisasi UMKM" },
+      { productId: "PROD-004", qty: 12, total: 1020000, status: "production_queue", specs: { finishing: ["Laminasi Doff"] }, notes: "Kartu nama panitia event" },
+      { productId: "PROD-005", qty: 1000, total: 2500000, status: "ready", specs: { finishing: ["Lipat 1"] }, notes: "Flyer program pendampingan UMKM" },
+    ],
+    7: [
+      { productId: "PROD-015", qty: 2, total: 2500000, status: "finishing", specs: { width: 100, height: 100, finishing: ["Akrilik susu", "LED"] }, notes: "Neon box kantor pemasaran" },
+      { productId: "PROD-017", qty: 1, total: 650000, status: "printing", specs: { width: 300, height: 200, finishing: ["Rangka pipa"] }, notes: "Backdrop launching cluster" },
+    ],
+    24: [
+      { productId: "PROD-005", qty: 2500, total: 6250000, status: "printing", specs: { finishing: ["Lipat 1"] }, notes: "Flyer bazar UMKM" },
+      { productId: "PROD-001", qty: 10, total: 280000, status: "production_queue", specs: { width: 250, height: 400, finishing: ["Mata Ayam"] }, notes: "Banner arah lokasi bazar" },
+    ],
+  };
+
+  const materialEstimateForProduct = (product, qty, specs = {}) => {
+    if (/Banner|X-Banner/i.test(product.name)) {
+      const area = Number(qty) || Math.max(((specs.width || 100) * (specs.height || 100)) / 10000, 1);
+      return [
+        { material: "Flexi China 340gr", qty: Math.round((area / 9) * 1.08 * 100) / 100, unit: "roll" },
+        { material: "Mata Ayam Banner", qty: Math.max(Math.ceil(area * 4), 4), unit: "pcs" },
+      ];
+    }
+    if (/Spanduk Kain/i.test(product.name)) {
+      return [{ material: "Spanduk Kain Anti Air", qty: Math.round(((Number(qty) || 1) / 9) * 1.1 * 100) / 100, unit: "roll" }];
+    }
+    if (/Brosur/i.test(product.name)) {
+      return [
+        { material: "Art Paper 150gr", qty: Math.round((Number(qty) / 500) * 100) / 100, unit: "rim" },
+        { material: "Tinta CMYK Epson", qty: Math.round((Number(qty) / 2500) * 100) / 100, unit: "liter" },
+      ];
+    }
+    if (/Kartu Nama/i.test(product.name)) {
+      return [{ material: "Art Carton 260gr", qty: Math.max(Math.round((Number(qty) / 10) * 100) / 100, 0.1), unit: "rim" }];
+    }
+    if (/Stiker/i.test(product.name)) {
+      return [{ material: "Vinyl Outdoor Glossy", qty: Math.round(((Number(qty) || 1) / 8) * 100) / 100, unit: "roll" }];
+    }
+    if (/Backdrop|Billboard|Neon Box/i.test(product.name)) {
+      return [
+        { material: "Flexi Korea 440gr", qty: Math.round((Number(qty) || 1) * 0.8 * 100) / 100, unit: "roll" },
+        { material: "Rangka Besi/Akrilik", qty: Number(qty) || 1, unit: "set" },
+      ];
+    }
+    return [{ material: "Material produksi standar", qty: Number(qty) || 1, unit: product.unit }];
+  };
+
+  const materialActualForItem = (itemStatus, estimates) => {
+    if (statuses.indexOf(itemStatus) < statuses.indexOf("printing")) return [];
+    return estimates.slice(0, 2).map((estimate, index) => ({
+      material: estimate.material,
+      qty: Math.round(estimate.qty * (index === 0 ? 1.04 : 1) * 100) / 100,
+      unit: estimate.unit,
+      batch: index === 0 ? "BATCH-20260515-001" : "BATCH-LEGACY-001",
+    }));
+  };
+
+  const createOrderItem = (orderSequence, seq, definition, fallbackStatus) => {
+    const product = products.find((item) => item.id === definition.productId);
+    const qty = Number(definition.qty) || 1;
+    const total = Number(definition.total) || qty * product.basePrice;
+    const rawStatus = definition.status || fallbackStatus;
+    const status = rawStatus === "delivered" || rawStatus === "closed"
+      ? "ready"
+      : rawStatus === "draft"
+        ? "confirmed"
+        : rawStatus;
+    const materialEstimate = materialEstimateForProduct(product, qty, definition.specs);
+    const assignee = ["confirmed", "design_queue", "in_design"].includes(status)
+      ? ["Dimas Pratama", "Maya Lestari"][seq % 2]
+      : ["Eko Pramono", "Nur Hidayat", "Rizky Maulana"][seq % 3];
+
+    return {
+      itemId: `ITEM-${orderSequence}-${String(seq).padStart(2, "0")}`,
+      seq,
+      product: product.name,
+      productId: product.id,
+      specs: definition.specs || { finishing: ["Standar"] },
+      qty,
+      unit: product.unit,
+      unitPrice: Math.round(total / qty),
+      total,
+      needsDesign: ["design_queue", "in_design"].includes(status),
+      status,
+      assignedTo: definition.assignedTo || assignee,
+      notes: definition.notes || "",
+      materialEstimate,
+      materialActual: materialActualForItem(status, materialEstimate),
+    };
+  };
+
   const orders = orderSeeds.map((seed, index) => {
     const [customerId, productId, qty, total, priority, status, deadlineOffset, notes] = seed;
     const customer = customers.find((item) => item.id === customerId);
     const product = products.find((item) => item.id === productId);
     const createdOffset = Math.min(deadlineOffset - 4, -1);
     const sequence = String(index + 1).padStart(4, "0");
+    const itemDefinitions = multiItemOverrides[index] || [
+      { productId, qty, total, status, specs: { finishing: ["Standar"] }, notes },
+    ];
+    const items = itemDefinitions.map((definition, itemIndex) => createOrderItem(sequence, itemIndex + 1, definition, status));
+    const orderTotal = items.reduce((sum, item) => sum + item.total, 0);
+    const derivedStatus = getOrderDerivedStatus({ items });
+    const primaryItem = items[0];
 
     return {
       id: `ORD-${sequence}`,
       spkNumber: `SPK-SBY-${dateStamp(createdOffset)}-${sequence}`,
       customerId,
       customerName: customer.name,
-      productId,
-      productName: product.name,
-      qty,
-      unit: product.unit,
-      total,
-      paidAmount: status === "draft" ? 0 : Math.round(total * (status === "closed" || status === "delivered" ? 1 : 0.5)),
+      productId: primaryItem.productId,
+      productName: primaryItem.product,
+      qty: primaryItem.qty,
+      unit: primaryItem.unit,
+      total: orderTotal,
+      paidAmount: derivedStatus === "draft" ? 0 : Math.round(orderTotal * (status === "closed" || status === "delivered" ? 1 : 0.5)),
       paymentStatus: status === "closed" || status === "delivered" ? "paid" : status === "draft" ? "unpaid" : "partial",
-      status,
+      status: ["delivered", "closed", "draft"].includes(status) ? status : derivedStatus,
+      derivedStatus,
+      items,
       priority,
-      productionStage: productionStageByStatus[status],
+      productionStage: productionStageByStatus[["delivered", "closed", "draft"].includes(status) ? status : derivedStatus],
       branchId: index % 5 === 0 ? "BR-SBY-BARAT" : "BR-SBY-PUSAT",
       createdAt: addDays(createdOffset, 10 + (index % 6), (index * 7) % 60),
       deadlineAt: addDays(deadlineOffset, 16, index % 2 === 0 ? 0 : 30),
@@ -492,6 +613,7 @@
     productionStatus: {
       design_queue: orders.filter((order) => order.status === "design_queue").length,
       in_design: orders.filter((order) => order.status === "in_design").length,
+      production_queue: orders.filter((order) => order.status === "production_queue").length,
       printing: orders.filter((order) => order.status === "printing").length,
       finishing: orders.filter((order) => order.status === "finishing").length,
       ready: orders.filter((order) => order.status === "ready").length,
@@ -548,6 +670,7 @@
       confirmed: "Terkonfirmasi",
       design_queue: "Antrian Desain",
       in_design: "Sedang Desain",
+      production_queue: "Antrian Cetak",
       printing: "Sedang Cetak",
       finishing: "Finishing",
       ready: "Siap Ambil",
@@ -564,4 +687,5 @@
   };
 
   window.APP_DATA = APP_DATA;
+  window.getOrderDerivedStatus = getOrderDerivedStatus;
 })();

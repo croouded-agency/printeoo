@@ -1,6 +1,6 @@
 # STATE.md — Printeoo Prototype Progress
-**Last Updated:** 2026-05-23 (Recheck sesi 37)
-**Status Keseluruhan:** 🟢 Selesai — Siap Demo  
+**Last Updated:** 2026-05-25 (v1.1 update TASK-102)
+**Status Keseluruhan:** 🟡 Update v1.1 berjalan  
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
 > Ini adalah memori kerja AI antar sesi. Jangan hapus entry yang sudah selesai.
@@ -19,7 +19,8 @@
 | 5 — Polish & Integration | 4 | 4 | 100% |
 | 6 — Inventory Fully Functional | 7 | 7 | 100% |
 | 7 — Manajemen Pelanggan | 4 | 4 | 100% |
-| **Total** | **33** | **33** | **100%** |
+| 8 â€” v1.1 Update | 10 | 2 | 20% |
+| **Total** | **43** | **35** | **81%** |
 
 ---
 
@@ -1236,6 +1237,46 @@ karena integrasi ke dashboard dan order-new mungkin overlap dengan perubahan dar
 
 ---
 
+### FASE 8 â€” UPDATE PROTOTYPE v1.1
+
+#### TASK-101 â€” Hapus stage "Review Pelanggan" dari seluruh prototype
+**Status:** `[x]` Selesai  
+**Estimasi:** 30 menit  
+**Deskripsi:**  
+Hapus stage `design_review` / "Review Pelanggan" dari lifecycle, kanban, filter status, dan progress detail SPK.
+
+**Checklist:**
+- [x] Tidak ada kemunculan teks "Review Pelanggan" di folder `prototype`
+- [x] Tidak ada kemunculan `design_review` di folder `prototype`
+- [x] Kanban produksi tidak lagi punya kolom Review Pelanggan
+- [x] Progress detail SPK memakai tahap: Terkonfirmasi, Antrian Desain, Sedang Desain, Antrian Cetak, Sedang Cetak, Finishing, Siap Ambil, Selesai
+- [x] State machine `in_design` bisa masuk ke `production_queue`
+- [x] Aksi revisi desain tetap berada di `in_design`
+- [x] `app.js` dan `data.js` lolos syntax check
+
+**Progress Terakhir:** 2026-05-25 â€” TASK-101 selesai. Status `production_queue` ditambahkan sebagai "Antrian Cetak", kolom kanban Review Pelanggan dihapus, aksi desain diarahkan ke Antrian Cetak, dan badge status baru ditambahkan.
+
+---
+
+#### TASK-102 â€” Implementasi SPK Multi-Item: Update data.js
+**Status:** `[x]` Selesai  
+**Estimasi:** 45 menit  
+**Depends on:** TASK-101  
+**Deskripsi:**  
+Update struktur `APP_DATA.orders` agar semua SPK memiliki `items` array, dengan minimal 5 SPK multi-item untuk demo.
+
+**Checklist:**
+- [x] Semua 32 order memiliki `items` array
+- [x] 5 SPK memiliki lebih dari 1 item
+- [x] Setiap item punya field wajib: `itemId`, `seq`, `product`, `specs`, `qty`, `unit`, `unitPrice`, `total`, `needsDesign`, `status`, `assignedTo`, `materialEstimate`, `materialActual`
+- [x] Field lama (`productName`, `qty`, `unit`, `status`, `total`) tetap dipertahankan sementara untuk kompatibilitas halaman yang belum di-update
+- [x] Helper `getOrderDerivedStatus(order)` tersedia di `window`
+- [x] `data.js` lolos syntax check dan validasi runtime Node
+
+**Progress Terakhir:** 2026-05-25 â€” TASK-102 selesai. Generator order sekarang membuat item produksi per SPK, 5 order demo dibuat multi-item, total dan status derived dihitung dari item, serta estimasi/aktual material dummy tersedia per item.
+
+---
+
 ## BUGS & ISSUES
 
 *Catat di sini setiap bug yang ditemukan saat development.*
@@ -1313,11 +1354,14 @@ karena integrasi ke dashboard dan order-new mungkin overlap dengan perubahan dar
 | 39 | 2026-05-23 | Fix BUG-005 & BUG-006 — "Lihat sebagai:" wrap 2 baris + filter Piutang/Sort mepet | BUG-005, BUG-006 | style.css: tambah `white-space:nowrap; flex-shrink:0` ke `.role-switcher`. customers.html: ganti `.grid` → `.content-grid`, search col-4→col-12, Tipe/Piutang/Sort masing-masing col-4. |
 | 40 | 2026-05-23 | Fix BUG-003 — Buat halaman Pengaturan proper | BUG-003 | Buat `pages/settings.html` + `renderSettingsPage()` + 6 render function tab. Route `settings` diarahkan ke page `settings`. Tabs: Profil Bisnis (form data bisnis), Cabang (tabel dari APP_DATA), Pengguna & Akses (tabel employee + matriks akses), Notifikasi (toggle per kategori), Tampilan (display/format options), Paket & Langganan (status plan + plan cards + tabel perbandingan + link pricing fullscreen). CSS settings ~130 baris di style.css. |
 
+| 41 | 2026-05-25 | TASK-101 â€” Hapus stage Review Pelanggan | TASK-101 | Kolom kanban Review Pelanggan dihapus, status `production_queue` ditambahkan sebagai Antrian Cetak, progress detail dan state machine diperbarui, serta validasi statis tidak menemukan `design_review` atau "Review Pelanggan" di folder `prototype`. |
+| 42 | 2026-05-25 | TASK-102 â€” Implementasi SPK Multi-Item: Update data.js | TASK-102 | Semua 32 order sekarang punya `items` array, 5 SPK dibuat multi-item, helper `window.getOrderDerivedStatus` ditambahkan, dan validasi runtime memastikan field wajib lengkap. |
+
 ---
 
 ## NEXT TASK
 
-**Semua task (TASK-001 s/d TASK-033) sudah selesai. Prototype siap demo.**
+**Task berikutnya:** TASK-109 â€” Fix UX Issues Kritis dari Audit, lalu TASK-103 â€” Update Daftar Pesanan untuk Multi-Item.
 
 Recheck terakhir (sesi 37, 2026-05-23) mengkonfirmasi:
 - 33/33 task selesai, tidak ada yang tertinggal
