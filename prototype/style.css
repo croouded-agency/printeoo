@@ -897,6 +897,12 @@ textarea:focus {
   fill: var(--primary);
 }
 
+.revenue-chart .chart-value-label {
+  fill: var(--neutral-700);
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .revenue-chart text {
   fill: var(--neutral-500);
   font-size: 12px;
@@ -2607,6 +2613,21 @@ button:disabled {
 
 .toggle-switch input:checked + .toggle-slider::before {
   transform: translateX(18px);
+}
+
+.toggle-switch-disabled,
+.toggle-switch input:disabled + .toggle-slider {
+  cursor: not-allowed;
+}
+
+.toggle-switch input:disabled + .toggle-slider {
+  background: var(--neutral-200);
+  opacity: 0.7;
+}
+
+.notif-item.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 /* Notification items */

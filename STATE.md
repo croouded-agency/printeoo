@@ -1,5 +1,5 @@
 # STATE.md — Printeoo Prototype Progress
-**Last Updated:** 2026-05-25 (v1.1 update TASK-102)
+**Last Updated:** 2026-05-25 (v1.1 update TASK-109)
 **Status Keseluruhan:** 🟡 Update v1.1 berjalan  
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
@@ -19,8 +19,8 @@
 | 5 — Polish & Integration | 4 | 4 | 100% |
 | 6 — Inventory Fully Functional | 7 | 7 | 100% |
 | 7 — Manajemen Pelanggan | 4 | 4 | 100% |
-| 8 â€” v1.1 Update | 10 | 2 | 20% |
-| **Total** | **43** | **35** | **81%** |
+| 8 â€” v1.1 Update | 10 | 3 | 30% |
+| **Total** | **43** | **36** | **84%** |
 
 ---
 
@@ -1277,6 +1277,27 @@ Update struktur `APP_DATA.orders` agar semua SPK memiliki `items` array, dengan 
 
 ---
 
+#### TASK-109 â€” Fix UX Issues Kritis dari Audit
+**Status:** `[x]` Selesai  
+**Estimasi:** 45 menit  
+**Deskripsi:**  
+Perbaiki isu UX kritis di dashboard, keuangan, dan pengaturan sesuai audit v1.1.
+
+**Checklist:**
+- [x] Bar chart dashboard punya label nilai di atas setiap bar
+- [x] Metric Pesanan Hari Ini menjelaskan "Order baru masuk hari ini"
+- [x] Metric Revenue Hari Ini menjelaskan termasuk pelunasan order sebelumnya
+- [x] Completion rate dihitung dari basis aktif yang tidak menghasilkan kontradiksi 0% saat ada SPK selesai
+- [x] Chart Keuangan memakai format compact seperti `Rp 87,5 jt` agar label tidak terpotong
+- [x] Toggle Mode Gelap disabled, cursor not-allowed, dan title menjelaskan tersedia di versi berikutnya
+- [x] Pengaturan Notifikasi menambahkan "Notifikasi Kurir" dan "Kurir belum di-assign"
+- [x] Matriks Hak Akses menambahkan kolom Gudang dan Kurir
+- [x] `app.js` dan `data.js` lolos syntax check
+
+**Progress Terakhir:** 2026-05-25 â€” TASK-109 selesai. Dashboard, Finance, Settings Notifikasi, Settings Tampilan, dan Settings Pengguna & Akses diperbarui sesuai acceptance criteria.
+
+---
+
 ## BUGS & ISSUES
 
 *Catat di sini setiap bug yang ditemukan saat development.*
@@ -1356,12 +1377,13 @@ Update struktur `APP_DATA.orders` agar semua SPK memiliki `items` array, dengan 
 
 | 41 | 2026-05-25 | TASK-101 â€” Hapus stage Review Pelanggan | TASK-101 | Kolom kanban Review Pelanggan dihapus, status `production_queue` ditambahkan sebagai Antrian Cetak, progress detail dan state machine diperbarui, serta validasi statis tidak menemukan `design_review` atau "Review Pelanggan" di folder `prototype`. |
 | 42 | 2026-05-25 | TASK-102 â€” Implementasi SPK Multi-Item: Update data.js | TASK-102 | Semua 32 order sekarang punya `items` array, 5 SPK dibuat multi-item, helper `window.getOrderDerivedStatus` ditambahkan, dan validasi runtime memastikan field wajib lengkap. |
+| 43 | 2026-05-25 | TASK-109 â€” Fix UX Issues Kritis dari Audit | TASK-109 | Dashboard chart punya label nilai, konteks metric diperjelas, completion rate diperbaiki, chart Finance memakai format compact, dark mode toggle disabled, notifikasi kurir ditambahkan, dan matriks akses punya kolom Gudang/Kurir. |
 
 ---
 
 ## NEXT TASK
 
-**Task berikutnya:** TASK-109 â€” Fix UX Issues Kritis dari Audit, lalu TASK-103 â€” Update Daftar Pesanan untuk Multi-Item.
+**Task berikutnya:** TASK-103 â€” Update Daftar Pesanan untuk Multi-Item.
 
 Recheck terakhir (sesi 37, 2026-05-23) mengkonfirmasi:
 - 33/33 task selesai, tidak ada yang tertinggal

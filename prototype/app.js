@@ -392,9 +392,10 @@ function renderDashboard() {
   const revenueTrend = dashboard.revenueYesterday
     ? ((dashboard.revenueToday - dashboard.revenueYesterday) / dashboard.revenueYesterday) * 100
     : 0;
-  const completionRate = liveMetrics.ordersToday
-    ? Math.round((liveMetrics.completedToday / liveMetrics.ordersToday) * 100)
-    : 0;
+  const activeToday = Math.max(liveMetrics.ordersToday, liveMetrics.completedToday);
+  const completionRate = activeToday
+    ? Math.round((liveMetrics.completedToday / activeToday) * 100)
+    : null;
 
   greetingEl.textContent = `${getGreeting()}, ${APP_STATE.currentUser.name} ☀️`;
 
@@ -422,21 +423,21 @@ function renderDashboard() {
       icon: "SPK",
       label: "Pesanan Hari Ini",
       value: liveMetrics.ordersToday,
-      trend: "Aktif masuk hari ini",
+      trend: "Order baru masuk hari ini",
       tone: "primary",
     },
     {
       icon: "Rp",
       label: "Revenue Hari Ini",
       value: formatCurrency(dashboard.revenueToday),
-      trend: `${revenueTrend >= 0 ? "↑" : "↓"} ${Math.abs(revenueTrend).toFixed(1)}% dari kemarin`,
+      trend: `Termasuk pelunasan order sebelumnya · ${revenueTrend >= 0 ? "naik" : "turun"} ${Math.abs(revenueTrend).toFixed(1)}% dari kemarin`,
       tone: revenueTrend >= 0 ? "success" : "danger",
     },
     {
       icon: "OK",
       label: "Selesai Hari Ini",
       value: liveMetrics.completedToday,
-      trend: `${completionRate}% completion rate`,
+      trend: completionRate === null ? "Completion rate belum tersedia" : `${completionRate}% completion rate`,
       tone: "success",
     },
     {
@@ -4844,13 +4845,13 @@ function buildFinanceChart(pnl) {
   return `
     <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Chart finance preview">
       ${rows.map(([label, value, color], index) => {
-        const barWidth = Math.round((value / maxValue) * 560);
+        const barWidth = Math.round((value / maxValue) * 470);
         const y = 36 + index * 52;
         return `
           <g>
             <text x="0" y="${y + 22}" class="finance-chart-label">${label}</text>
             <rect x="150" y="${y}" width="${barWidth}" height="30" rx="6" fill="${color}"></rect>
-            <text x="${160 + barWidth}" y="${y + 21}" class="finance-chart-value">${formatCurrency(value)}</text>
+            <text x="${170 + barWidth}" y="${y + 21}" class="finance-chart-value">${formatCompactCurrency(value)}</text>
           </g>
         `;
       }).join("")}
@@ -5039,13 +5040,27 @@ function renderSettingsUsersTab() {
     designer: "badge-printing",
     operator: "badge-finishing",
     warehouse: "badge-overdue",
+    courier: "badge-confirmed",
     finance: "badge-ready",
     installer: "badge-urgent",
   };
   const roleLabels = {
     owner: "Owner", cashier: "Kasir", designer: "Desainer",
-    operator: "Operator", warehouse: "Gudang", finance: "Keuangan", installer: "Teknisi",
+    operator: "Operator", warehouse: "Gudang", courier: "Kurir", finance: "Keuangan", installer: "Teknisi",
   };
+  const accessRows = [
+    ["Dashboard & Laporan", "Ya", "-", "-", "-", "-", "-"],
+    ["Input & Kelola Pesanan", "Ya", "Ya", "-", "-", "R", "-"],
+    ["Papan Produksi", "Ya", "R", "Ya", "Ya", "-", "-"],
+    ["Antrian Customer", "Ya", "Ya", "-", "-", "-", "-"],
+    ["Inventaris", "Ya", "-", "R", "-", "Ya", "-"],
+    ["Purchase Order", "Ya", "-", "-", "-", "Submit", "-"],
+    ["Pengiriman", "Ya", "Ya", "-", "-", "-", "Milik sendiri"],
+    ["Portal Karyawan", "Ya", "Ya", "Ya", "Ya", "Ya", "Ya"],
+    ["Karyawan & Payroll", "Ya", "-", "-", "-", "-", "-"],
+    ["Keuangan", "Ya", "-", "-", "-", "-", "-"],
+    ["Pengaturan", "Ya", "-", "-", "-", "-", "-"],
+  ];
   return `
     <div class="settings-grid">
       <section class="card settings-section">
@@ -5111,22 +5126,15 @@ function renderSettingsUsersTab() {
                 <th>Kasir</th>
                 <th>Operator</th>
                 <th>Desainer</th>
+                <th>Gudang</th>
+                <th>Kurir</th>
               </tr>
             </thead>
             <tbody>
-              ${[
-                ["Dashboard & Laporan", "✓", "—", "—", "—"],
-                ["Input & Kelola Pesanan", "✓", "✓", "—", "—"],
-                ["Papan Produksi", "✓", "—", "✓", "✓"],
-                ["Antrian Customer", "✓", "✓", "—", "—"],
-                ["Inventaris", "✓", "—", "—", "—"],
-                ["Karyawan & Payroll", "✓", "—", "—", "—"],
-                ["Keuangan", "✓", "—", "—", "—"],
-                ["Pengaturan", "✓", "—", "—", "—"],
-              ].map(([feat, ...cols]) => `
+              ${accessRows.map(([feat, ...cols]) => `
                 <tr>
                   <td>${feat}</td>
-                  ${cols.map((v) => `<td class="text-center ${v === "✓" ? "text-success" : "text-muted"}">${v}</td>`).join("")}
+                  ${cols.map((v) => `<td class="text-center ${v !== "-" ? "text-success" : "text-muted"}">${v}</td>`).join("")}
                 </tr>
               `).join("")}
             </tbody>
@@ -5147,6 +5155,8 @@ function renderSettingsNotifikasiTab() {
         ["Pesanan overdue", true, "Alert jika deadline terlewat dan belum selesai"],
         ["Status produksi berubah", false, "Notifikasi setiap perubahan stage produksi"],
         ["Pesanan siap diambil", true, "Notif ke customer saat status = Siap Ambil"],
+        ["Notifikasi Kurir", true, "Kirim WA ke kurir saat pesanan siap diantar"],
+        ["Kurir belum di-assign", false, "Notif ke manager jika 30 menit belum ada kurir"],
       ],
     },
     {
@@ -5266,19 +5276,19 @@ function renderSettingsTampilanTab() {
         <h2 class="settings-section-title">Tampilan Antarmuka</h2>
         <div class="notif-item-list">
           ${[
-            ["Mode Gelap (Dark Mode)", false, "Tersedia di Printeoo versi berikutnya"],
-            ["Tampilkan foto di kartu produksi", true, "Foto produk muncul di kanban board"],
-            ["Animasi & transisi", true, "Matikan untuk performa lebih cepat di perangkat lama"],
-            ["Tampilkan salam di dashboard", true, "Ucapan pagi/siang/sore di header dashboard"],
-            ["Kolom tabel kompak", false, "Kurangi padding tabel untuk menampilkan lebih banyak baris"],
-          ].map(([label, enabled, desc]) => `
-            <div class="notif-item">
+            ["Mode Gelap (Dark Mode)", false, "Tersedia di versi berikutnya", true],
+            ["Tampilkan foto di kartu produksi", true, "Foto produk muncul di kanban board", false],
+            ["Animasi & transisi", true, "Matikan untuk performa lebih cepat di perangkat lama", false],
+            ["Tampilkan salam di dashboard", true, "Ucapan pagi/siang/sore di header dashboard", false],
+            ["Kolom tabel kompak", false, "Kurangi padding tabel untuk menampilkan lebih banyak baris", false],
+          ].map(([label, enabled, desc, disabled]) => `
+            <div class="notif-item ${disabled ? "is-disabled" : ""}" ${disabled ? 'title="Tersedia di versi berikutnya"' : ""}>
               <div class="flex-1">
                 <div style="font-weight:500;font-size:var(--text-sm)">${label}</div>
                 <div class="text-xs text-muted">${desc}</div>
               </div>
-              <label class="toggle-switch">
-                <input type="checkbox" ${enabled ? "checked" : ""} onchange="showToast('Preferensi tampilan disimpan.','success')">
+              <label class="toggle-switch ${disabled ? "toggle-switch-disabled" : ""}">
+                <input type="checkbox" ${enabled ? "checked" : ""} ${disabled ? "disabled" : "onchange=\"showToast('Preferensi tampilan disimpan.','success')\""} aria-label="${escapeAttr(label)}">
                 <span class="toggle-slider"></span>
               </label>
             </div>
@@ -5457,6 +5467,7 @@ function buildRevenueChart(rows) {
     return `
       <g>
         <rect class="chart-bar" x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="6"></rect>
+        <text x="${x + barWidth / 2}" y="${Math.max(y - 8, 14)}" text-anchor="middle" class="chart-value-label">${formatCompactCurrency(row.revenue)}</text>
         <text x="${x + barWidth / 2}" y="${height - 8}" text-anchor="middle">${label}</text>
         <title>${label}: ${formatCurrency(row.revenue)}</title>
       </g>
@@ -5469,6 +5480,14 @@ function buildRevenueChart(rows) {
       ${bars}
     </svg>
   `;
+}
+
+function formatCompactCurrency(value) {
+  const number = Number(value) || 0;
+  if (number >= 1000000000) return `Rp ${(number / 1000000000).toFixed(1).replace(".", ",")} M`;
+  if (number >= 1000000) return `Rp ${(number / 1000000).toFixed(1).replace(".", ",")} jt`;
+  if (number >= 1000) return `Rp ${Math.round(number / 1000)} rb`;
+  return formatCurrency(number);
 }
 
 // Event handlers
