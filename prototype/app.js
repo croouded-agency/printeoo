@@ -347,11 +347,11 @@ function canAccessRoute(route, role) {
   if (route === "login" || route === "pricing" || route === "nota" || route === "track") return true;
   if (route === "portal-karyawan") return role !== "display";
   if (role === "display") return route === "display-production" || route === "display-queue";
-  if (role === "courier") return route === "delivery" || route === "portal-karyawan";
+  if (role === "courier") return route === "delivery" || route === "portal-karyawan" || route === "order";
   if (route === "delivery") return role === "courier" || role === "owner";
   if (route === "products" || route === "product") return role === "owner";
   if (role === "warehouse") return ["inventory", "orders", "order", "portal-karyawan"].includes(route);
-  if (route === "order") return role === "owner" || role === "cashier";
+  if (route === "order") return ["owner", "branch_manager", "cashier", "designer", "operator", "warehouse", "courier", "hr_admin", "accountant"].includes(role);
   if (route === "customer") return role === "owner" || role === "branch_manager" || role === "cashier";
   if (route === "settings") return role === "owner";
 
@@ -2335,6 +2335,8 @@ function renderOrderDetailPage() {
   const statusLabel = window.APP_DATA.statusLabels[displayStatus] || displayStatus;
   const priorityClass = order.priority === "VIP" ? "badge-vip" : order.priority === "urgent" ? "badge-urgent" : "badge-confirmed";
   const items = getOrderItems(order);
+  const canUseNotaActions = ["owner", "branch_manager", "cashier"].includes(APP_STATE.currentRole);
+  const canUseSpkAdminActions = ["owner", "branch_manager", "cashier"].includes(APP_STATE.currentRole);
 
   container.innerHTML = `
     <div class="detail-header">
@@ -2347,17 +2349,21 @@ function renderOrderDetailPage() {
         <p class="page-subtitle">Dibuat ${formatDate(order.createdAt)} · Deadline ${formatRelativeDate(order.deadlineAt)} · ${items.length} item · Total ${formatCurrency(order.total)}</p>
       </div>
       <div class="flex gap-3 flex-wrap">
-        <button class="btn-secondary" type="button" data-action="open-nota" data-spk-number="${escapeAttr(order.spkNumber)}">Cetak Nota</button>
-        <button class="btn-secondary" type="button" data-action="send-nota-wa" data-spk-number="${escapeAttr(order.spkNumber)}">Kirim WA</button>
-        <button class="btn-secondary" type="button" data-action="download-nota-pdf" data-spk-number="${escapeAttr(order.spkNumber)}">Download PDF</button>
-        <button class="btn-secondary" type="button" data-action="print-spk">Cetak SPK</button>
-        <button class="btn-secondary" type="button" data-action="duplicate-order">Duplikat</button>
-        <details class="more-actions">
-          <summary class="btn-secondary">Lainnya</summary>
-          <div class="more-actions-menu">
-            <button class="btn-secondary btn-outline-danger" type="button" data-action="cancel-order">Batalkan SPK</button>
-          </div>
-        </details>
+        ${canUseNotaActions ? `
+          <button class="btn-secondary" type="button" data-action="open-nota" data-spk-number="${escapeAttr(order.spkNumber)}">Cetak Nota</button>
+          <button class="btn-secondary" type="button" data-action="send-nota-wa" data-spk-number="${escapeAttr(order.spkNumber)}">Kirim WA</button>
+          <button class="btn-secondary" type="button" data-action="download-nota-pdf" data-spk-number="${escapeAttr(order.spkNumber)}">Download PDF</button>
+        ` : ""}
+        ${canUseSpkAdminActions ? `
+          <button class="btn-secondary" type="button" data-action="print-spk">Cetak SPK</button>
+          <button class="btn-secondary" type="button" data-action="duplicate-order">Duplikat</button>
+          <details class="more-actions">
+            <summary class="btn-secondary">Lainnya</summary>
+            <div class="more-actions-menu">
+              <button class="btn-secondary btn-outline-danger" type="button" data-action="cancel-order">Batalkan SPK</button>
+            </div>
+          </details>
+        ` : ""}
       </div>
     </div>
 
@@ -2365,7 +2371,7 @@ function renderOrderDetailPage() {
 
     <section class="order-detail-grid">
       ${renderOrderInfoCardV2(order)}
-      ${renderTimelineCard(order)}
+      ${canViewInternalOrderTimeline() ? renderTimelineCard(order) : ""}
       ${renderActionCard(order)}
     </section>
   `;
@@ -2487,6 +2493,7 @@ function renderOrderInfoCardV2(order) {
     ? `<a class="table-link" href="#/customer/${encodeURIComponent(customer.id)}">${escapeHtml(order.customerName)}</a>`
     : escapeHtml(order.customerName);
   const items = getOrderItems(order);
+  const canViewFinancials = canViewOrderFinancials();
 
   return `
     <article class="card detail-card">
@@ -2494,9 +2501,11 @@ function renderOrderInfoCardV2(order) {
       <dl class="detail-list">
         <div><dt>Customer</dt><dd>${customerLabel}</dd></div>
         <div><dt>Jumlah Item</dt><dd>${items.length} item</dd></div>
-        <div><dt>Total</dt><dd>${formatCurrency(order.total)}</dd></div>
-        <div><dt>Dibayar</dt><dd>${formatCurrency(order.paidAmount || 0)}</dd></div>
-        <div><dt>Sisa</dt><dd>${formatCurrency(Math.max(order.total - (order.paidAmount || 0), 0))}</dd></div>
+        ${canViewFinancials ? `
+          <div><dt>Total</dt><dd>${formatCurrency(order.total)}</dd></div>
+          <div><dt>Dibayar</dt><dd>${formatCurrency(order.paidAmount || 0)}</dd></div>
+          <div><dt>Sisa</dt><dd>${formatCurrency(Math.max(order.total - (order.paidAmount || 0), 0))}</dd></div>
+        ` : ""}
         <div><dt>Deadline</dt><dd>${formatDate(order.deadlineAt)}</dd></div>
       </dl>
 
@@ -2514,8 +2523,10 @@ function renderOrderInfoCardV2(order) {
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
             <h3 class="detail-subtitle" style="margin:0">Material & Waste per Item</h3>
             <div style="display:flex;gap:6px">
-              <button class="btn-secondary" type="button" data-action="open-qr-scan" style="font-size:12px;padding:5px 10px">Scan QR</button>
-              <button class="btn-primary" type="button" data-action="open-usage-waste-modal" data-spk-number="${order.spkNumber}" style="font-size:12px;padding:5px 10px">+ Catat Pemakaian</button>
+              ${canInputMaterialUsage() ? `
+                <button class="btn-secondary" type="button" data-action="open-qr-scan" style="font-size:12px;padding:5px 10px">Scan QR</button>
+                <button class="btn-primary" type="button" data-action="open-usage-waste-modal" data-spk-number="${order.spkNumber}" style="font-size:12px;padding:5px 10px">+ Catat Pemakaian</button>
+              ` : ""}
             </div>
           </div>
           <div class="material-accordion">
@@ -2532,6 +2543,7 @@ function renderOrderDetailItem(order, item) {
   const estimateText = formatMaterialRows(item.materialEstimate);
   const actualText = formatMaterialRows(item.materialActual, true);
   const deviationText = formatItemDeviation(item);
+  const itemMeta = `${item.qty || 0} ${item.unit || ""}${canViewOrderFinancials() ? ` · ${formatCurrency(item.total || 0)}` : ""} · ${escapeHtml(item.assignedTo || "Belum assigned")}`;
 
   return `
     <section class="order-item-card">
@@ -2542,7 +2554,7 @@ function renderOrderDetailItem(order, item) {
         </div>
         <span class="badge badge-${status}">${window.APP_DATA.statusLabels[status] || status}</span>
       </div>
-      <p class="text-sm text-muted">${item.qty || 0} ${item.unit || ""} · ${formatCurrency(item.total || 0)} · ${escapeHtml(item.assignedTo || "Belum assigned")}</p>
+      <p class="text-sm text-muted">${itemMeta}</p>
       <p class="text-sm"><strong>Estimasi:</strong> ${estimateText}</p>
       <p class="text-sm"><strong>Aktual:</strong> ${actualText}</p>
       <p class="text-sm ${deviationText.includes('+') ? "text-warning" : "text-muted"}"><strong>Deviasi:</strong> ${deviationText}</p>
@@ -2573,7 +2585,80 @@ function formatItemDeviation(item) {
 }
 
 function shouldShowMaterialSection(order) {
-  return getOrderItems(order).some((item) => ["printing", "finishing", "ready"].includes(item.status));
+  return canViewMaterialSection() && getOrderItems(order).some((item) => ["printing", "finishing", "ready"].includes(item.status));
+}
+
+function canViewMaterialSection() {
+  return ["owner", "branch_manager", "operator", "warehouse"].includes(APP_STATE.currentRole);
+}
+
+function canInputMaterialUsage() {
+  return ["owner", "branch_manager", "operator", "warehouse"].includes(APP_STATE.currentRole);
+}
+
+function canViewOrderFinancials() {
+  return ["owner", "branch_manager", "cashier", "accountant"].includes(APP_STATE.currentRole);
+}
+
+function canViewInternalOrderTimeline() {
+  return ["owner", "branch_manager", "cashier", "designer", "operator", "warehouse"].includes(APP_STATE.currentRole);
+}
+
+function canViewInternalOrderNotes() {
+  return ["owner", "branch_manager", "cashier", "designer", "operator", "warehouse"].includes(APP_STATE.currentRole);
+}
+
+function isManagerRole(role = APP_STATE.currentRole) {
+  return role === "owner" || role === "branch_manager";
+}
+
+function isAssignedToCurrentUser(item) {
+  return !item.assignedTo || item.assignedTo === APP_STATE.currentUser.name;
+}
+
+function areAllItemsReady(order) {
+  const items = getOrderItems(order);
+  return items.length > 0 && items.every((item) => ["ready", "delivered", "closed"].includes(item.status || order.status));
+}
+
+function getRoleBasedOrderActions(order) {
+  const role = APP_STATE.currentRole;
+  const displayStatus = getOrderStatus(order);
+
+  if (role === "cashier") {
+    const actions = [];
+    if (areAllItemsReady(order) && !["delivered", "closed"].includes(order.status)) {
+      actions.push({ label: "Tandai Diambil", customAction: "mark-order-picked-up", note: "Pesanan ditandai sudah diambil customer" });
+    }
+    if ((areAllItemsReady(order) || order.status === "delivered") && order.paymentStatus !== "paid") {
+      actions.push({ label: "Tandai Lunas", customAction: "mark-order-paid", secondary: true, note: "Pembayaran pesanan ditandai lunas" });
+    }
+    return actions;
+  }
+
+  if (role === "operator") {
+    const productionStatuses = ["production_queue", "printing", "finishing"];
+    if (!getOrderItems(order).some((item) => productionStatuses.includes(item.status) && isAssignedToCurrentUser(item))) return [];
+    return (ORDER_ACTIONS[displayStatus] || []).filter((action) => ["printing", "finishing", "ready"].includes(action.nextStatus));
+  }
+
+  if (role === "designer") {
+    const designStatuses = ["design_queue", "in_design"];
+    if (!getOrderItems(order).some((item) => designStatuses.includes(item.status) && isAssignedToCurrentUser(item))) return [];
+    return (ORDER_ACTIONS[displayStatus] || []).filter((action) => ["in_design", "production_queue"].includes(action.nextStatus));
+  }
+
+  if (!isManagerRole(role)) return [];
+
+  let actions = ORDER_ACTIONS[displayStatus] || [];
+  if (displayStatus === "ready") {
+    actions = actions.filter((action) => {
+      if (action.customAction === "mark-order-picked-up") return !["delivered", "closed"].includes(order.status);
+      if (action.customAction === "mark-order-paid") return order.paymentStatus !== "paid";
+      return true;
+    });
+  }
+  return actions;
 }
 
 function renderMaterialWasteForItem(order, item) {
@@ -2644,15 +2729,9 @@ function renderTimelineCard(order) {
 }
 
 function renderActionCard(order) {
-  const displayStatus = getOrderStatus(order);
-  let actions = ORDER_ACTIONS[displayStatus] || [];
-  if (displayStatus === "ready") {
-    actions = actions.filter((action) => {
-      if (action.customAction === "mark-order-picked-up") return !["delivered", "closed"].includes(order.status);
-      if (action.customAction === "mark-order-paid") return order.paymentStatus !== "paid";
-      return true;
-    });
-  }
+  const actions = getRoleBasedOrderActions(order);
+  const canAddNote = ["owner", "branch_manager", "cashier", "designer", "operator", "warehouse"].includes(APP_STATE.currentRole);
+  const canViewNotes = canViewInternalOrderNotes();
   return `
     <article class="card detail-card">
       <h2 class="card-title">Aksi & Catatan</h2>
@@ -2664,16 +2743,20 @@ function renderActionCard(order) {
         `).join("") : '<p class="text-muted">Tidak ada aksi lanjutan untuk status ini.</p>'}
       </div>
 
-      <div class="form-group mt-4">
-        <label for="detail-note">Tambah Catatan</label>
-        <textarea id="detail-note" placeholder="Tambahkan catatan timeline internal"></textarea>
-      </div>
-      <button class="btn-secondary w-full mt-3" type="button" data-action="add-order-note">Tambah Catatan</button>
+      ${canAddNote ? `
+        <div class="form-group mt-4">
+          <label for="detail-note">Tambah Catatan</label>
+          <textarea id="detail-note" placeholder="Tambahkan catatan timeline internal"></textarea>
+        </div>
+        <button class="btn-secondary w-full mt-3" type="button" data-action="add-order-note">Tambah Catatan</button>
+      ` : ""}
 
-      <div class="note-box mt-4">
-        <strong>Catatan operator</strong>
-        <p>${order.notes || "Belum ada catatan operator."}</p>
-      </div>
+      ${canViewNotes ? `
+        <div class="note-box mt-4">
+          <strong>Catatan operator</strong>
+          <p>${order.notes || "Belum ada catatan operator."}</p>
+        </div>
+      ` : ""}
     </article>
   `;
 }
@@ -7488,16 +7571,34 @@ function setupEventHandlers() {
       }
 
       if (actionButton.dataset.action === "advance-order") {
+        const order = findOrderBySpk(APP_STATE.routeParams.spkNumber);
+        const allowed = order && getRoleBasedOrderActions(order).some((action) => (action.customAction || "advance-order") === "advance-order" && action.nextStatus === actionButton.dataset.status);
+        if (!allowed) {
+          showToast("Aksi ini tidak tersedia untuk role saat ini.", "warning");
+          return;
+        }
         advanceCurrentOrder(actionButton.dataset.status, actionButton.dataset.note);
         return;
       }
 
       if (actionButton.dataset.action === "mark-order-picked-up") {
+        const order = findOrderBySpk(APP_STATE.routeParams.spkNumber);
+        const allowed = order && getRoleBasedOrderActions(order).some((action) => action.customAction === "mark-order-picked-up");
+        if (!allowed) {
+          showToast("Aksi ini tidak tersedia untuk role saat ini.", "warning");
+          return;
+        }
         markCurrentOrderPickedUp();
         return;
       }
 
       if (actionButton.dataset.action === "mark-order-paid") {
+        const order = findOrderBySpk(APP_STATE.routeParams.spkNumber);
+        const allowed = order && getRoleBasedOrderActions(order).some((action) => action.customAction === "mark-order-paid");
+        if (!allowed) {
+          showToast("Aksi ini tidak tersedia untuk role saat ini.", "warning");
+          return;
+        }
         markCurrentOrderPaid();
         return;
       }
