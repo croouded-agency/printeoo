@@ -58,6 +58,8 @@ const APP_STATE = {
     detailTab: "info",
     previewQty: 5,
   },
+  pendingIncomingItemId: null,
+  materialDetailTab: "info",
 };
 
 window.APP_STATE = APP_STATE;
@@ -88,6 +90,8 @@ const ROUTES = {
   "produk-bom": { page: "products", title: "Produk & BOM" },
   products: { page: "products", title: "Produk & BOM" },
   product: { page: "products", title: "Detail Produk" },
+  nota: { page: "nota", title: "Nota Pesanan", fullScreen: true },
+  track: { page: "track", title: "Tracking Pesanan", fullScreen: true },
 };
 
 const MENU_ITEMS = [
@@ -127,6 +131,14 @@ function parseHash() {
     return { route: "order", params: { spkNumber: decodeURIComponent(segments[1]) } };
   }
 
+  if (route === "nota" && segments[1]) {
+    return { route: "nota", params: { spkNumber: decodeURIComponent(segments[1]) } };
+  }
+
+  if (route === "track" && segments[1]) {
+    return { route: "track", params: { spkNumber: decodeURIComponent(segments[1]) } };
+  }
+
   if (route === "customer" && segments[1]) {
     return { route: "customer", params: { customerId: decodeURIComponent(segments[1]) } };
   }
@@ -151,7 +163,7 @@ function normalizeRoute(route) {
     return ROLE_DEFAULT_ROUTES[APP_STATE.currentRole] || "#/dashboard";
   }
 
-  if (!APP_STATE.isLoggedIn && route !== "login") {
+  if (!APP_STATE.isLoggedIn && route !== "login" && route !== "track") {
     return "#/login";
   }
 
@@ -332,7 +344,7 @@ function getActiveMenuId() {
 }
 
 function canAccessRoute(route, role) {
-  if (route === "login" || route === "pricing") return true;
+  if (route === "login" || route === "pricing" || route === "nota" || route === "track") return true;
   if (route === "portal-karyawan") return role !== "display";
   if (role === "display") return route === "display-production" || route === "display-queue";
   if (role === "courier") return route === "delivery" || route === "portal-karyawan";
@@ -394,6 +406,11 @@ function initPage(route, params = {}) {
 
   if (route === "inventory") {
     renderInventoryPage();
+    if (APP_STATE.pendingIncomingItemId) {
+      const itemId = APP_STATE.pendingIncomingItemId;
+      APP_STATE.pendingIncomingItemId = null;
+      openIncomingModal(itemId);
+    }
   }
 
   if (route === "hr") {
@@ -422,6 +439,14 @@ function initPage(route, params = {}) {
 
   if (route === "product") {
     renderProductDetailPage(params.productId);
+  }
+
+  if (route === "nota") {
+    renderNotaPage(params.spkNumber);
+  }
+
+  if (route === "track") {
+    renderTrackingPage(params.spkNumber);
   }
 }
 
@@ -725,6 +750,7 @@ function renderOrderRow(order) {
       </td>
       <td>
         <a class="btn-secondary btn-sm" href="${detailHash}">Detail</a>
+        <button class="btn-secondary btn-sm" type="button" data-action="open-nota" data-spk-number="${escapeAttr(order.spkNumber)}">Cetak Nota</button>
       </td>
     </tr>
   `;
@@ -2003,7 +2029,251 @@ function submitNewOrder(event) {
   persistStoredOrders();
   updateSidebar(APP_STATE.currentRole);
   showToast(`Pesanan ${spkNumber} berhasil disimpan.`, "success");
-  window.location.hash = `#/order/${encodeURIComponent(spkNumber)}`;
+  openOrderSuccessModal(newOrder);
+}
+
+function getBusinessSettings() {
+  return window.APP_DATA?.settings?.business || {
+    name: "Titanium Print Surabaya",
+    phone: "031-501-7788",
+    city: "Surabaya",
+    address: "Jl. Basuki Rahmat No. 88, Surabaya",
+    logoText: "TP",
+    invoiceFooter: "Terima kasih atas kepercayaan Anda.",
+    paymentTerms: "Pembayaran DP minimal 50% sebelum produksi dimulai.",
+    npwp: "01.234.567.8-601.000",
+  };
+}
+
+function getOrderFinancials(order) {
+  const items = getOrderItems(order);
+  const subtotal = items.length ? items.reduce((sum, item) => sum + Number(item.total ?? (item.qty || 0) * (item.unitPrice || 0)), 0) : Number(order.total || 0);
+  const total = Number(order.total || subtotal);
+  const discount = Math.max(subtotal - total, 0);
+  const paidAmount = Number(order.paidAmount || 0);
+  return {
+    subtotal,
+    discount,
+    total,
+    paidAmount,
+    balance: Math.max(total - paidAmount, 0),
+  };
+}
+
+function formatDateTimeId(dateInput) {
+  const date = new Date(dateInput);
+  return `${formatDate(date)}, ${new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date)}`;
+}
+
+function getTrackingUrl(spkNumber) {
+  return `https://app.printeoo.com/track?spk=${encodeURIComponent(spkNumber)}`;
+}
+
+function getOrderCustomerPhone(order) {
+  const customer = (window.APP_DATA?.customers || []).find((item) => item.id === order.customerId);
+  return order.phone || customer?.phone || "";
+}
+
+function normalizeWhatsAppNumber(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "62";
+  if (digits.startsWith("62")) return digits;
+  if (digits.startsWith("0")) return `62${digits.slice(1)}`;
+  return `62${digits}`;
+}
+
+function openNotaPrint(spkNumber) {
+  if (!spkNumber) return;
+  localStorage.setItem("printeoo:auto_print_nota", spkNumber);
+  window.open(`#/nota/${encodeURIComponent(spkNumber)}`, "_blank");
+}
+
+function sendNotaWhatsApp(spkNumber) {
+  const order = findOrderBySpk(spkNumber);
+  if (!order) {
+    showToast("SPK tidak ditemukan.", "error");
+    return;
+  }
+  const financials = getOrderFinancials(order);
+  const normalized = normalizeWhatsAppNumber(getOrderCustomerPhone(order));
+  const message = encodeURIComponent(
+    `Halo ${order.customerName}, berikut nota pesanan Anda:\n\n` +
+    `*${order.spkNumber}*\n` +
+    `Deadline: ${formatDateTimeId(order.deadlineAt)}\n` +
+    `Total: ${formatCurrency(financials.total)}\n` +
+    `DP: ${formatCurrency(financials.paidAmount)}\n` +
+    `Sisa: ${formatCurrency(financials.balance)}\n\n` +
+    `Cek status pesanan: ${getTrackingUrl(order.spkNumber)}\n\n` +
+    `Terima kasih sudah mempercayakan pesanan Anda kepada kami.`
+  );
+  window.open(`https://wa.me/${normalized || "62"}?text=${message}`, "_blank");
+}
+
+function openOrderSuccessModal(order) {
+  const root = document.getElementById("global-modal-root");
+  if (!root) return;
+  root.innerHTML = `
+    <div class="modal-overlay" id="order-success-modal">
+      <div class="modal-box" style="max-width:520px">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title">Pesanan berhasil disimpan!</h2>
+            <p class="text-muted mt-1" style="font-size:var(--text-sm)">${escapeHtml(order.spkNumber)}</p>
+          </div>
+          <button class="modal-close" type="button" data-action="close-order-success" aria-label="Tutup">×</button>
+        </div>
+        <div class="modal-form order-success-actions">
+          <button class="btn-primary" type="button" data-action="open-nota" data-spk-number="${escapeAttr(order.spkNumber)}">Cetak Nota Sekarang</button>
+          <button class="btn-secondary" type="button" data-action="send-nota-wa" data-spk-number="${escapeAttr(order.spkNumber)}">Kirim WA ke Customer</button>
+          <button class="btn-secondary" type="button" data-action="view-order-detail" data-spk-number="${escapeAttr(order.spkNumber)}">Lihat Detail SPK</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderNotaPage(spkNumber) {
+  const container = document.getElementById("nota-page");
+  if (!container) return;
+  const order = findOrderBySpk(spkNumber);
+  if (!order) {
+    container.innerHTML = `<section class="nota-container"><h1>Nota tidak ditemukan</h1><p>Nomor SPK tidak ada di data prototype.</p></section>`;
+    return;
+  }
+  const business = getBusinessSettings();
+  const items = getOrderItems(order);
+  const financials = getOrderFinancials(order);
+  container.innerHTML = `
+    <div class="nota-actions no-print">
+      <button class="btn-secondary" type="button" onclick="window.print()">Print / Save PDF</button>
+    </div>
+    <article class="nota-container">
+      <header class="nota-business">
+        <div class="nota-logo">${escapeHtml(business.logoText || "P")}</div>
+        <div>
+          <h1>${escapeHtml(business.name)}</h1>
+          <p>${escapeHtml(business.phone)} · ${escapeHtml(business.city)}</p>
+          <p>${escapeHtml(business.address || "")}</p>
+        </div>
+      </header>
+      <section class="nota-section">
+        <h2>NOTA PESANAN</h2>
+        <strong>${escapeHtml(order.spkNumber)}</strong>
+        <p>${formatDateTimeId(order.createdAt)} · Kasir: ${escapeHtml(order.timeline?.[0]?.user || APP_STATE.currentUser.name)}</p>
+      </section>
+      <section class="nota-section">
+        <p>Customer: <strong>${escapeHtml(order.customerName)}</strong></p>
+        <p>HP: ${escapeHtml(getOrderCustomerPhone(order) || "-")}</p>
+      </section>
+      <section class="nota-section">
+        <h3>PESANAN</h3>
+        <div class="nota-items">
+          ${items.map((item) => `
+            <div class="nota-item">
+              <strong>${escapeHtml(item.product || order.productName)}</strong>
+              <div><span>${formatBomNumber(item.qty || 0)} ${escapeHtml(item.unit || order.unit || "pcs")} × ${formatCurrency(item.unitPrice || 0)}</span><strong>${formatCurrency(item.total ?? (item.qty || 0) * (item.unitPrice || 0))}</strong></div>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+      <section class="nota-section nota-totals">
+        <div><span>Subtotal</span><strong>${formatCurrency(financials.subtotal)}</strong></div>
+        ${financials.discount > 0 ? `<div><span>Diskon</span><strong>${formatCurrency(financials.discount)}</strong></div>` : ""}
+        <div><span>Total</span><strong>${formatCurrency(financials.total)}</strong></div>
+        <div><span>DP Dibayar</span><strong>${formatCurrency(financials.paidAmount)}</strong></div>
+        <div><span>Sisa Tagihan</span><strong>${formatCurrency(financials.balance)}</strong></div>
+      </section>
+      <section class="nota-section">
+        <p>Deadline: <strong>${formatDateTimeId(order.deadlineAt)}</strong></p>
+        <p>Prioritas: <strong>${escapeHtml(window.APP_DATA.priorityLabels[order.priority] || order.priority)}</strong></p>
+      </section>
+      <section class="nota-section nota-qr">
+        <div id="nota-qrcode"></div>
+        <p>Scan untuk cek status pesanan</p>
+        <strong>${escapeHtml(order.spkNumber)}</strong>
+      </section>
+      <footer class="nota-footer">
+        <p>${escapeHtml(business.invoiceFooter || "")}</p>
+        <p>${escapeHtml(business.paymentTerms || "")}</p>
+      </footer>
+    </article>
+  `;
+  generateQrCode(getTrackingUrl(order.spkNumber), "nota-qrcode", 120);
+  const shouldPrint = localStorage.getItem("printeoo:auto_print_nota") === order.spkNumber;
+  if (shouldPrint) {
+    localStorage.removeItem("printeoo:auto_print_nota");
+    setTimeout(() => window.print(), 500);
+  }
+}
+
+function getCustomerMilestone(order) {
+  const statuses = getOrderItems(order).map((item) => item.status || order.status);
+  if (statuses.every((status) => ["ready", "delivered", "closed"].includes(status))) return "siap_ambil";
+  if (statuses.some((status) => status === "finishing")) return "finishing";
+  if (statuses.some((status) => status === "printing" || status === "production_queue")) return "produksi";
+  if (statuses.some((status) => status === "in_design" || status === "design_queue")) return "desain";
+  return "terkonfirmasi";
+}
+
+function renderTrackingPage(spkNumber) {
+  const container = document.getElementById("track-page");
+  if (!container) return;
+  const order = findOrderBySpk(spkNumber);
+  const business = getBusinessSettings();
+  if (!order) {
+    container.innerHTML = `<main class="track-shell"><section class="track-card"><h1>Pesanan tidak ditemukan</h1><p>Periksa kembali nomor SPK pada nota.</p></section></main>`;
+    return;
+  }
+  const milestone = getCustomerMilestone(order);
+  const milestones = [
+    ["terkonfirmasi", "Terkonfirmasi"],
+    ["desain", "Desain"],
+    ["produksi", "Produksi"],
+    ["finishing", "Finishing"],
+    ["siap_ambil", "Siap Ambil"],
+  ];
+  const currentIndex = milestones.findIndex(([id]) => id === milestone);
+  const statusText = milestones[currentIndex]?.[1] || "Terkonfirmasi";
+  container.innerHTML = `
+    <main class="track-shell">
+      <section class="track-card">
+        <header class="track-brand">
+          <div class="nota-logo">${escapeHtml(business.logoText || "P")}</div>
+          <div>
+            <strong>${escapeHtml(business.name)}</strong>
+            <span>${escapeHtml(business.city)}</span>
+          </div>
+        </header>
+        <section class="track-section">
+          <p class="text-muted">Status Pesanan</p>
+          <h1>${escapeHtml(order.spkNumber)}</h1>
+          <div class="track-milestones">
+            ${milestones.map(([id, label], index) => `
+              <div class="track-step ${index < currentIndex ? "done" : index === currentIndex ? "active" : ""}">
+                <span>${index <= currentIndex ? "✓" : ""}</span>
+                <strong>${label}</strong>
+                ${index === currentIndex ? `<em>sedang</em>` : ""}
+              </div>
+            `).join("")}
+          </div>
+          <p>Status: <strong>${escapeHtml(statusText)}</strong></p>
+          <p class="text-muted">Terakhir update: ${formatDateTimeId(order.updatedAt || order.createdAt)}</p>
+        </section>
+        <section class="track-section">
+          <h2>Detail Pesanan</h2>
+          <ul class="track-items">
+            ${getOrderItems(order).map((item) => `<li>${escapeHtml(item.product || order.productName)}</li>`).join("")}
+          </ul>
+          <p>Deadline: <strong>${formatDateTimeId(order.deadlineAt)}</strong></p>
+        </section>
+        <section class="track-section">
+          <h2>Ada pertanyaan?</h2>
+          <a class="btn-primary w-full" href="https://wa.me/${normalizeWhatsAppNumber(business.phone)}" target="_blank" rel="noopener">Hubungi via WA</a>
+          <p class="text-muted mt-2">${escapeHtml(business.phone)}</p>
+        </section>
+      </section>
+    </main>
+  `;
 }
 
 const ORDER_STAGES = [
@@ -2077,6 +2347,9 @@ function renderOrderDetailPage() {
         <p class="page-subtitle">Dibuat ${formatDate(order.createdAt)} · Deadline ${formatRelativeDate(order.deadlineAt)} · ${items.length} item · Total ${formatCurrency(order.total)}</p>
       </div>
       <div class="flex gap-3 flex-wrap">
+        <button class="btn-secondary" type="button" data-action="open-nota" data-spk-number="${escapeAttr(order.spkNumber)}">Cetak Nota</button>
+        <button class="btn-secondary" type="button" data-action="send-nota-wa" data-spk-number="${escapeAttr(order.spkNumber)}">Kirim WA</button>
+        <button class="btn-secondary" type="button" data-action="download-nota-pdf" data-spk-number="${escapeAttr(order.spkNumber)}">Download PDF</button>
         <button class="btn-secondary" type="button" data-action="print-spk">Cetak SPK</button>
         <button class="btn-secondary" type="button" data-action="duplicate-order">Duplikat</button>
         <details class="more-actions">
@@ -3963,7 +4236,7 @@ function submitPurchaseOrderReceiveForm(form) {
   renderPurchaseOrderDetail(po.id);
 }
 
-function openIncomingModal() {
+function openIncomingModal(prefillItemId = null) {
   const root = document.getElementById("inventory-modal-root");
   if (!root) return;
 
@@ -3981,18 +4254,13 @@ function openIncomingModal() {
         <form id="incoming-form" novalidate>
           <div class="modal-form">
             <div class="form-group">
-              <label class="form-label" for="incoming-item">Bahan *</label>
-              <select class="form-select" id="incoming-item" name="itemId" required>
-                <option value="">-- Pilih Bahan --</option>
-                ${inventory.map((item) => `
-                  <option value="${item.id}"
-                    data-unit="${item.unit}"
-                    data-supplier="${item.supplier}"
-                    data-stock="${item.stock}">
-                    ${item.name} (stok: ${item.stock} ${item.unit})
-                  </option>
-                `).join("")}
-              </select>
+              <label class="form-label" for="incoming-material-search">Bahan *</label>
+              <input class="form-input" id="incoming-material-search" type="text" list="incoming-material-list" placeholder="Ketik atau pilih bahan...">
+              <input id="incoming-item" name="itemId" type="hidden" required>
+              <datalist id="incoming-material-list">
+                ${inventory.map((item) => `<option value="${escapeAttr(item.name)}">`).join("")}
+              </datalist>
+              <div id="incoming-material-create-hint" class="inline-create-hint hidden"></div>
             </div>
             <div class="form-row">
               <div class="form-group">
@@ -4052,22 +4320,8 @@ function openIncomingModal() {
   `;
 
   document.getElementById("incoming-batch").value = generateBatchId();
-
-  document.getElementById("incoming-item").addEventListener("change", (e) => {
-    const opt = e.target.selectedOptions[0];
-    if (opt && opt.value) {
-      document.getElementById("incoming-unit").value = opt.dataset.unit || "";
-      if (!document.getElementById("incoming-supplier").value) {
-        document.getElementById("incoming-supplier").value = opt.dataset.supplier || "";
-      }
-      renderIncomingSpecsSection();
-      updateIncomingSpecsPreview();
-    } else {
-      document.getElementById("incoming-unit").value = "";
-      renderIncomingSpecsSection();
-      updateIncomingSpecsPreview();
-    }
-  });
+  bindIncomingMaterialSearch();
+  if (prefillItemId) selectIncomingMaterial(prefillItemId);
 }
 
 function getPhysicalSpecKind(item = {}) {
@@ -4082,6 +4336,66 @@ function getPhysicalSpecKind(item = {}) {
 function getIncomingSelectedItem() {
   const itemId = document.getElementById("incoming-item")?.value;
   return (window.APP_DATA?.inventory || []).find((item) => item.id === itemId) || null;
+}
+
+function bindIncomingMaterialSearch() {
+  const searchEl = document.getElementById("incoming-material-search");
+  if (!searchEl) return;
+  searchEl.addEventListener("input", () => updateIncomingMaterialSelection(searchEl.value));
+}
+
+function updateIncomingMaterialSelection(value) {
+  const inventory = window.APP_DATA?.inventory || [];
+  const query = String(value || "").trim();
+  const item = inventory.find((candidate) => candidate.name.toLowerCase() === query.toLowerCase()) || null;
+  const hidden = document.getElementById("incoming-item");
+  const hint = document.getElementById("incoming-material-create-hint");
+
+  if (hidden) hidden.value = item?.id || "";
+  if (item) {
+    selectIncomingMaterial(item.id, { preserveSearch: true });
+    if (hint) {
+      hint.classList.add("hidden");
+      hint.innerHTML = "";
+    }
+    return;
+  }
+
+  document.getElementById("incoming-unit").value = "";
+  renderIncomingSpecsSection();
+  updateIncomingSpecsPreview();
+  if (hint) {
+    if (query.length >= 2) {
+      hint.classList.remove("hidden");
+      hint.innerHTML = `
+        <div>Tidak ada hasil untuk "${escapeHtml(query)}"</div>
+        <button class="btn-secondary btn-sm mt-2" type="button" data-action="open-inline-material-create" data-context="incoming" data-name="${escapeAttr(query)}">+ Daftarkan bahan baru dulu</button>
+      `;
+    } else {
+      hint.classList.add("hidden");
+      hint.innerHTML = "";
+    }
+  }
+}
+
+function selectIncomingMaterial(itemId, options = {}) {
+  const item = (window.APP_DATA?.inventory || []).find((candidate) => candidate.id === itemId);
+  if (!item) return;
+  const hidden = document.getElementById("incoming-item");
+  const searchEl = document.getElementById("incoming-material-search");
+  if (hidden) hidden.value = item.id;
+  if (searchEl && !options.preserveSearch) searchEl.value = item.name;
+  document.getElementById("incoming-unit").value = item.unit || "";
+  if (!document.getElementById("incoming-supplier").value) {
+    document.getElementById("incoming-supplier").value = item.supplier || "";
+  }
+  const hint = document.getElementById("incoming-material-create-hint");
+  if (hint) {
+    hint.classList.add("hidden");
+    hint.innerHTML = "";
+  }
+  renderIncomingSpecsSection();
+  updateIncomingSpecsPreview();
 }
 
 function renderIncomingSpecsSection() {
@@ -4241,6 +4555,8 @@ function submitIncomingForm(form) {
   const specs = collectIncomingSpecs(item);
 
   item.stock = Math.round((item.stock + qty) * 100) / 100;
+  if (pricePerUnit > 0) item.avgCost = pricePerUnit;
+  item.supplier = data.supplier;
   if (item.stock > item.minStock) item.status = "safe";
 
   if (!window.APP_DATA.incomingLog) window.APP_DATA.incomingLog = [];
@@ -4422,7 +4738,7 @@ function openQrLabelModal(itemId, prefillBatchId = null) {
   }
 }
 
-function generateQrCode(data, containerId) {
+function generateQrCode(data, containerId, size = 80) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = "";
@@ -4430,15 +4746,15 @@ function generateQrCode(data, containerId) {
   if (window.QRCode) {
     new window.QRCode(container, {
       text: data,
-      width: 80,
-      height: 80,
+      width: size,
+      height: size,
       colorDark: "#111827",
       colorLight: "#ffffff",
       correctLevel: window.QRCode.CorrectLevel.M,
     });
   } else {
     // Fallback: show encoded text in small box
-    container.innerHTML = `<div style="width:80px;height:80px;background:#F3F4F6;display:flex;align-items:center;justify-content:center;font-size:8px;color:#6B7280;text-align:center;word-break:break-all;padding:4px">${data.slice(0,40)}</div>`;
+    container.innerHTML = `<div style="width:${size}px;height:${size}px;background:#F3F4F6;display:flex;align-items:center;justify-content:center;font-size:8px;color:#6B7280;text-align:center;word-break:break-all;padding:4px">${data.slice(0,40)}</div>`;
   }
 }
 
@@ -6707,8 +7023,57 @@ function setupEventHandlers() {
       return;
     }
 
+    if (actionButton?.dataset.action === "save-new-material") {
+      saveNewMaterial();
+      return;
+    }
+
     if (actionButton?.dataset.action === "close-add-material-modal") {
       closeAddMaterialModal();
+      return;
+    }
+
+    if (actionButton?.dataset.action === "open-inline-material-create") {
+      openInlineMaterialCreate(actionButton.dataset.context || "bom", actionButton.dataset.name || "");
+      return;
+    }
+
+    if (actionButton?.dataset.action === "close-inline-material-create") {
+      closeInlineMaterialCreate();
+      return;
+    }
+
+    if (actionButton?.dataset.action === "save-inline-material-create") {
+      saveInlineMaterialCreate(actionButton.dataset.context || "bom");
+      return;
+    }
+
+    if (actionButton?.dataset.action === "open-material-detail") {
+      openMaterialDetailModal(actionButton.dataset.itemId, "info");
+      return;
+    }
+
+    if (actionButton?.dataset.action === "material-detail-tab") {
+      openMaterialDetailModal(actionButton.dataset.itemId, actionButton.dataset.tab || "info");
+      return;
+    }
+
+    if (actionButton?.dataset.action === "close-material-detail") {
+      if (actionButton.id === "material-detail-modal" && event.target !== actionButton) return;
+      const root = document.getElementById("global-modal-root");
+      if (root) root.innerHTML = "";
+      return;
+    }
+
+    if (actionButton?.dataset.action === "open-first-incoming") {
+      APP_STATE.pendingIncomingItemId = actionButton.dataset.itemId || null;
+      window.location.hash = "#/inventory";
+      if (APP_STATE.currentRoute === "inventory") {
+        const itemId = APP_STATE.pendingIncomingItemId;
+        APP_STATE.pendingIncomingItemId = null;
+        renderInventoryPage("incoming");
+        openIncomingModal(itemId);
+      }
       return;
     }
 
@@ -6818,6 +7183,34 @@ function setupEventHandlers() {
     if (actionButton) {
       if (actionButton.dataset.action === "logout") {
         logout();
+        return;
+      }
+
+      if (actionButton.dataset.action === "open-nota") {
+        openNotaPrint(actionButton.dataset.spkNumber);
+        return;
+      }
+
+      if (actionButton.dataset.action === "send-nota-wa") {
+        sendNotaWhatsApp(actionButton.dataset.spkNumber);
+        return;
+      }
+
+      if (actionButton.dataset.action === "download-nota-pdf") {
+        openNotaPrint(actionButton.dataset.spkNumber);
+        return;
+      }
+
+      if (actionButton.dataset.action === "close-order-success") {
+        const root = document.getElementById("global-modal-root");
+        if (root) root.innerHTML = "";
+        return;
+      }
+
+      if (actionButton.dataset.action === "view-order-detail") {
+        const root = document.getElementById("global-modal-root");
+        if (root) root.innerHTML = "";
+        window.location.hash = `#/order/${encodeURIComponent(actionButton.dataset.spkNumber)}`;
         return;
       }
 
@@ -7379,6 +7772,11 @@ function setupEventHandlers() {
       return;
     }
 
+    if (event.target.matches("#bom-material-search")) {
+      updateBomMaterialSelection(event.target.value);
+      return;
+    }
+
     if (event.target.matches("#bom-preview-qty")) {
       APP_STATE.productsView.previewQty = Math.max(1, Number(event.target.value) || 1);
       renderProductDetailPanel();
@@ -7647,6 +8045,18 @@ function formatPhone(value) {
 
 function loadStoredInventory() {
   try {
+    const storedMaterials = localStorage.getItem("printeoo:custom_materials");
+    if (storedMaterials && window.APP_DATA) {
+      const parsed = JSON.parse(storedMaterials);
+      const existingIds = new Set((window.APP_DATA.inventory || []).map((item) => item.id));
+      const existingNames = new Set((window.APP_DATA.inventory || []).map((item) => item.name.toLowerCase()));
+      const newItems = parsed.filter((item) => !existingIds.has(item.id) && !existingNames.has(String(item.name || "").toLowerCase()));
+      if (!window.APP_DATA.inventory) window.APP_DATA.inventory = [];
+      window.APP_DATA.inventory.push(...newItems);
+    }
+  } catch (e) {}
+
+  try {
     const storedLog = localStorage.getItem("printeoo:incoming_log");
     if (storedLog && window.APP_DATA) {
       const parsed = JSON.parse(storedLog);
@@ -7761,7 +8171,7 @@ function renderProductsPage() {
   const activeTab = APP_STATE.productsView.activeTab || "catalog";
   const tabs = [
     { id: "catalog", label: "Katalog Produk" },
-    { id: "materials", label: "Master Bahan" },
+    { id: "materials", label: "Daftar Bahan" },
   ];
 
   container.innerHTML = `
@@ -8114,13 +8524,13 @@ function renderMasterMaterialsTab() {
     <section class="card">
       <div class="products-toolbar">
         <div>
-          <h2 class="card-title" style="margin:0">Master Bahan</h2>
-          <p class="text-muted mt-1" style="font-size:var(--text-sm)">Data bahan diambil langsung dari inventaris aktif. Tidak ada duplikasi data master.</p>
+          <h2 class="card-title" style="margin:0">Daftar Bahan</h2>
+          <p class="text-muted mt-1" style="font-size:var(--text-sm)">Jenis bahan baku yang digunakan dalam produksi. Stok dan harga beli diupdate dari Catat Penerimaan di Inventaris.</p>
         </div>
         <button class="btn-primary" type="button" data-action="open-add-bom">+ Tambah Bahan</button>
       </div>
 
-      <div class="products-table-wrap">
+      ${inventory.length ? `<div class="products-table-wrap">
         <table class="data-table">
           <thead>
             <tr>
@@ -8133,21 +8543,132 @@ function renderMasterMaterialsTab() {
             </tr>
           </thead>
           <tbody>
-            ${inventory.map((item) => `
-              <tr>
-                <td><strong>${escapeHtml(item.name)}</strong></td>
-                <td>${escapeHtml(item.category)}</td>
-                <td>${escapeHtml(item.unit)}</td>
-                <td>${formatBomNumber(item.stock)} ${escapeHtml(item.unit)}</td>
-                <td>${formatCurrency(item.avgCost)}/${escapeHtml(item.unit)}</td>
-                <td><button class="btn-secondary btn-sm" type="button">Detail</button></td>
-              </tr>
-            `).join("")}
+            ${inventory.map(renderMaterialTableRow).join("")}
           </tbody>
         </table>
-      </div>
+      </div>` : renderMaterialsEmptyState()}
       ${renderAddMaterialModal()}
     </section>
+  `;
+}
+
+function hasMaterialReceipt(item) {
+  return Boolean(item && ((Number(item.stock) || 0) > 0 || getInventoryBatches(item.id).length || (window.APP_DATA?.incomingLog || []).some((entry) => entry.itemId === item.id)));
+}
+
+function renderMaterialTableRow(item) {
+  const hasReceipt = hasMaterialReceipt(item);
+  const emptyHint = `Belum ada penerimaan. Catat di Inventaris → Catat Penerimaan`;
+  return `
+    <tr>
+      <td><strong>${escapeHtml(item.name)}</strong></td>
+      <td>${escapeHtml(item.category)}</td>
+      <td>${escapeHtml(item.unit)}</td>
+      <td>${hasReceipt ? `${formatBomNumber(item.stock)} ${escapeHtml(item.unit)}` : `<span title="${escapeAttr(emptyHint)}">—</span>`}</td>
+      <td>${hasReceipt && item.avgCost ? `${formatCurrency(item.avgCost)}/${escapeHtml(item.unit)}` : `<span title="${escapeAttr(emptyHint)}">—</span>`}</td>
+      <td>
+        ${hasReceipt
+          ? `<button class="btn-secondary btn-sm" type="button" data-action="open-material-detail" data-item-id="${escapeAttr(item.id)}">Detail</button>`
+          : `<button class="btn-secondary btn-sm" type="button" data-action="open-first-incoming" data-item-id="${escapeAttr(item.id)}">Catat Penerimaan Pertama →</button>`}
+      </td>
+    </tr>
+  `;
+}
+
+function renderMaterialsEmptyState() {
+  return `
+    <div class="materials-empty-state">
+      <h3>Belum ada bahan terdaftar</h3>
+      <div class="materials-empty-steps">
+        <strong>Cara kerjanya:</strong>
+        <p>1. Daftarkan jenis bahan di sini (nama, kategori, satuan)</p>
+        <p>2. Catat penerimaan di Inventaris setiap kali barang datang dari supplier</p>
+        <p>3. Stok dan harga terupdate otomatis dari riwayat penerimaan</p>
+      </div>
+      <button class="btn-primary" type="button" data-action="open-add-bom">+ Tambah Bahan Pertama</button>
+    </div>
+  `;
+}
+
+function openMaterialDetailModal(itemId, activeTab = "info") {
+  const root = document.getElementById("global-modal-root");
+  const item = (window.APP_DATA?.inventory || []).find((candidate) => candidate.id === itemId);
+  if (!root || !item) return;
+  APP_STATE.materialDetailTab = activeTab;
+  const incoming = (window.APP_DATA?.incomingLog || [])
+    .filter((entry) => entry.itemId === item.id)
+    .sort((a, b) => new Date(b.receivedDate) - new Date(a.receivedDate));
+  const supplier = incoming[0]?.supplier || item.supplier || "-";
+  root.innerHTML = `
+    <div class="modal-overlay" id="material-detail-modal" data-action="close-material-detail">
+      <div class="modal-box material-detail-modal">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title">${escapeHtml(item.name)}</h2>
+            <p class="text-muted mt-1" style="font-size:var(--text-sm)">${escapeHtml(item.category)} · Satuan: ${escapeHtml(item.unit)} · Min. Stok: ${formatBomNumber(item.minStock || 0)}</p>
+          </div>
+          <button class="modal-close" type="button" data-action="close-material-detail" aria-label="Tutup">×</button>
+        </div>
+        <div class="tabs-scroll-wrapper mb-4">
+          <div class="tabs">
+            <button class="tab-button${activeTab === "info" ? " active" : ""}" type="button" data-action="material-detail-tab" data-tab="info" data-item-id="${escapeAttr(item.id)}">Info Bahan</button>
+            <button class="tab-button${activeTab === "incoming" ? " active" : ""}" type="button" data-action="material-detail-tab" data-tab="incoming" data-item-id="${escapeAttr(item.id)}">Riwayat Penerimaan</button>
+          </div>
+        </div>
+        ${activeTab === "incoming" ? renderMaterialIncomingHistory(item, incoming) : `
+          <div class="product-info-grid">
+            <div>
+              <label class="form-label">Stok Saat Ini</label>
+              <div class="portal-info-value">${formatBomNumber(item.stock)} ${escapeHtml(item.unit)}</div>
+            </div>
+            <div>
+              <label class="form-label">Stok Minimum</label>
+              <div class="portal-info-value">${formatBomNumber(item.minStock || 0)} ${escapeHtml(item.unit)}</div>
+            </div>
+            <div>
+              <label class="form-label">Harga Beli Rata²</label>
+              <div class="portal-info-value">${item.avgCost ? `${formatCurrency(item.avgCost)}/${escapeHtml(item.unit)}` : "—"}</div>
+            </div>
+            <div>
+              <label class="form-label">Supplier Utama</label>
+              <div class="portal-info-value">${escapeHtml(supplier)}</div>
+            </div>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+function renderMaterialIncomingHistory(item, incoming) {
+  if (!incoming.length) {
+    return `<div class="empty-state" style="padding:28px 0"><p class="text-muted">Belum ada riwayat penerimaan untuk bahan ini.</p></div>`;
+  }
+  return `
+    <div class="products-table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Qty</th>
+            <th>Harga/Satuan</th>
+            <th>Supplier</th>
+            <th>Batch ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${incoming.map((entry) => `
+            <tr>
+              <td>${formatDate(new Date(entry.receivedDate))}</td>
+              <td>${formatBomNumber(entry.qty)} ${escapeHtml(item.unit)}</td>
+              <td>${formatCurrency(entry.pricePerUnit)}</td>
+              <td>${escapeHtml(entry.supplier || "-")}</td>
+              <td><code class="text-xs text-muted">${escapeHtml(entry.batchId)}</code></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
   `;
 }
 
@@ -8161,7 +8682,7 @@ function renderAddMaterialModal() {
         <div class="modal-header">
           <div>
             <h3 class="modal-title">${isBomContext ? "Tambah Bahan ke BOM" : "Tambah Bahan Baru"}</h3>
-            <p class="text-muted" style="font-size:var(--text-sm);margin-top:4px">${isBomContext ? `Produk: ${escapeHtml(selectedProduct.name)}` : "Form demo ini belum menyimpan data, tapi tombol dan modal harus bisa dibuka tanpa error."}</p>
+            <p class="text-muted" style="font-size:var(--text-sm);margin-top:4px">${isBomContext ? `Produk: ${escapeHtml(selectedProduct.name)}` : "Daftarkan jenis bahan ke sistem. Stok dan harga beli dicatat di Inventaris → Catat Penerimaan setiap kali barang datang dari supplier."}</p>
           </div>
           <button class="modal-close" type="button" data-action="close-add-material-modal" aria-label="Tutup">×</button>
         </div>
@@ -8169,11 +8690,13 @@ function renderAddMaterialModal() {
           ${isBomContext ? `
             <div class="content-grid">
               <div class="col-12">
-                <label class="form-label" for="bom-material-select">Bahan *</label>
-                <select class="form-select" id="bom-material-select">
-                  <option value="">Pilih dari Master Bahan</option>
-                  ${inventory.map((item) => `<option value="${item.name}" data-unit="${item.unit}">${item.name} (${item.category})</option>`).join("")}
-                </select>
+                <label class="form-label" for="bom-material-search">Bahan *</label>
+                <input class="form-input" id="bom-material-search" type="text" list="bom-material-list" placeholder="Pilih atau ketik bahan...">
+                <input id="bom-material-select" type="hidden">
+                <datalist id="bom-material-list">
+                  ${inventory.map((item) => `<option value="${escapeAttr(item.name)}">`).join("")}
+                </datalist>
+                <div id="bom-material-create-hint" class="inline-create-hint hidden"></div>
               </div>
               <div class="col-6">
                 <label class="form-label" for="bom-material-qty">Jumlah *</label>
@@ -8195,26 +8718,27 @@ function renderAddMaterialModal() {
           ` : `
             <div class="content-grid">
               <div class="col-6">
-                <label class="form-label">Nama Bahan</label>
-                <input class="form-input" type="text" placeholder="Contoh: Flexi Korea 510gr">
+                <label class="form-label" for="new-material-name">Nama Bahan *</label>
+                <input class="form-input" id="new-material-name" type="text" placeholder="Contoh: Flexi Korea 510gr">
               </div>
               <div class="col-6">
-                <label class="form-label">Kategori</label>
-                <input class="form-input" type="text" placeholder="Media Cetak">
+                <label class="form-label" for="new-material-category">Kategori *</label>
+                <input class="form-input" id="new-material-category" type="text" placeholder="Media Cetak">
               </div>
               <div class="col-6">
-                <label class="form-label">Satuan</label>
-                <input class="form-input" type="text" placeholder="roll">
+                <label class="form-label" for="new-material-unit">Satuan *</label>
+                <input class="form-input" id="new-material-unit" type="text" placeholder="roll">
               </div>
               <div class="col-6">
-                <label class="form-label">Harga Beli</label>
-                <input class="form-input" type="text" placeholder="Rp 0">
+                <label class="form-label" for="new-material-min-stock">Stok Minimum</label>
+                <input class="form-input" id="new-material-min-stock" type="number" min="0" step="0.01" placeholder="3">
+                <p class="form-helper">Sistem memberi alert jika stok turun di bawah angka ini.</p>
               </div>
             </div>
           `}
           <div class="modal-footer">
             <button class="btn-secondary" type="button" data-action="close-add-material-modal">Batal</button>
-            <button class="btn-primary" type="button" data-action="${isBomContext ? "save-product-bom-line" : "close-add-material-modal"}">Simpan</button>
+            <button class="btn-primary" type="button" data-action="${isBomContext ? "save-product-bom-line" : "save-new-material"}">Simpan</button>
           </div>
         </form>
       </div>
@@ -8233,10 +8757,152 @@ function closeAddMaterialModal() {
   if (modal) modal.classList.add("hidden");
 }
 
+function findMaterialByName(name) {
+  const query = String(name || "").trim().toLowerCase();
+  return (window.APP_DATA?.inventory || []).find((item) => item.name.toLowerCase() === query) || null;
+}
+
+function createInventoryMaterial({ name, category, unit, minStock }) {
+  if (!window.APP_DATA.inventory) window.APP_DATA.inventory = [];
+  const existing = findMaterialByName(name);
+  if (existing) return existing;
+  const nextId = `MAT-${String(window.APP_DATA.inventory.length + 1).padStart(3, "0")}`;
+  const item = {
+    id: nextId,
+    name: String(name || "").trim(),
+    category: String(category || "").trim(),
+    unit: String(unit || "").trim(),
+    stock: 0,
+    minStock: Number(minStock) || 0,
+    avgCost: 0,
+    supplier: "-",
+    status: "empty",
+  };
+  window.APP_DATA.inventory.push(item);
+  localStorage.setItem("printeoo:custom_materials", JSON.stringify(window.APP_DATA.inventory.filter((candidate) => candidate.id.startsWith("MAT-0") && candidate.stock === 0 && candidate.supplier === "-")));
+  return item;
+}
+
+function saveNewMaterial() {
+  const name = document.getElementById("new-material-name")?.value?.trim();
+  const category = document.getElementById("new-material-category")?.value?.trim();
+  const unit = document.getElementById("new-material-unit")?.value?.trim();
+  const minStock = document.getElementById("new-material-min-stock")?.value;
+  if (!name || !category || !unit) {
+    showToast("Nama, kategori, dan satuan bahan wajib diisi.", "error");
+    return;
+  }
+  const item = createInventoryMaterial({ name, category, unit, minStock });
+  closeAddMaterialModal();
+  APP_STATE.productsView.activeTab = "materials";
+  showToast(`Bahan ${item.name} ditambahkan ke Daftar Bahan.`, "success");
+  renderProductsPage();
+}
+
+function updateBomMaterialSelection(value) {
+  const query = String(value || "").trim();
+  const item = findMaterialByName(query);
+  const hidden = document.getElementById("bom-material-select");
+  const unitEl = document.getElementById("bom-material-unit");
+  const hint = document.getElementById("bom-material-create-hint");
+  if (hidden) hidden.value = item?.name || "";
+  if (unitEl) unitEl.value = item?.unit || "";
+  if (!hint) return;
+  if (!item && query.length >= 2) {
+    hint.classList.remove("hidden");
+    hint.innerHTML = `
+      <div>Tidak ada hasil untuk "${escapeHtml(query)}"</div>
+      <button class="btn-secondary btn-sm mt-2" type="button" data-action="open-inline-material-create" data-context="bom" data-name="${escapeAttr(query)}">+ Daftarkan "${escapeHtml(query)}" sebagai bahan baru</button>
+    `;
+  } else {
+    hint.classList.add("hidden");
+    hint.innerHTML = "";
+  }
+}
+
+function openInlineMaterialCreate(context, name = "") {
+  const root = document.getElementById("global-modal-root");
+  if (!root) return;
+  root.innerHTML = `
+    <div class="modal-overlay inline-material-overlay" id="inline-material-modal">
+      <div class="modal-box inline-material-modal">
+        <div class="modal-header">
+          <div>
+            <h3 class="modal-title">Daftarkan Bahan Baru</h3>
+            <p class="text-muted" style="font-size:var(--text-sm);margin-top:4px">Tambahkan jenis bahan tanpa keluar dari flow saat ini.</p>
+          </div>
+          <button class="modal-close" type="button" data-action="close-inline-material-create" aria-label="Tutup">×</button>
+        </div>
+        <div class="modal-form">
+          <div class="content-grid">
+            <div class="col-12">
+              <label class="form-label" for="inline-material-name">Nama Bahan *</label>
+              <input class="form-input" id="inline-material-name" type="text" value="${escapeAttr(name)}" placeholder="Flexi Korea 510gr">
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="inline-material-category">Kategori *</label>
+              <input class="form-input" id="inline-material-category" type="text" placeholder="Media Cetak">
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="inline-material-unit">Satuan *</label>
+              <input class="form-input" id="inline-material-unit" type="text" placeholder="roll">
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="inline-material-min-stock">Stok Minimum</label>
+              <input class="form-input" id="inline-material-min-stock" type="number" min="0" step="0.01" placeholder="3">
+              <p class="form-helper">Sistem memberi alert jika stok turun di bawah angka ini.</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" type="button" data-action="close-inline-material-create">Batal</button>
+          <button class="btn-primary" type="button" data-action="save-inline-material-create" data-context="${escapeAttr(context)}">Simpan</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function closeInlineMaterialCreate() {
+  const root = document.getElementById("global-modal-root");
+  if (root) root.innerHTML = "";
+}
+
+function saveInlineMaterialCreate(context) {
+  const name = document.getElementById("inline-material-name")?.value?.trim();
+  const category = document.getElementById("inline-material-category")?.value?.trim();
+  const unit = document.getElementById("inline-material-unit")?.value?.trim();
+  const minStock = document.getElementById("inline-material-min-stock")?.value;
+  if (!name || !category || !unit) {
+    showToast("Nama, kategori, dan satuan bahan wajib diisi.", "error");
+    return;
+  }
+  const item = createInventoryMaterial({ name, category, unit, minStock });
+  closeInlineMaterialCreate();
+  if (context === "bom") {
+    const searchEl = document.getElementById("bom-material-search");
+    const hidden = document.getElementById("bom-material-select");
+    const unitEl = document.getElementById("bom-material-unit");
+    if (searchEl) searchEl.value = item.name;
+    if (hidden) hidden.value = item.name;
+    if (unitEl) unitEl.value = item.unit;
+    const hint = document.getElementById("bom-material-create-hint");
+    if (hint) {
+      hint.classList.add("hidden");
+      hint.innerHTML = "";
+    }
+  } else if (context === "incoming") {
+    const datalist = document.getElementById("incoming-material-list");
+    if (datalist) datalist.insertAdjacentHTML("beforeend", `<option value="${escapeAttr(item.name)}">`);
+    selectIncomingMaterial(item.id);
+  }
+  showToast(`Bahan ${item.name} ditambahkan.`, "success");
+}
+
 function saveProductBomLine() {
   const product = getSelectedProduct();
   if (!product) return;
-  const material = document.getElementById("bom-material-select")?.value;
+  const material = document.getElementById("bom-material-select")?.value || findMaterialByName(document.getElementById("bom-material-search")?.value)?.name || "";
   const qty = Number(document.getElementById("bom-material-qty")?.value || 0);
   const unit = document.getElementById("bom-material-unit")?.value || "";
   const waste = Number(document.getElementById("bom-material-waste")?.value || 0);

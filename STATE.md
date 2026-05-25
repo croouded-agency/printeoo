@@ -1,6 +1,6 @@
 # STATE.md — Printeoo Prototype Progress
-**Last Updated:** 2026-05-25 (TASK-112 — Produk & BOM modal detail + batch physical specs)
-**Status Keseluruhan:** ✅ Prototype v1.1 complete + TASK-112 selesai  
+**Last Updated:** 2026-05-25 (TASK-113 — Nota Pesanan, WA, dan QR Tracking)
+**Status Keseluruhan:** ✅ Prototype v1.1 complete + TASK-113 selesai  
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
 > Ini adalah memori kerja AI antar sesi. Jangan hapus entry yang sudah selesai.
@@ -1505,6 +1505,10 @@ Final wrap-up: update STATE.md untuk mencerminkan seluruh task v1.1 sudah selesa
 | CSS custom properties | Konsistensi design system tanpa preprocessor | 2026-05-23 |
 | Spesifikasi fisik bahan disimpan di level batch, bukan master bahan | Dimensi roll, isi rim, volume tinta, dan isi pack bisa berbeda antar batch pembelian, sedangkan master bahan hanya identitas item | 2026-05-25 |
 | Kalkulasi estimasi BOM memakai rumus `qty_order × jumlah_per_satuan × (1 + waste_factor)` | BOM tetap predictable per produk; spesifikasi batch terbaru dipakai sebagai referensi traceability dan peringatan jika belum ada, bukan mengganti rumus dasar | 2026-05-25 |
+| "Master Bahan" di-rename menjadi "Daftar Bahan" | Lebih natural untuk owner dan staff gudang, tidak terasa seperti istilah ERP enterprise | 2026-05-25 |
+| Daftar Bahan hanya untuk setup jenis bahan | Field dibatasi ke Nama, Kategori, Satuan, dan Stok Minimum; stok dan harga beli masuk lewat Catat Penerimaan di Inventaris | 2026-05-25 |
+| Dropdown Pilih Bahan di form BOM dan Catat Penerimaan mendukung inline create | User tidak perlu keluar dari flow saat bahan yang dibutuhkan belum terdaftar | 2026-05-25 |
+| Nota dan tracking customer dipisah dari route internal SPK | Nota memakai route print-ready `#/nota/{spk}`; QR mengarah ke URL tracking publik `https://app.printeoo.com/track?spk=...` tanpa informasi harga/internal | 2026-05-25 |
 
 ---
 
@@ -1572,16 +1576,18 @@ Final wrap-up: update STATE.md untuk mencerminkan seluruh task v1.1 sudah selesa
 | 52 | 2026-05-25 | BUG-010 — Fix blank page Produk & BOM + rebuild halaman sesuai spec baru | BUG-010 | Root cause: `pages/products.html` hanya punya `.products-page`, sedangkan `renderProductsPage()` mencari `#products-page`, sehingga route blank. Fix: tambah mount id, alias route `#/produk-bom`, ubah menu sidebar ke hash baru, bangun ulang halaman menjadi 2 tab (Katalog Produk / Master Bahan), side panel detail produk, BOM preview realtime berbasis `qty × jumlah × (1 + waste)`, modal tambah bahan non-blocking, dan seed BOM minimal 5 produk. `prototype/app.js` dan `prototype/data.js` lolos `node --check`. |
 
 | 53 | 2026-05-25 | TASK-112 — Produk & BOM modal + physical specs batch | TASK-112 | Detail Produk & BOM diubah dari side panel ke modal tengah 600px dengan close overlay/X dan clear selection. Tombol Detail membuka produk benar, form tambah BOM memakai dropdown Master Bahan + qty/unit/waste helper, preview BOM menampilkan formula, waste, total, referensi batch specs atau warning. Modal penerimaan barang punya field spesifikasi fisik dinamis per tipe bahan dan menyimpan specs ke batch. QR label menampilkan supplier dan spesifikasi fisik batch. Syntax check `app.js` dan `data.js` pass. |
+| 54 | 2026-05-25 | TASK-114 — Sederhanakan Daftar Bahan | TASK-114 | Semua label "Master Bahan" diganti ke "Daftar Bahan". Form tambah bahan disederhanakan menjadi nama, kategori, satuan, stok minimum. Tabel Daftar Bahan punya empty state 3 langkah, tooltip untuk bahan tanpa penerimaan, CTA Catat Penerimaan Pertama dengan prefill bahan, modal detail bahan dua tab, serta inline create bahan dari form BOM dan Catat Penerimaan. Syntax check `app.js` dan `data.js` pass. |
+| 55 | 2026-05-25 | TASK-113 — Nota Pesanan: Cetak, WA, QR Tracking | TASK-113 | Route full-screen `#/nota/{spk}` dan `#/track/{spk}` ditambahkan. Nota print-ready menampilkan bisnis, customer, item, subtotal/diskon/total/DP/sisa, deadline, prioritas, dan QR tracking. Detail SPK dan daftar pesanan punya aksi Cetak Nota/Kirim WA/Download PDF. Submit order baru menampilkan modal sukses dengan opsi cetak, WA, dan detail SPK. `APP_DATA.settings.business` ditambahkan. Catatan production: tracking publik perlu rate-limit, SPK QR sebaiknya hash/UUID, WA production via API, PDF server-side, logo dari upload pengaturan. Syntax check `app.js` dan `data.js` pass. |
 
 ---
 
 ## NEXT TASK
 
-**Semua task selesai. Prototype v1.1 complete (43/43) + TASK-112.**
+**Semua task selesai. Prototype v1.1 complete (43/43) + TASK-113/TASK-114.**
 
-Recheck terakhir (sesi 53, 2026-05-25):
+Recheck terakhir (sesi 55, 2026-05-25):
 - Semua task TASK-001 s/d TASK-033 (prototype v1.0) ✅
-- Semua task TASK-101 s/d TASK-112 (update v1.1 + tambahan) ✅
+- Semua task TASK-101 s/d TASK-114 (update v1.1 + tambahan) ✅
 - `app.js` dan `data.js` lolos syntax check
 - Tidak ada task yang tertinggal
 

@@ -789,6 +789,18 @@
       name: "Titanium Print Surabaya",
       city: "Surabaya",
     },
+    settings: {
+      business: {
+        name: "Titanium Print Surabaya",
+        phone: "031-501-7788",
+        city: "Surabaya",
+        address: "Jl. Basuki Rahmat No. 88, Surabaya",
+        logoText: "TP",
+        invoiceFooter: "Terima kasih atas kepercayaan Anda.",
+        paymentTerms: "Pembayaran DP minimal 50% sebelum produksi dimulai.",
+        npwp: "01.234.567.8-601.000",
+      },
+    },
     customers,
     products,
     orders,
