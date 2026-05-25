@@ -6,6 +6,7 @@ const ROLE_USERS = {
   operator: { name: "Eko Pramono", role: "operator", label: "Operator" },
   display: { name: "Display Produksi", role: "display", label: "Display" },
   courier: { name: "Budi Kurir", role: "courier", label: "Kurir" },
+  warehouse: { name: "Taufik Hidayat", role: "warehouse", label: "Gudang" },
 };
 
 const APP_STATE = {
@@ -75,16 +76,17 @@ const ROUTES = {
   pricing: { page: "pricing", title: "Pricing", fullScreen: true },
   settings: { page: "settings", title: "Pengaturan" },
   delivery: { page: "delivery", title: "Pengiriman", fullScreen: true },
+  "portal-karyawan": { page: "portal-karyawan", title: "Portal Karyawan" },
 };
 
 const MENU_ITEMS = [
   { id: "dashboard", label: "Dashboard", hash: "#/dashboard", roles: ["owner"], icon: "dashboard" },
-  { id: "orders", label: "Pesanan", hash: "#/orders", roles: ["owner", "cashier"], icon: "orders", badge: "overdue" },
+  { id: "orders", label: "Pesanan", hash: "#/orders", roles: ["owner", "cashier", "warehouse"], icon: "orders", badge: "overdue" },
   { id: "customers", label: "Pelanggan", hash: "#/customers", roles: ["owner", "branch_manager", "cashier"], icon: "customers" },
   { id: "order-new", label: "+ Pesanan Baru", hash: "#/order-new", roles: ["owner", "cashier"], icon: "plus" },
   { id: "production", label: "Produksi", hash: "#/production", roles: ["owner", "operator"], icon: "production" },
   { id: "queue", label: "Antrian", hash: "#/queue", roles: ["owner", "cashier"], icon: "queue" },
-  { id: "inventory", label: "Inventaris", hash: "#/inventory", roles: ["owner"], icon: "inventory" },
+  { id: "inventory", label: "Inventaris", hash: "#/inventory", roles: ["owner", "warehouse"], icon: "inventory" },
   { id: "hr", label: "Karyawan", hash: "#/hr", roles: ["owner"], icon: "users" },
   { id: "finance", label: "Keuangan", hash: "#/finance", roles: ["owner"], icon: "finance" },
   { id: "settings", label: "Pengaturan", hash: "#/settings", roles: ["owner"], icon: "settings" },
@@ -97,6 +99,7 @@ const ROLE_DEFAULT_ROUTES = {
   operator: "#/production",
   display: "#/display-production",
   courier: "#/delivery",
+  warehouse: "#/inventory",
 };
 
 
@@ -283,6 +286,7 @@ function updateSidebar(role) {
     `;
   }).join("");
 
+  const isPortalActive = APP_STATE.currentRoute === "portal-karyawan";
   footer.innerHTML = `
     <div class="flex items-center gap-3">
       <div class="brand-mark brand-mark-sm" aria-hidden="true">${APP_STATE.currentUser.name.charAt(0)}</div>
@@ -291,7 +295,11 @@ function updateSidebar(role) {
         <div class="text-xs text-muted">${APP_STATE.currentUser.label} · ${APP_STATE.currentBranch}</div>
       </div>
     </div>
-    <button class="btn-secondary btn-sm w-full mt-4" type="button" data-action="logout">Keluar</button>
+    ${role !== "display" ? `<a class="nav-item${isPortalActive ? " active" : ""} mt-3" href="#/portal-karyawan" style="font-size:var(--text-sm);">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      <span>Portal Saya</span>
+    </a>` : ""}
+    <button class="btn-secondary btn-sm w-full mt-3" type="button" data-action="logout">Keluar</button>
   `;
 }
 
@@ -304,9 +312,11 @@ function getActiveMenuId() {
 
 function canAccessRoute(route, role) {
   if (route === "login" || route === "pricing") return true;
+  if (route === "portal-karyawan") return role !== "display";
   if (role === "display") return route === "display-production" || route === "display-queue";
-  if (role === "courier") return route === "delivery";
+  if (role === "courier") return route === "delivery" || route === "portal-karyawan";
   if (route === "delivery") return role === "courier" || role === "owner";
+  if (role === "warehouse") return ["inventory", "orders", "order", "portal-karyawan"].includes(route);
   if (route === "order") return role === "owner" || role === "cashier";
   if (route === "customer") return role === "owner" || role === "branch_manager" || role === "cashier";
   if (route === "settings") return role === "owner";
@@ -378,6 +388,10 @@ function initPage(route, params = {}) {
 
   if (route === "settings") {
     renderSettingsPage();
+  }
+
+  if (route === "portal-karyawan") {
+    renderPortalKaryawanPage();
   }
 }
 
@@ -6409,6 +6423,7 @@ function setupEventHandlers() {
     const hrTabButton = event.target.closest("[data-hr-tab]");
     const settingsTabButton = event.target.closest("[data-settings-tab]");
     const invTabButton = event.target.closest("[data-inv-tab]");
+    const portalTabButton = event.target.closest("[data-action='portal-tab']");
     const usagePeriodButton = event.target.closest("[data-usage-period]");
     const wastePeriodButton = event.target.closest("[data-waste-period]");
     const dashboardFilter = event.target.closest("[data-dashboard-filter]");
@@ -6420,6 +6435,22 @@ function setupEventHandlers() {
 
     if (hrTabButton) {
       renderHrPreview(hrTabButton.dataset.hrTab);
+      return;
+    }
+
+    if (portalTabButton) {
+      const activeTab = portalTabButton.dataset.tab;
+      const content = document.getElementById("portal-tab-content");
+      document.querySelectorAll("[data-action='portal-tab']").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.tab === activeTab);
+      });
+      const user = APP_STATE.currentUser;
+      const emp = (window.APP_DATA?.employees || []).find((e) => e.name === user.name);
+      const incentiveList = (window.APP_DATA?.incentives || {})[user.name] || [];
+      const attendance = (window.APP_DATA?.portalAttendance || {})[user.name] || { hadir: 0, absen: 0, terlambat: 0, bulan: "Mei 2026" };
+      const warnings = (window.APP_DATA?.portalWarnings || {})[user.name] || [];
+      const announcements = window.APP_DATA?.portalAnnouncements || [];
+      if (content) content.innerHTML = renderPortalTabContent(activeTab, { userName: user.name, emp, incentiveList, attendance, warnings, announcements });
       return;
     }
 
@@ -7396,6 +7427,283 @@ function loadStoredOrders() {
 function persistStoredOrders() {
   const localOrders = (window.APP_DATA?.orders || []).filter((order) => order.id.startsWith("ORD-00") && order.timeline?.[0]?.note === "Order dibuat dari form input");
   localStorage.setItem("printeoo:orders", JSON.stringify(localOrders));
+}
+
+// ── PORTAL KARYAWAN ──
+
+function renderPortalKaryawanPage(activeTab = "ringkasan") {
+  const container = document.querySelector(".portal-karyawan-page");
+  if (!container) return;
+
+  const user = APP_STATE.currentUser;
+  const userName = user.name;
+  const emp = (window.APP_DATA?.employees || []).find((e) => e.name === userName);
+  const incentiveList = (window.APP_DATA?.incentives || {})[userName] || [];
+  const attendance = (window.APP_DATA?.portalAttendance || {})[userName] || { hadir: 0, absen: 0, terlambat: 0, bulan: "Mei 2026" };
+  const warnings = (window.APP_DATA?.portalWarnings || {})[userName] || [];
+  const announcements = window.APP_DATA?.portalAnnouncements || [];
+
+  const tabs = [
+    { id: "ringkasan", label: "Ringkasan" },
+    { id: "insentif", label: "Insentif Saya" },
+    { id: "informasi", label: "Informasi Saya" },
+    { id: "teguran", label: "Teguran & Pengumuman" },
+  ];
+
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Portal Karyawan</h1>
+        <p class="text-muted" style="font-size:var(--text-sm)">Halo, ${escapeHtml(userName)} 👋</p>
+      </div>
+    </div>
+
+    <div class="tabs-scroll-wrapper">
+      <div class="tabs mb-4">
+        ${tabs.map(t => `
+          <button class="tab-button${t.id === activeTab ? " active" : ""}" type="button" data-action="portal-tab" data-tab="${t.id}">
+            ${t.label}
+          </button>`).join("")}
+      </div>
+    </div>
+
+    <div id="portal-tab-content" class="portal-tab-content">
+      ${renderPortalTabContent(activeTab, { userName, emp, incentiveList, attendance, warnings, announcements })}
+    </div>
+  `;
+}
+
+function renderPortalTabContent(activeTab, { userName, emp, incentiveList, attendance, warnings, announcements }) {
+  if (activeTab === "ringkasan") return renderPortalRingkasanTab(userName, incentiveList, attendance);
+  if (activeTab === "insentif") return renderPortalInsentifTab(incentiveList);
+  if (activeTab === "informasi") return renderPortalInformasiTab(emp);
+  if (activeTab === "teguran") return renderPortalTeguranTab(warnings, announcements);
+  return "";
+}
+
+function renderPortalRingkasanTab(userName, incentiveList, attendance) {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const thisMonthIncentives = incentiveList.filter((i) => {
+    const d = new Date(i.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+  const totalPending = thisMonthIncentives.filter((i) => i.status === "pending").reduce((s, i) => s + i.amount, 0);
+  const totalPaid = thisMonthIncentives.filter((i) => i.status === "paid").reduce((s, i) => s + i.amount, 0);
+  const totalAll = thisMonthIncentives.reduce((s, i) => s + i.amount, 0);
+  const itemSelesai = thisMonthIncentives.length;
+
+  return `
+    <div class="content-grid" style="margin-top:0">
+      <div class="col-6">
+        <div class="card portal-stat-card">
+          <div class="portal-stat-label">Hari Hadir</div>
+          <div class="portal-stat-value">${attendance.hadir} <span class="portal-stat-unit">hari</span></div>
+          <div class="portal-stat-sub">${attendance.bulan}</div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card portal-stat-card">
+          <div class="portal-stat-label">Hari Absen</div>
+          <div class="portal-stat-value" style="color:${attendance.absen > 2 ? 'var(--danger)' : 'var(--neutral-900)'}">${attendance.absen} <span class="portal-stat-unit">hari</span></div>
+          <div class="portal-stat-sub">${attendance.terlambat} kali terlambat</div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card portal-stat-card">
+          <div class="portal-stat-label">Item Selesai Bulan Ini</div>
+          <div class="portal-stat-value">${itemSelesai} <span class="portal-stat-unit">item</span></div>
+          <div class="portal-stat-sub">Total insentif: ${formatCurrency(totalAll)}</div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card portal-stat-card portal-stat-card--highlight">
+          <div class="portal-stat-label">Insentif Belum Dibayar</div>
+          <div class="portal-stat-value" style="color:var(--primary)">${formatCurrency(totalPending)}</div>
+          <div class="portal-stat-sub">Sudah dibayar: ${formatCurrency(totalPaid)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-4">
+      <h3 class="card-title" style="margin-bottom:12px">Insentif Terbaru</h3>
+      ${thisMonthIncentives.length === 0 ? `<p class="text-muted">Belum ada insentif bulan ini.</p>` : `
+        <table class="data-table">
+          <thead><tr>
+            <th>Tanggal</th><th>SPK</th><th>Item</th><th>Nilai</th><th>Status</th>
+          </tr></thead>
+          <tbody>
+            ${thisMonthIncentives.slice(0, 5).map((inc) => `
+              <tr>
+                <td class="text-muted">${formatDate(new Date(inc.date))}</td>
+                <td><span class="text-xs text-muted">${inc.spk || "—"}</span></td>
+                <td>${escapeHtml(inc.item)}</td>
+                <td><strong>${formatCurrency(inc.amount)}</strong></td>
+                <td>${inc.status === "pending"
+                  ? '<span class="badge badge-printing">Belum Dibayar</span>'
+                  : '<span class="badge badge-ready">Sudah Dibayar</span>'}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+        ${thisMonthIncentives.length > 5 ? `<p class="text-muted mt-2" style="font-size:var(--text-sm)">+ ${thisMonthIncentives.length - 5} entri lainnya — lihat tab Insentif Saya</p>` : ""}
+      `}
+    </div>
+  `;
+}
+
+function renderPortalInsentifTab(incentiveList) {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const thisMonth = incentiveList.filter((i) => {
+    const d = new Date(i.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+  const totalPending = thisMonth.filter((i) => i.status === "pending").reduce((s, i) => s + i.amount, 0);
+  const totalPaid = thisMonth.filter((i) => i.status === "paid").reduce((s, i) => s + i.amount, 0);
+
+  return `
+    <div class="card">
+      <div class="flex items-center gap-4 mb-4" style="flex-wrap:wrap">
+        <div class="portal-insentif-total">
+          <span class="text-muted" style="font-size:var(--text-sm)">Belum Dibayar</span>
+          <strong style="font-size:var(--text-xl);color:var(--primary)">${formatCurrency(totalPending)}</strong>
+        </div>
+        <div class="portal-insentif-total">
+          <span class="text-muted" style="font-size:var(--text-sm)">Sudah Dibayar</span>
+          <strong style="font-size:var(--text-xl);color:var(--success)">${formatCurrency(totalPaid)}</strong>
+        </div>
+      </div>
+
+      ${thisMonth.length === 0 ? `<p class="text-muted">Belum ada data insentif bulan ini.</p>` : `
+        <table class="data-table">
+          <thead><tr>
+            <th>Tanggal</th><th>SPK</th><th>Item / Keterangan</th><th>Nilai</th><th>Status</th><th>Dibayar</th>
+          </tr></thead>
+          <tbody>
+            ${thisMonth.map((inc) => `
+              <tr>
+                <td class="text-muted">${formatDate(new Date(inc.date))}</td>
+                <td><span class="text-xs text-muted">${inc.spk || "—"}</span></td>
+                <td>${escapeHtml(inc.item)}</td>
+                <td><strong>${formatCurrency(inc.amount)}</strong></td>
+                <td>${inc.status === "pending"
+                  ? '<span class="badge badge-printing">Belum Dibayar</span>'
+                  : '<span class="badge badge-ready">Sudah Dibayar</span>'}</td>
+                <td class="text-muted">${inc.paidAt ? formatDate(new Date(inc.paidAt)) : "—"}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+        <div class="portal-insentif-footer">
+          <span class="text-muted" style="font-size:var(--text-sm)">Total bulan ini: </span>
+          <strong>${formatCurrency(totalPending + totalPaid)}</strong>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function renderPortalInformasiTab(emp) {
+  if (!emp) {
+    return `<div class="card"><p class="text-muted">Data karyawan tidak ditemukan untuk akun ini.</p></div>`;
+  }
+
+  const contractLabels = { bulanan: "Bulanan (Tetap)", harian: "Harian", freelance: "Freelance", borongan: "Borongan" };
+  const branch = (window.APP_DATA?.branches || []).find((b) => b.id === emp.branchId);
+
+  return `
+    <div class="card">
+      <div class="portal-profile-header">
+        <div class="brand-mark" style="width:64px;height:64px;font-size:28px;border-radius:50%">${emp.name.charAt(0)}</div>
+        <div>
+          <h2 style="font-size:var(--text-xl);font-weight:700">${escapeHtml(emp.name)}</h2>
+          <p class="text-muted">${escapeHtml(emp.position)}</p>
+        </div>
+      </div>
+
+      <div class="content-grid mt-4">
+        <div class="col-6">
+          <label class="form-label">ID Karyawan</label>
+          <div class="portal-info-value">${emp.id}</div>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Posisi</label>
+          <div class="portal-info-value">${escapeHtml(emp.position)}</div>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Tipe Kontrak</label>
+          <div class="portal-info-value">${contractLabels[emp.contractType] || emp.contractType}</div>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Cabang</label>
+          <div class="portal-info-value">${branch ? escapeHtml(branch.name) : emp.branchId}</div>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Nomor HP</label>
+          <div class="portal-info-value">${escapeHtml(emp.phone || "—")}</div>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Gaji / Upah Dasar</label>
+          <div class="portal-info-value">${formatCurrency(emp.salary)}${emp.contractType === "harian" ? " / hari" : " / bulan"}</div>
+        </div>
+      </div>
+
+      <div class="portal-info-note mt-4">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        Untuk perubahan data seperti nomor HP atau alamat, hubungi admin/HRD.
+      </div>
+    </div>
+  `;
+}
+
+function renderPortalTeguranTab(warnings, announcements) {
+  return `
+    <div class="card mb-4">
+      <h3 class="card-title mb-3">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="vertical-align:middle;margin-right:6px"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3Z"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Pengumuman
+      </h3>
+      ${announcements.length === 0 ? `<p class="text-muted">Tidak ada pengumuman saat ini.</p>` : `
+        <div class="portal-announcements">
+          ${announcements.map((ann) => `
+            <div class="portal-announcement-item portal-announcement-item--${ann.type}">
+              <div class="portal-announcement-date">${formatDate(new Date(ann.date))}</div>
+              <div class="portal-announcement-title">${escapeHtml(ann.title)}</div>
+              <div class="portal-announcement-body">${escapeHtml(ann.body)}</div>
+            </div>`).join("")}
+        </div>
+      `}
+    </div>
+
+    <div class="card">
+      <h3 class="card-title mb-3">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="vertical-align:middle;margin-right:6px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        Teguran / Catatan Kinerja
+      </h3>
+      ${warnings.length === 0 ? `
+        <div class="empty-state" style="padding:24px 0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="1.5" width="40" height="40"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <p style="color:var(--success);font-weight:600;margin-top:8px">Tidak ada teguran</p>
+          <p class="text-muted">Pertahankan kinerja yang baik!</p>
+        </div>
+      ` : `
+        ${warnings.map((w) => `
+          <div class="portal-warning-item">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="badge badge-overdue">Teguran</span>
+              <span class="text-xs text-muted">${formatDate(new Date(w.date))}</span>
+              <span class="badge ${w.status === "acknowledged" ? "badge-confirmed" : "badge-printing"}" style="margin-left:auto">
+                ${w.status === "acknowledged" ? "Sudah Ditandai" : "Belum Ditanggapi"}
+              </span>
+            </div>
+            <div style="font-weight:600;margin-bottom:4px">${escapeHtml(w.title)}</div>
+            <p style="font-size:var(--text-sm);color:var(--neutral-700)">${escapeHtml(w.body)}</p>
+            <div class="text-xs text-muted mt-1">Diterbitkan oleh: ${escapeHtml(w.issuedBy)}</div>
+          </div>`).join("")}
+      `}
+    </div>
+  `;
 }
 
 function getIcon(name) {

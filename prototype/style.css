@@ -2559,11 +2559,28 @@ button:disabled {
   padding: 9px 14px;
   color: var(--neutral-600);
   font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab-button:hover:not(.active) {
+  background: var(--neutral-100);
+  color: var(--neutral-900);
 }
 
 .tab-button.active {
   background: var(--primary-light);
   color: var(--primary-dark);
+}
+
+.tabs-scroll-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabs-scroll-wrapper .tabs {
+  min-width: max-content;
 }
 
 .install-wage-card {
@@ -3181,4 +3198,148 @@ button:disabled {
   .settings-usage-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── PORTAL KARYAWAN ── */
+.portal-karyawan-page {
+  padding: 0;
+}
+
+.portal-stat-card {
+  text-align: center;
+  padding: 20px 16px;
+}
+
+.portal-stat-card--highlight {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.portal-stat-label {
+  font-size: var(--text-sm);
+  color: var(--neutral-500);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.portal-stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--neutral-900);
+  line-height: 1;
+}
+
+.portal-stat-unit {
+  font-size: var(--text-base);
+  font-weight: 400;
+  color: var(--neutral-500);
+}
+
+.portal-stat-sub {
+  font-size: var(--text-xs);
+  color: var(--neutral-500);
+  margin-top: 6px;
+}
+
+.portal-tab-content {
+  margin-top: 16px;
+}
+
+.portal-insentif-total {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 24px;
+  border-right: 1px solid var(--neutral-200);
+}
+.portal-insentif-total:last-child {
+  border-right: none;
+}
+
+.portal-insentif-footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--neutral-200);
+  text-align: right;
+}
+
+.portal-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--neutral-200);
+  margin-bottom: 4px;
+}
+
+.portal-info-value {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--neutral-900);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--neutral-100);
+}
+
+.portal-info-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--neutral-100);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  color: var(--neutral-500);
+}
+
+.portal-announcements {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.portal-announcement-item {
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border-left: 4px solid var(--neutral-200);
+  background: var(--neutral-50);
+}
+
+.portal-announcement-item--info {
+  border-left-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.portal-announcement-item--positive {
+  border-left-color: var(--success);
+  background: #F0FDF4;
+}
+
+.portal-announcement-date {
+  font-size: var(--text-xs);
+  color: var(--neutral-500);
+  margin-bottom: 4px;
+}
+
+.portal-announcement-title {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--neutral-900);
+  margin-bottom: 4px;
+}
+
+.portal-announcement-body {
+  font-size: var(--text-sm);
+  color: var(--neutral-700);
+}
+
+.portal-warning-item {
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: #FFF5F5;
+  border: 1px solid #FCA5A5;
+  margin-bottom: 12px;
+}
+
+.portal-warning-item:last-child {
+  margin-bottom: 0;
 }

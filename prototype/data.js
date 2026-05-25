@@ -694,6 +694,58 @@
     },
   ];
 
+  // ── PORTAL KARYAWAN DATA ──
+  const incentives = {
+    "Eko Pramono": [
+      { id: "INC-EP-001", date: addDays(-0), spk: "SPK-SBY-20260525-0001", item: "Banner Flexi China 3×4m", amount: 8500, status: "pending" },
+      { id: "INC-EP-002", date: addDays(-1), spk: "SPK-SBY-20260524-0003", item: "Spanduk Kain Anti Air 6m²", amount: 5000, status: "pending" },
+      { id: "INC-EP-003", date: addDays(-1), spk: "SPK-SBY-20260524-0003", item: "X-Banner 60×160cm (2 pcs)", amount: 4000, status: "pending" },
+      { id: "INC-EP-004", date: addDays(-3), spk: "SPK-SBY-20260522-0007", item: "Roll Banner 85×200cm", amount: 6500, status: "pending" },
+      { id: "INC-EP-005", date: addDays(-5), spk: "SPK-SBY-20260520-0011", item: "Backdrop Foto 3×2m", amount: 9000, status: "pending" },
+      { id: "INC-EP-006", date: addDays(-8), spk: "SPK-SBY-20260517-0015", item: "Banner Flexi China 5×2m", amount: 7500, status: "paid", paidAt: addDays(-2) },
+      { id: "INC-EP-007", date: addDays(-10), spk: "SPK-SBY-20260515-0009", item: "Spanduk Kain Anti Air 4m²", amount: 3500, status: "paid", paidAt: addDays(-2) },
+      { id: "INC-EP-008", date: addDays(-12), spk: "SPK-SBY-20260513-0002", item: "Billboard Besi + Pasang", amount: 15000, status: "paid", paidAt: addDays(-2) },
+    ],
+    "Rizky Maulana": [
+      { id: "INC-RM-001", date: addDays(-0), spk: "SPK-SBY-20260525-0002", item: "Laminasi Brosur A4 (500 pcs)", amount: 3000, status: "pending" },
+      { id: "INC-RM-002", date: addDays(-2), spk: "SPK-SBY-20260523-0004", item: "Cutting Stiker Vinyl (200 pcs)", amount: 4500, status: "pending" },
+      { id: "INC-RM-003", date: addDays(-4), spk: "SPK-SBY-20260521-0006", item: "Lipat + Laminasi Kalender", amount: 5500, status: "paid", paidAt: addDays(-1) },
+    ],
+    "Siti Aminah": [
+      { id: "INC-SA-001", date: addDays(-0), spk: "SPK-SBY-20260525-0004", item: "Transaksi kasir — 8 order", amount: 12000, status: "pending" },
+      { id: "INC-SA-002", date: addDays(-1), spk: null, item: "Komisi pelunasan piutang — PT Maju Jaya", amount: 25000, status: "pending" },
+      { id: "INC-SA-003", date: addDays(-7), spk: null, item: "Transaksi kasir — 12 order", amount: 18000, status: "paid", paidAt: addDays(-3) },
+    ],
+    "Budi Kurir": [
+      { id: "INC-BK-001", date: addDays(-0), spk: "SPK-SBY-20260525-0001", item: "Pengiriman — Kopi Tepi Kali", amount: 15000, status: "pending" },
+      { id: "INC-BK-002", date: addDays(-1), spk: "SPK-SBY-20260524-0005", item: "Pengiriman — Depot Rawon Bu Sari", amount: 20000, status: "pending" },
+      { id: "INC-BK-003", date: addDays(-3), spk: "SPK-SBY-20260522-0003", item: "Pengiriman — Bengkel Jaya Motor", amount: 15000, status: "paid", paidAt: addDays(-1) },
+    ],
+  };
+
+  const portalAnnouncements = [
+    { id: "ANN-001", title: "Libur Waisak 12 Mei 2026", body: "Operasional tutup pada Senin 12 Mei 2026. Pesanan yang sudah masuk akan diproses mulai 13 Mei.", date: addDays(-13), type: "info" },
+    { id: "ANN-002", title: "Perubahan jadwal lembur Juni", body: "Mulai Juni 2026, lembur hari Sabtu dibatasi maksimal 4 jam. Kompensasi lembur tetap Rp 35.000/jam.", date: addDays(-5), type: "info" },
+    { id: "ANN-003", title: "Target produksi bulan Mei", body: "Alhamdulillah, bulan April kita melampaui target 15%. Bulan Mei target dinaikkan menjadi 420 item. Semangat!", date: addDays(-2), type: "positive" },
+  ];
+
+  const portalWarnings = {
+    "Eko Pramono": [
+      { id: "WRN-EP-001", date: addDays(-45), title: "Keterlambatan Finishing", body: "SPK-SBY-20260410-0022: Finishing melebihi estimasi 3 jam. Harap lebih memperhatikan estimasi waktu per item.", issuedBy: "Yanuar Firnandy", status: "acknowledged" },
+    ],
+    "Siti Aminah": [],
+    "Rizky Maulana": [],
+    "Budi Kurir": [],
+  };
+
+  const portalAttendance = {
+    "Eko Pramono": { hadir: 18, absen: 2, terlambat: 1, bulan: "Mei 2026" },
+    "Siti Aminah": { hadir: 19, absen: 1, terlambat: 0, bulan: "Mei 2026" },
+    "Rizky Maulana": { hadir: 17, absen: 3, terlambat: 2, bulan: "Mei 2026" },
+    "Budi Kurir": { hadir: 16, absen: 4, terlambat: 1, bulan: "Mei 2026" },
+    "Yanuar Firnandy": { hadir: 20, absen: 0, terlambat: 0, bulan: "Mei 2026" },
+  };
+
   const APP_DATA = {
     tenant: {
       id: "tenant-printeoo-demo",
@@ -714,6 +766,10 @@
     adjustmentLog,
     purchaseOrders,
     deliveries,
+    incentives,
+    portalAnnouncements,
+    portalWarnings,
+    portalAttendance,
     dashboard,
     branches,
     queueNumbers,

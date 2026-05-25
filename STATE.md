@@ -1,6 +1,6 @@
 # STATE.md — Printeoo Prototype Progress
-**Last Updated:** 2026-05-25 (v1.1 update TASK-107)
-**Status Keseluruhan:** 🟡 Update v1.1 berjalan  
+**Last Updated:** 2026-05-25 (v1.1 update TASK-110 — semua task selesai)
+**Status Keseluruhan:** ✅ Semua task selesai — prototype v1.1 complete  
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
 > Ini adalah memori kerja AI antar sesi. Jangan hapus entry yang sudah selesai.
@@ -19,8 +19,8 @@
 | 5 — Polish & Integration | 4 | 4 | 100% |
 | 6 — Inventory Fully Functional | 7 | 7 | 100% |
 | 7 — Manajemen Pelanggan | 4 | 4 | 100% |
-| 8 â€” v1.1 Update | 10 | 8 | 80% |
-| **Total** | **43** | **41** | **95%** |
+| 8 â€” v1.1 Update | 10 | 10 | 100% |
+| **Total** | **43** | **43** | **100%** |
 
 ---
 
@@ -1415,6 +1415,64 @@ Tambahkan role `courier` dengan halaman delivery khusus (fullscreen, tanpa sideb
 
 ---
 
+#### TASK-108 — Tambah Portal Karyawan (Employee Self-Service)
+**Status:** `[x]` Selesai  
+**Estimasi:** 45 menit  
+**Depends on:** TASK-107  
+**Deskripsi:**  
+Halaman portal karyawan yang bisa diakses dari semua role (kecuali Display) via link "Portal Saya" di footer sidebar.
+
+**Checklist:**
+- [x] Halaman `pages/portal-karyawan.html` dibuat
+- [x] Route `#/portal-karyawan` ditambahkan ke ROUTES
+- [x] `canAccessRoute()` — accessible untuk semua role kecuali `display`
+- [x] Link "Portal Saya" ditambahkan di footer sidebar (semua role kecuali display)
+- [x] `initPage()` memanggil `renderPortalKaryawanPage()`
+- [x] 4 tab: Ringkasan, Insentif Saya, Informasi Saya, Teguran & Pengumuman
+- [x] Tab Ringkasan: stat cards (hadir, absen, item selesai, insentif pending) + tabel 5 insentif terbaru
+- [x] Tab Insentif: tabel lengkap insentif bulan ini + total pending/paid
+- [x] Tab Informasi: profil karyawan dari `APP_DATA.employees` berdasarkan user yang login
+- [x] Tab Teguran: pengumuman kantor + teguran personal karyawan
+- [x] Data dummy `APP_DATA.incentives` (4 karyawan, 17 total entri)
+- [x] Data dummy `APP_DATA.portalAnnouncements` (3 pengumuman)
+- [x] Data dummy `APP_DATA.portalWarnings` (1 teguran Eko Pramono, sisanya kosong)
+- [x] Data dummy `APP_DATA.portalAttendance` (5 karyawan)
+- [x] Insentif ditampilkan sesuai user yang login — tidak tampilkan data karyawan lain
+- [x] CSS portal karyawan ditambahkan di style.css
+- [x] Click handler `portal-tab` ditambahkan di event delegation
+
+**Progress Terakhir:** 2026-05-25 — TASK-108 selesai. Portal karyawan fully functional: 4 tab, data per-user dari APP_DATA.incentives/portalAttendance/portalWarnings, link Portal Saya di sidebar footer, dan semua acceptance criteria pass (15/15 checks).
+
+---
+
+#### TASK-110 — Update STATE.md setelah semua task selesai
+**Status:** `[x]` Selesai  
+**Estimasi:** 15 menit  
+**Depends on:** Semua task di atas  
+**Deskripsi:**  
+Final wrap-up: update STATE.md untuk mencerminkan seluruh task v1.1 sudah selesai.
+
+**Checklist:**
+- [x] Semua task TASK-101 s/d TASK-109 ditandai selesai di STATE.md
+- [x] TASK-107 dan TASK-108 di-log dengan progress terakhir yang akurat
+- [x] Ringkasan progress diupdate ke 43/43 (100%)
+- [x] Status keseluruhan diubah ke ✅ Semua task selesai
+- [x] Session log ditambahkan untuk setiap sesi pengerjaan v1.1
+- [x] NEXT TASK diupdate: tidak ada task tersisa
+
+**Keputusan teknis yang dicatat:**
+
+| Keputusan | Alasan | Tanggal |
+|---|---|---|
+| Portal karyawan via link di footer sidebar | Tidak memerlukan menu item terpisah — lebih natural sebagai aksi personal | 2026-05-25 |
+| Halaman delivery fullscreen (NO_SIDEBAR) | Kurir mengakses via HP, tidak perlu navigasi app penuh | 2026-05-25 |
+| Insentif di-key by employee name | Mapping sederhana karena prototype tidak ada auth nyata | 2026-05-25 |
+| Delivery status disimpan ke localStorage | Konsisten dengan pola queue dan order | 2026-05-25 |
+
+**Progress Terakhir:** 2026-05-25 — TASK-110 selesai. Semua 43 task prototype v1.1 selesai dan terdokumentasi.
+
+---
+
 ## BUGS & ISSUES
 
 *Catat di sini setiap bug yang ditemukan saat development.*
@@ -1427,6 +1485,8 @@ Tambahkan role `courier` dengan halaman delivery khusus (fullscreen, tanpa sideb
 | BUG-004 | Sesi 38 | Checklist finishing di halaman Pesanan Baru — checkbox Laminasi Doff, Laminasi Glossy, Mata Ayam tampil jauh lebih besar daripada Cutting dan Lipat | ✅ Fixed | Root cause: native `<input type="checkbox">` sebagai flex child tidak di-pin ukurannya; label 2 baris menyebabkan checkbox meregang. Fix: tambah rule `input[type="checkbox"] { width: 16px; height: 16px; min-width: 16px; flex-shrink: 0 }` di `.checkbox-grid label` di style.css. |
 | BUG-005 | Sesi 39 | Header "Lihat sebagai:" wrap ke 2 baris di header navbar | ✅ Fixed | Root cause: `.role-switcher` tidak punya `white-space: nowrap`. Fix: tambah `white-space: nowrap; flex-shrink: 0` ke class `.role-switcher` di style.css. |
 | BUG-006 | Sesi 39 | Filter Piutang dan Sort di halaman Pelanggan terlalu mepet (tidak ada gap) | ✅ Fixed | Root cause: filter grid pakai `.grid` (hanya `display:grid` tanpa template-columns dan gap). Fix: ganti ke `.content-grid` (12-col + gap), search diubah ke col-12, Tipe/Piutang/Sort masing-masing col-4 agar tersebar rapi dengan gap bawaan. |
+| BUG-007 | Post TASK-108 | Tab Portal Karyawan memakai class `.tab-bar` dan `.tab-btn` yang tidak konsisten dengan komponen tab lain di prototype (Inventaris dan Karyawan memakai `.tabs` dan `.tab-button`) | ✅ Fixed | Root cause: implementasi TASK-108 membuat class baru alih-alih menggunakan design system yang ada. Fix: (1) ubah markup portal ke `.tabs` + `.tab-button` + `.tabs-scroll-wrapper`, (2) tambah `cursor:pointer`, `hover:not(.active)`, dan `white-space:nowrap` ke `.tab-button` di style.css, (3) tambah `.tabs-scroll-wrapper` dengan `overflow-x:auto` untuk mobile. |
+| BUG-008 | Post TASK-110 | Role Gudang/warehouse tidak muncul di dropdown "Lihat sebagai:" dan tidak punya sidebar yang sesuai | ✅ Fixed | Root cause: `warehouse` tidak didefinisikan di `ROLE_USERS`, `ROLE_DEFAULT_ROUTES`, `MENU_ITEMS`, `canAccessRoute`, dan tidak ada di `index.html`/`login.html`. Fix: (1) tambah `warehouse: Taufik Hidayat` ke `ROLE_USERS`, (2) landing page `#/inventory`, (3) `MENU_ITEMS` untuk orders dan inventory ditambah `warehouse`, (4) `canAccessRoute` guard warehouse hanya bisa akses `inventory`, `orders`, `order`, `portal-karyawan`, (5) option Gudang di index.html, (6) shortcut Gudang di login.html. |
 
 ---
 
@@ -1503,12 +1563,23 @@ Tambahkan role `courier` dengan halaman delivery khusus (fullscreen, tanpa sideb
 | 46 | 2026-05-25 | TASK-105 — Update Production Board untuk Multi-Item | TASK-105 | Kanban produksi sekarang card per item, label SPK + Item X/Y, counter item-level, modal detail item dengan link ke detail SPK, update status item-level, dan scrollbar/hint horizontal. |
 | 47 | 2026-05-25 | TASK-106 — Update Form Input Pesanan Baru untuk Multi-Item | TASK-106 | Form pesanan baru sekarang mendukung multi-item: container order-items-list, tombol + Tambah Item, per-item card (produk, qty, harga satuan locked, specs dinamis, finishing, needsDesign, catatan, total item), harga satuan locked sampai produk dipilih, field alasan perubahan harga muncul jika harga di-override, format tanggal Indonesia dengan date-display-helper, format jam 24 jam, upload file dipindah ke bawah form-actions. Submit membangun struktur multi-item ke APP_DATA.orders. |
 | 48 | 2026-05-25 | TASK-107 — Tambah Role Kurir: Navigation dan Interface | TASK-107 | Role courier terintegrasi penuh: ROLE_USERS + ROLE_DEFAULT_ROUTES + canAccessRoute, route delivery (fullScreen + NO_SIDEBAR), login shortcut di login.html, option di index.html, pages/delivery.html dibuat, 3 entry dummy deliveries di data.js, renderDeliveryPage/Card, updateDeliveryStatus, openDeliveryNoteModal, aksi konfirmasi diambil/terkirim, persist localStorage, CSS delivery. Semua 15 acceptance criteria pass. |
+| 49 | 2026-05-25 | TASK-108 — Tambah Portal Karyawan (Employee Self-Service) | TASK-108 | Portal karyawan selesai: route #/portal-karyawan, link Portal Saya di sidebar footer (semua role kecuali display), pages/portal-karyawan.html, renderPortalKaryawanPage + 4 tab (Ringkasan/Insentif/Informasi/Teguran), data dummy incentives/portalAnnouncements/portalWarnings/portalAttendance, insentif per-user, CSS portal. 15/15 checks pass. |
+| 50 | 2026-05-25 | TASK-110 — Update STATE.md (final wrap-up) | TASK-110 | STATE.md diupdate: semua task ditandai selesai, progress 43/43 = 100%, status ✅ complete, session log lengkap, keputusan teknis v1.1 dicatat. |
 
 ---
 
 ## NEXT TASK
 
-**Task berikutnya:** TASK-108 — Tambah Portal Karyawan (Employee Self-Service).
+**Semua task selesai. Prototype v1.1 complete (43/43).**
+
+Recheck terakhir (sesi 50, 2026-05-25):
+- Semua task TASK-001 s/d TASK-033 (prototype v1.0) ✅
+- Semua task TASK-101 s/d TASK-110 (update v1.1) ✅
+- `app.js` dan `data.js` lolos syntax check
+- Tidak ada task yang tertinggal
+
+Instruksi untuk AI:
+> Prototype v1.1 sudah complete. Jangan mulai task baru tanpa instruksi eksplisit dari user. Baca CLAUDE.md dan STATE.md lebih dulu setiap sesi baru.
 
 Recheck terakhir (sesi 37, 2026-05-23) mengkonfirmasi:
 - 33/33 task selesai, tidak ada yang tertinggal
