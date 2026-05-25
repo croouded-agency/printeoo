@@ -1,0 +1,1 @@
+Always prefix shell commands with rtk (e.g., rtk git status, rtk npm test). When performing file operations, listing directories, or running tests, assume an rtk equivalent exists and use it to optimize token usage.

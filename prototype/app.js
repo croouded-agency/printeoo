@@ -5,6 +5,7 @@ const ROLE_USERS = {
   cashier: { name: "Siti Aminah", role: "cashier", label: "Kasir" },
   operator: { name: "Eko Pramono", role: "operator", label: "Operator" },
   display: { name: "Display Produksi", role: "display", label: "Display" },
+  courier: { name: "Budi Kurir", role: "courier", label: "Kurir" },
 };
 
 const APP_STATE = {
@@ -56,6 +57,7 @@ loadStoredOrders();
 loadStoredInventory();
 
 const ROUTES = {
+// loadStoredDeliveries() dipanggil saat renderDeliveryPage() karena data ringan
   login: { page: "login", title: "Login", fullScreen: true },
   dashboard: { page: "dashboard", title: "Dashboard" },
   orders: { page: "orders", title: "Pesanan" },
@@ -72,6 +74,7 @@ const ROUTES = {
   finance: { page: "finance", title: "Keuangan" },
   pricing: { page: "pricing", title: "Pricing", fullScreen: true },
   settings: { page: "settings", title: "Pengaturan" },
+  delivery: { page: "delivery", title: "Pengiriman", fullScreen: true },
 };
 
 const MENU_ITEMS = [
@@ -93,10 +96,11 @@ const ROLE_DEFAULT_ROUTES = {
   cashier: "#/orders",
   operator: "#/production",
   display: "#/display-production",
+  courier: "#/delivery",
 };
 
 
-const NO_SIDEBAR_ROUTES = ["display-production", "display-queue", "login", "pricing"];
+const NO_SIDEBAR_ROUTES = ["display-production", "display-queue", "login", "pricing", "delivery"];
 
 // Routing
 function parseHash() {
@@ -301,6 +305,8 @@ function getActiveMenuId() {
 function canAccessRoute(route, role) {
   if (route === "login" || route === "pricing") return true;
   if (role === "display") return route === "display-production" || route === "display-queue";
+  if (role === "courier") return route === "delivery";
+  if (route === "delivery") return role === "courier" || role === "owner";
   if (route === "order") return role === "owner" || role === "cashier";
   if (route === "customer") return role === "owner" || role === "branch_manager" || role === "cashier";
   if (route === "settings") return role === "owner";
@@ -364,6 +370,10 @@ function initPage(route, params = {}) {
 
   if (route === "finance") {
     renderFinancePreview();
+  }
+
+  if (route === "delivery") {
+    renderDeliveryPage();
   }
 
   if (route === "settings") {
@@ -5499,6 +5509,184 @@ function buildFinanceChart(pnl) {
   `;
 }
 
+// ─── DELIVERY PAGE ───────────────────────────────────────────────────────────
+
+function loadStoredDeliveries() {
+  try {
+    const stored = localStorage.getItem("printeoo:deliveries");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length) {
+        window.APP_DATA.deliveries = parsed;
+      }
+    }
+  } catch (e) {}
+}
+
+function persistDeliveries() {
+  try {
+    localStorage.setItem("printeoo:deliveries", JSON.stringify(window.APP_DATA.deliveries || []));
+  } catch (e) {}
+}
+
+function renderDeliveryPage() {
+  const container = document.getElementById("delivery-page");
+  if (!container) return;
+
+  loadStoredDeliveries();
+
+  const courier = APP_STATE.currentUser;
+  const deliveries = (window.APP_DATA?.deliveries || []).filter(
+    (d) => d.courierName === courier.name || APP_STATE.currentRole === "owner"
+  );
+
+  const assigned = deliveries.filter((d) => d.status === "assigned");
+  const onRoute = deliveries.filter((d) => d.status === "sedang_diantar");
+  const done = deliveries.filter((d) => d.status === "terkirim");
+  const pickedUp = deliveries.filter((d) => d.status === "diambil");
+  const inTransit = [...pickedUp, ...onRoute];
+
+  const totalActive = assigned.length + inTransit.length;
+
+  container.innerHTML = `
+    <div class="delivery-shell">
+      <div class="delivery-header">
+        <div class="delivery-header-brand">
+          <span class="brand-mark" aria-hidden="true">P</span>
+          <div>
+            <div class="delivery-title">🚚 Pengiriman Hari Ini</div>
+            <div class="delivery-subtitle">Halo, ${escapeHtml(courier.name)} · ${totalActive} tugas aktif</div>
+          </div>
+        </div>
+        <a class="delivery-back-btn" href="#/orders" title="Kembali ke app">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 12l7-7M3 12l7 7"/></svg>
+          Keluar
+        </a>
+      </div>
+
+      <div class="delivery-content">
+        ${assigned.length === 0 && inTransit.length === 0 && done.length === 0 ? `
+          <div class="delivery-empty">
+            <p>Tidak ada pengiriman yang di-assign hari ini.</p>
+          </div>
+        ` : ""}
+
+        ${assigned.map((d) => renderDeliveryCard(d, "assigned")).join("")}
+        ${inTransit.map((d) => renderDeliveryCard(d, d.status)).join("")}
+        ${done.length > 0 ? `
+          <div class="delivery-section-label done">✓ SELESAI HARI INI</div>
+          ${done.map((d) => renderDeliveryCard(d, "terkirim")).join("")}
+        ` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderDeliveryCard(delivery, status) {
+  const order = (window.APP_DATA?.orders || []).find((o) => o.id === delivery.orderId);
+  const spkLabel = order ? order.spkNumber : delivery.orderId;
+
+  if (status === "terkirim") {
+    const deliveredTime = delivery.deliveredAt
+      ? new Date(delivery.deliveredAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+      : "-";
+    return `
+      <div class="delivery-card done">
+        <div class="delivery-card-label done">✓ SELESAI</div>
+        <div class="delivery-card-spk">${escapeHtml(spkLabel)}</div>
+        <div class="delivery-card-customer">${escapeHtml(delivery.customer)}</div>
+        <div class="delivery-card-meta">Terkirim ${deliveredTime}</div>
+      </div>
+    `;
+  }
+
+  const isAssigned = status === "assigned";
+  const isOnRoute = status === "sedang_diantar" || status === "diambil";
+
+  return `
+    <div class="delivery-card ${isOnRoute ? "on-route" : ""}">
+      <div class="delivery-card-label ${isOnRoute ? "on-route" : "pending"}">
+        ${isOnRoute ? "● SEDANG DIANTAR" : "● BELUM DIAMBIL"}
+      </div>
+      <div class="delivery-card-spk">${escapeHtml(spkLabel)}</div>
+      <div class="delivery-card-customer">${escapeHtml(delivery.customer)}</div>
+      <div class="delivery-card-product text-muted text-sm">${escapeHtml(delivery.productSummary || "")}</div>
+      <div class="delivery-card-address">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+        ${escapeHtml(delivery.address)}
+      </div>
+      <div class="delivery-card-phone text-sm text-muted">📞 ${escapeHtml(delivery.phone || "")}</div>
+      ${delivery.notes ? `<div class="delivery-card-notes text-sm">${escapeHtml(delivery.notes)}</div>` : ""}
+      <div class="delivery-card-actions">
+        ${isAssigned ? `
+          <button class="btn-delivery-primary" type="button"
+            data-action="delivery-confirm-pickup" data-delivery-id="${delivery.id}">
+            Konfirmasi Diambil
+          </button>
+        ` : ""}
+        ${isOnRoute ? `
+          <button class="btn-delivery-primary" type="button"
+            data-action="delivery-confirm-delivered" data-delivery-id="${delivery.id}">
+            Konfirmasi Terkirim
+          </button>
+        ` : ""}
+        <button class="btn-delivery-secondary" type="button"
+          data-action="delivery-add-note" data-delivery-id="${delivery.id}">
+          + Tambah Catatan
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function updateDeliveryStatus(deliveryId, newStatus) {
+  loadStoredDeliveries();
+  const delivery = (window.APP_DATA?.deliveries || []).find((d) => d.id === deliveryId);
+  if (!delivery) return;
+
+  const now = new Date().toISOString();
+  delivery.status = newStatus;
+
+  if (newStatus === "diambil") delivery.pickedUpAt = now;
+  if (newStatus === "sedang_diantar") delivery.pickedUpAt = delivery.pickedUpAt || now;
+  if (newStatus === "terkirim") delivery.deliveredAt = now;
+
+  persistDeliveries();
+
+  const statusLabel = { diambil: "Diambil", sedang_diantar: "Sedang diantar", terkirim: "Terkirim" }[newStatus] || newStatus;
+  showToast(`Status pengiriman diperbarui: ${statusLabel}.`, "success");
+  renderDeliveryPage();
+}
+
+function openDeliveryNoteModal(deliveryId) {
+  const root = document.getElementById("global-modal-root");
+  if (!root) return;
+  loadStoredDeliveries();
+  const delivery = (window.APP_DATA?.deliveries || []).find((d) => d.id === deliveryId);
+  if (!delivery) return;
+
+  root.innerHTML = `
+    <div class="modal-overlay" id="delivery-note-modal" data-action="close-delivery-note-modal">
+      <div class="modal-box" style="max-width:420px" role="dialog" aria-modal="true" aria-label="Tambah Catatan Pengiriman">
+        <div class="modal-header">
+          <h2 class="modal-title">Tambah Catatan</h2>
+          <button class="modal-close" type="button" data-action="close-delivery-note-modal" aria-label="Tutup">×</button>
+        </div>
+        <div style="padding:16px">
+          <p class="text-sm text-muted" style="margin-bottom:8px">${escapeHtml(delivery.customer)}</p>
+          <textarea id="delivery-note-input" class="form-textarea" rows="4"
+            placeholder="Contoh: customer tidak ada di tempat, dititip ke tetangga"
+            style="width:100%">${escapeHtml(delivery.notes || "")}</textarea>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" type="button" data-action="close-delivery-note-modal">Batal</button>
+          <button class="btn-primary" type="button" data-action="save-delivery-note" data-delivery-id="${deliveryId}">Simpan Catatan</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // ─── SETTINGS PAGE ───────────────────────────────────────────────────────────
 
 function renderSettingsPage(activeTab = "profil") {
@@ -6697,6 +6885,41 @@ function setupEventHandlers() {
         removeOrderItem(idx);
         return;
       }
+
+      if (actionButton.dataset.action === "delivery-confirm-pickup") {
+        updateDeliveryStatus(actionButton.dataset.deliveryId, "sedang_diantar");
+        return;
+      }
+
+      if (actionButton.dataset.action === "delivery-confirm-delivered") {
+        updateDeliveryStatus(actionButton.dataset.deliveryId, "terkirim");
+        return;
+      }
+
+      if (actionButton.dataset.action === "delivery-add-note") {
+        openDeliveryNoteModal(actionButton.dataset.deliveryId);
+        return;
+      }
+
+      if (actionButton.dataset.action === "close-delivery-note-modal") {
+        const root = document.getElementById("global-modal-root");
+        if (root) root.innerHTML = "";
+        return;
+      }
+
+      if (actionButton.dataset.action === "save-delivery-note") {
+        loadStoredDeliveries();
+        const delivery = (window.APP_DATA?.deliveries || []).find((d) => d.id === actionButton.dataset.deliveryId);
+        if (delivery) {
+          delivery.notes = document.getElementById("delivery-note-input")?.value || "";
+          persistDeliveries();
+          showToast("Catatan disimpan.", "success");
+          const root = document.getElementById("global-modal-root");
+          if (root) root.innerHTML = "";
+          renderDeliveryPage();
+        }
+        return;
+      }
     }
 
     // Add new item button (not a data-action, identified by id)
@@ -6967,11 +7190,7 @@ function setRole(role) {
   localStorage.setItem("printeoo:role", role);
   localStorage.setItem("printeoo:isLoggedIn", String(APP_STATE.isLoggedIn));
 
-  if (role === "display") {
-    window.location.hash = ROLE_DEFAULT_ROUTES.display;
-  } else {
-    window.location.hash = ROLE_DEFAULT_ROUTES[role];
-  }
+  window.location.hash = ROLE_DEFAULT_ROUTES[role] || ROLE_DEFAULT_ROUTES.owner;
 
   updateSidebar(role);
   syncRoleSwitcher();

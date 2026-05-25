@@ -1,5 +1,5 @@
 # STATE.md — Printeoo Prototype Progress
-**Last Updated:** 2026-05-25 (v1.1 update TASK-105)
+**Last Updated:** 2026-05-25 (v1.1 update TASK-107)
 **Status Keseluruhan:** 🟡 Update v1.1 berjalan  
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
@@ -19,8 +19,8 @@
 | 5 — Polish & Integration | 4 | 4 | 100% |
 | 6 — Inventory Fully Functional | 7 | 7 | 100% |
 | 7 — Manajemen Pelanggan | 4 | 4 | 100% |
-| 8 â€” v1.1 Update | 10 | 7 | 70% |
-| **Total** | **43** | **40** | **93%** |
+| 8 â€” v1.1 Update | 10 | 8 | 80% |
+| **Total** | **43** | **41** | **95%** |
 
 ---
 
@@ -1387,6 +1387,34 @@ Update form input pesanan baru agar mendukung satu atau lebih item produk dalam 
 
 ---
 
+#### TASK-107 — Tambah Role Kurir: Navigation dan Interface
+**Status:** `[x]` Selesai  
+**Estimasi:** 60 menit  
+**Depends on:** TASK-106  
+**Deskripsi:**  
+Tambahkan role `courier` dengan halaman delivery khusus (fullscreen, tanpa sidebar), di mana kurir bisa melihat daftar pengiriman dan mengupdate statusnya.
+
+**Checklist:**
+- [x] Role `courier` ditambahkan ke `ROLE_USERS`, `ROLE_DEFAULT_ROUTES`, dan `canAccessRoute()`
+- [x] Route `delivery` ditambahkan ke `ROUTES` (fullScreen: true) dan `NO_SIDEBAR_ROUTES`
+- [x] Login sebagai Kurir → langsung ke halaman `#/delivery` tanpa sidebar
+- [x] Tombol shortcut "Kurir" ditambahkan di `pages/login.html`
+- [x] Option "Kurir" ditambahkan di role-switcher `index.html`
+- [x] `pages/delivery.html` dibuat (shell minimal, content dari `renderDeliveryPage()`)
+- [x] `APP_DATA.deliveries` ditambahkan di `data.js` dengan 3 entry dummy
+- [x] `renderDeliveryPage()` — fullscreen UI: header (nama kurir, jumlah tugas), daftar delivery per status
+- [x] `renderDeliveryCard()` — card delivery dengan status label, info SPK, customer, alamat, telepon, catatan, tombol aksi
+- [x] `updateDeliveryStatus(deliveryId, newStatus)` — update status, set timestamp, persist, re-render
+- [x] `openDeliveryNoteModal(deliveryId)` — modal textarea untuk tambah catatan pengiriman
+- [x] Tombol "Konfirmasi Diambil" → status `sedang_diantar`
+- [x] Tombol "Konfirmasi Terkirim" → status `terkirim`
+- [x] Status tersimpan ke `localStorage` key `printeoo:deliveries`
+- [x] CSS delivery page ditambahkan di `style.css`
+
+**Progress Terakhir:** 2026-05-25 — TASK-107 selesai. Role kurir terintegrasi penuh: login shortcut, route delivery fullscreen, halaman delivery dengan filter status, aksi konfirmasi diambil/terkirim, modal catatan, dan persist ke localStorage.
+
+---
+
 ## BUGS & ISSUES
 
 *Catat di sini setiap bug yang ditemukan saat development.*
@@ -1474,12 +1502,13 @@ Update form input pesanan baru agar mendukung satu atau lebih item produk dalam 
 
 | 46 | 2026-05-25 | TASK-105 — Update Production Board untuk Multi-Item | TASK-105 | Kanban produksi sekarang card per item, label SPK + Item X/Y, counter item-level, modal detail item dengan link ke detail SPK, update status item-level, dan scrollbar/hint horizontal. |
 | 47 | 2026-05-25 | TASK-106 — Update Form Input Pesanan Baru untuk Multi-Item | TASK-106 | Form pesanan baru sekarang mendukung multi-item: container order-items-list, tombol + Tambah Item, per-item card (produk, qty, harga satuan locked, specs dinamis, finishing, needsDesign, catatan, total item), harga satuan locked sampai produk dipilih, field alasan perubahan harga muncul jika harga di-override, format tanggal Indonesia dengan date-display-helper, format jam 24 jam, upload file dipindah ke bawah form-actions. Submit membangun struktur multi-item ke APP_DATA.orders. |
+| 48 | 2026-05-25 | TASK-107 — Tambah Role Kurir: Navigation dan Interface | TASK-107 | Role courier terintegrasi penuh: ROLE_USERS + ROLE_DEFAULT_ROUTES + canAccessRoute, route delivery (fullScreen + NO_SIDEBAR), login shortcut di login.html, option di index.html, pages/delivery.html dibuat, 3 entry dummy deliveries di data.js, renderDeliveryPage/Card, updateDeliveryStatus, openDeliveryNoteModal, aksi konfirmasi diambil/terkirim, persist localStorage, CSS delivery. Semua 15 acceptance criteria pass. |
 
 ---
 
 ## NEXT TASK
 
-**Task berikutnya:** TASK-107 — Tambah Role Kurir: Navigation dan Interface.
+**Task berikutnya:** TASK-108 — Tambah Portal Karyawan (Employee Self-Service).
 
 Recheck terakhir (sesi 37, 2026-05-23) mengkonfirmasi:
 - 33/33 task selesai, tidak ada yang tertinggal
