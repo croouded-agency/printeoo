@@ -46,23 +46,57 @@
   ];
 
   const products = [
-    { id: "PROD-001", name: "Banner Flexi China 340gr", category: "Large Format", unit: "m2", basePrice: 28000, minQty: 1, specs: ["Outdoor", "High resolution", "Finishing mata ayam"] },
-    { id: "PROD-002", name: "Spanduk Kain Anti Air", category: "Large Format", unit: "m2", basePrice: 45000, minQty: 1, specs: ["Kain waterproof", "Cocok event indoor"] },
-    { id: "PROD-003", name: "Kartu Nama Art Carton 260gr - 1 sisi", category: "Offset/Digital", unit: "box", basePrice: 65000, minQty: 1, specs: ["Isi 100", "Laminasi doff opsional"] },
-    { id: "PROD-004", name: "Kartu Nama Art Carton 260gr - 2 sisi", category: "Offset/Digital", unit: "box", basePrice: 85000, minQty: 1, specs: ["Isi 100", "Full color bolak-balik"] },
-    { id: "PROD-005", name: "Brosur A4 Full Color - 1 lipatan", category: "Offset/Digital", unit: "lembar", basePrice: 2500, minQty: 100, specs: ["Art paper 150gr", "Bi-fold"] },
-    { id: "PROD-006", name: "Brosur A4 Full Color - 2 lipatan", category: "Offset/Digital", unit: "lembar", basePrice: 3000, minQty: 100, specs: ["Art paper 150gr", "Tri-fold"] },
-    { id: "PROD-007", name: "Stiker Vinyl Outdoor", category: "Sticker", unit: "m2", basePrice: 55000, minQty: 1, specs: ["Tahan air", "Laminasi glossy"] },
-    { id: "PROD-008", name: "Undangan A5 Ivory 230gr", category: "Invitation", unit: "pcs", basePrice: 4200, minQty: 50, specs: ["Ivory 230gr", "Cetak 2 sisi"] },
-    { id: "PROD-009", name: "X-Banner 60x160cm", category: "Display", unit: "set", basePrice: 95000, minQty: 1, specs: ["Termasuk rangka", "Flexi 340gr"] },
-    { id: "PROD-010", name: "Roll Banner 85x200cm", category: "Display", unit: "set", basePrice: 285000, minQty: 1, specs: ["Aluminium stand", "Tas pembawa"] },
-    { id: "PROD-011", name: "Nota/Kwitansi 2 ply", category: "Stationery", unit: "buku", basePrice: 18000, minQty: 10, specs: ["NCR 2 ply", "Nomorator"] },
-    { id: "PROD-012", name: "Kalender Meja 2027", category: "Merchandise", unit: "pcs", basePrice: 22000, minQty: 25, specs: ["13 lembar", "Dudukan hardboard"] },
-    { id: "PROD-013", name: "Mug Cetak Full Wrap", category: "Merchandise", unit: "pcs", basePrice: 38000, minQty: 1, specs: ["Sublimasi", "Full wrap"] },
-    { id: "PROD-014", name: "Kaos Sablon DTF", category: "Apparel", unit: "pcs", basePrice: 65000, minQty: 5, specs: ["Cotton combed", "Area A4"] },
-    { id: "PROD-015", name: "Neon Box Akrilik Custom", category: "Signage", unit: "m2", basePrice: 1250000, minQty: 1, specs: ["Akrilik susu", "LED indoor/outdoor"] },
-    { id: "PROD-016", name: "Billboard Besi + Pasang", category: "Signage", unit: "m2", basePrice: 1850000, minQty: 1, specs: ["Rangka hollow", "Termasuk instalasi Surabaya"] },
-    { id: "PROD-017", name: "Backdrop Foto 3x2m", category: "Event", unit: "set", basePrice: 650000, minQty: 1, specs: ["Flexi Korea", "Rangka pipa"] },
+    { id: "PROD-001", name: "Banner Flexi China 340gr", category: "Large Format", unit: "m2", basePrice: 28000, minQty: 1, description: "Banner outdoor ekonomis untuk promosi toko, event, dan signage sementara.", specs: ["Outdoor", "High resolution", "Finishing mata ayam"],
+      bom: [
+        { material: "Flexi China 340gr", qty: 0.0132, unit: "roll", wasteFactor: 0.08 },
+        { material: "Mata Ayam Banner", qty: 8, unit: "pcs", wasteFactor: 0.05 },
+      ]
+    },
+    { id: "PROD-002", name: "Spanduk Kain Anti Air", category: "Large Format", unit: "m2", basePrice: 45000, minQty: 1, description: "Spanduk kain yang lebih lentur dan tahan cipratan air untuk kebutuhan indoor maupun semi outdoor.", specs: ["Kain waterproof", "Cocok event indoor"],
+      bom: [
+        { material: "Spanduk Kain Anti Air", qty: 0.0089, unit: "roll", wasteFactor: 0.06 },
+      ]
+    },
+    { id: "PROD-003", name: "Kartu Nama Art Carton 260gr - 1 sisi", category: "Offset/Digital", unit: "box", basePrice: 65000, minQty: 1, specs: ["Isi 100", "Laminasi doff opsional"], bom: [] },
+    { id: "PROD-004", name: "Kartu Nama Art Carton 260gr - 2 sisi", category: "Offset/Digital", unit: "box", basePrice: 85000, minQty: 1, specs: ["Isi 100", "Full color bolak-balik"], bom: [] },
+    { id: "PROD-005", name: "Brosur A4 Full Color - 1 lipatan", category: "Offset/Digital", unit: "lembar", basePrice: 2500, minQty: 100, description: "Brosur promosi A4 full color dengan satu lipatan untuk kebutuhan promo, event, dan company profile ringkas.", specs: ["Art paper 150gr", "Bi-fold"],
+      bom: [
+        { material: "Art Paper 150gr", qty: 0.002, unit: "rim", wasteFactor: 0.05 },
+        { material: "Tinta CMYK", qty: 2, unit: "ml", wasteFactor: 0.10 },
+      ]
+    },
+    { id: "PROD-006", name: "Brosur A4 Full Color - 2 lipatan", category: "Offset/Digital", unit: "lembar", basePrice: 3000, minQty: 100, specs: ["Art paper 150gr", "Tri-fold"], bom: [] },
+    { id: "PROD-007", name: "Stiker Vinyl Outdoor", category: "Sticker", unit: "m2", basePrice: 55000, minQty: 1, description: "Stiker outdoor tahan air untuk label, branding, dan cutting contour sederhana.", specs: ["Tahan air", "Laminasi glossy"],
+      bom: [
+        { material: "Vinyl Outdoor Glossy", qty: 0.012, unit: "roll", wasteFactor: 0.08 },
+      ]
+    },
+    { id: "PROD-008", name: "Undangan A5 Ivory 230gr", category: "Invitation", unit: "pcs", basePrice: 4200, minQty: 50, specs: ["Ivory 230gr", "Cetak 2 sisi"], bom: [] },
+    { id: "PROD-009", name: "X-Banner 60×160cm", category: "Display", unit: "set", basePrice: 95000, minQty: 1, description: "Paket X-Banner lengkap dengan media cetak dan rangka display siap pasang untuk promosi cepat.", specs: ["Termasuk rangka", "Flexi 340gr"],
+      bom: [
+        { material: "Flexi China 340gr", qty: 0.60, unit: "m²", wasteFactor: 0.05 },
+        { material: "Tinta CMYK", qty: 12, unit: "ml", wasteFactor: 0.10 },
+        { material: "Stand X-Banner", qty: 1, unit: "pcs", wasteFactor: 0 },
+      ]
+    },
+    { id: "PROD-010", name: "Roll Banner 85x200cm", category: "Display", unit: "set", basePrice: 285000, minQty: 1, specs: ["Aluminium stand", "Tas pembawa"], bom: [] },
+    { id: "PROD-011", name: "Nota/Kwitansi 2 ply", category: "Stationery", unit: "buku", basePrice: 18000, minQty: 10, specs: ["NCR 2 ply", "Nomorator"], bom: [] },
+    { id: "PROD-012", name: "Kalender Meja 2027", category: "Merchandise", unit: "pcs", basePrice: 22000, minQty: 25, specs: ["13 lembar", "Dudukan hardboard"], bom: [] },
+    { id: "PROD-013", name: "Mug Cetak Full Wrap", category: "Merchandise", unit: "pcs", basePrice: 38000, minQty: 1, specs: ["Sublimasi", "Full wrap"], bom: [] },
+    { id: "PROD-014", name: "Kaos Sablon DTF", category: "Apparel", unit: "pcs", basePrice: 65000, minQty: 5, specs: ["Cotton combed", "Area A4"], bom: [] },
+    { id: "PROD-015", name: "Neon Box Akrilik Custom", category: "Signage", unit: "m2", basePrice: 1250000, minQty: 1, specs: ["Akrilik susu", "LED indoor/outdoor"], bom: [] },
+    { id: "PROD-016", name: "Billboard Besi + Pasang", category: "Signage", unit: "m2", basePrice: 1850000, minQty: 1, specs: ["Rangka hollow", "Termasuk instalasi Surabaya"],
+      bom: [
+        { material: "Flexi China 340gr", formulaType: "per_m2", formulaValue: 0.111, wasteFactor: 0.08, unit: "roll" },
+        { material: "Tinta Cyan Epson", formulaType: "per_m2", formulaValue: 0.006, wasteFactor: 0.10, unit: "liter" },
+      ]
+    },
+    { id: "PROD-017", name: "Backdrop Foto 3x2m", category: "Event", unit: "set", basePrice: 650000, minQty: 1, specs: ["Flexi Korea", "Rangka pipa"],
+      bom: [
+        { material: "Flexi Korea 440gr", formulaType: "flat", formulaValue: 0.72, wasteFactor: 0.08, unit: "roll" },
+        { material: "Mata Ayam Banner", formulaType: "flat", formulaValue: 24, wasteFactor: 0.05, unit: "pcs" },
+      ]
+    },
   ];
 
   const statuses = ["draft", "confirmed", "design_queue", "in_design", "production_queue", "printing", "finishing", "ready", "delivered", "closed"];
@@ -407,21 +441,24 @@
   ];
 
   const batches = [
-    { batchId: "BATCH-20260515-001", itemId: "MAT-001", itemName: "Flexi China 340gr", qtyInitial: 8, qtyRemaining: 3.2, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-8), pricePerUnit: 650000, status: "aktif" },
-    { batchId: "BATCH-20260502-002", itemId: "MAT-001", itemName: "Flexi China 340gr", qtyInitial: 6, qtyRemaining: 1.1, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-21), pricePerUnit: 640000, status: "aktif" },
-    { batchId: "BATCH-20260418-003", itemId: "MAT-001", itemName: "Flexi China 340gr", qtyInitial: 10, qtyRemaining: 0, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-35), pricePerUnit: 635000, status: "habis" },
-    { batchId: "BATCH-20260510-001", itemId: "MAT-003", itemName: "Art Paper 150gr", qtyInitial: 20, qtyRemaining: 12.5, unit: "rim", supplier: "Toko Kertas Surabaya", receivedDate: addDays(-13), pricePerUnit: 72000, status: "aktif" },
+    { batchId: "BATCH-20260515-001", itemId: "MAT-001", itemName: "Flexi China 340gr", qtyInitial: 8, qtyRemaining: 3.2, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-8), pricePerUnit: 650000, status: "aktif", specs: { type: "roll", panjangRoll: 50, lebarRoll: 1.52, ketebalan: "340gr", luasPerUnit: 76, kebutuhanPerM2: 0.0132 } },
+    { batchId: "BATCH-20260502-002", itemId: "MAT-001", itemName: "Flexi China 340gr", qtyInitial: 6, qtyRemaining: 1.1, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-21), pricePerUnit: 640000, status: "aktif", specs: { type: "roll", panjangRoll: 50, lebarRoll: 1.52, ketebalan: "340gr", luasPerUnit: 76, kebutuhanPerM2: 0.0132 } },
+    { batchId: "BATCH-20260418-003", itemId: "MAT-001", itemName: "Flexi China 340gr", qtyInitial: 10, qtyRemaining: 0, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-35), pricePerUnit: 635000, status: "habis", specs: { type: "roll", panjangRoll: 50, lebarRoll: 1.52, ketebalan: "340gr", luasPerUnit: 76, kebutuhanPerM2: 0.0132 } },
+    { batchId: "BATCH-20260510-001", itemId: "MAT-003", itemName: "Art Paper 150gr", qtyInitial: 20, qtyRemaining: 12.5, unit: "rim", supplier: "Toko Kertas Surabaya", receivedDate: addDays(-13), pricePerUnit: 72000, status: "aktif", specs: { type: "paper", isiPerRim: 500, ukuranKertas: "A4", customWidthCm: 21, customHeightCm: 29.7, kebutuhanPerLembar: 0.002 } },
     { batchId: "BATCH-20260429-002", itemId: "MAT-003", itemName: "Art Paper 150gr", qtyInitial: 25, qtyRemaining: 8.7, unit: "rim", supplier: "Toko Kertas Surabaya", receivedDate: addDays(-24), pricePerUnit: 71000, status: "aktif" },
     { batchId: "BATCH-20260412-003", itemId: "MAT-003", itemName: "Art Paper 150gr", qtyInitial: 30, qtyRemaining: 0, unit: "rim", supplier: "Toko Kertas Surabaya", receivedDate: addDays(-41), pricePerUnit: 70500, status: "habis" },
-    { batchId: "BATCH-20260511-001", itemId: "MAT-007", itemName: "Tinta Magenta Epson", qtyInitial: 2, qtyRemaining: 0.5, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-12), pricePerUnit: 185000, status: "aktif" },
+    { batchId: "BATCH-20260511-001", itemId: "MAT-007", itemName: "Tinta Magenta Epson", qtyInitial: 2, qtyRemaining: 0.5, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-12), pricePerUnit: 185000, status: "aktif", specs: { type: "ink", volumePerKemasan: 1, volumeUnit: "liter", jenisTinta: "Dye Ink Epson" } },
     { batchId: "BATCH-20260427-002", itemId: "MAT-007", itemName: "Tinta Magenta Epson", qtyInitial: 2, qtyRemaining: 0, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-26), pricePerUnit: 182000, status: "habis" },
     { batchId: "BATCH-20260408-003", itemId: "MAT-007", itemName: "Tinta Magenta Epson", qtyInitial: 3, qtyRemaining: 0, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-45), pricePerUnit: 180000, status: "habis" },
-    { batchId: "BATCH-20260425-001", itemId: "MAT-009", itemName: "Tinta Black Epson", qtyInitial: 4, qtyRemaining: 2.1, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-28), pricePerUnit: 175000, status: "aktif" },
+    { batchId: "BATCH-20260505-001", itemId: "MAT-006", itemName: "Tinta Cyan Epson", qtyInitial: 3, qtyRemaining: 2.5, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-18), pricePerUnit: 185000, status: "aktif", specs: { type: "ink", volumePerKemasan: 1, volumeUnit: "liter", jenisTinta: "Dye Ink Epson" } },
+    { batchId: "BATCH-20260425-001", itemId: "MAT-009", itemName: "Tinta Black Epson", qtyInitial: 4, qtyRemaining: 2.1, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-28), pricePerUnit: 175000, status: "aktif", specs: { type: "ink", volumePerKemasan: 1, volumeUnit: "liter", jenisTinta: "Dye Ink Epson" } },
     { batchId: "BATCH-20260410-002", itemId: "MAT-009", itemName: "Tinta Black Epson", qtyInitial: 3, qtyRemaining: 0.4, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-43), pricePerUnit: 172000, status: "aktif" },
     { batchId: "BATCH-20260328-003", itemId: "MAT-009", itemName: "Tinta Black Epson", qtyInitial: 5, qtyRemaining: 0, unit: "liter", supplier: "Inkindo Surabaya", receivedDate: addDays(-56), pricePerUnit: 170000, status: "habis" },
-    { batchId: "BATCH-20260508-001", itemId: "MAT-011", itemName: "Laminasi Doff 32cm", qtyInitial: 5, qtyRemaining: 2, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-15), pricePerUnit: 225000, status: "aktif" },
+    { batchId: "BATCH-20260508-001", itemId: "MAT-011", itemName: "Laminasi Doff 32cm", qtyInitial: 5, qtyRemaining: 2, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-15), pricePerUnit: 225000, status: "aktif", specs: { type: "roll", panjangRoll: 100, lebarRoll: 0.32, ketebalan: "Doff 32cm", luasPerUnit: 32, kebutuhanPerM2: 0.0313 } },
     { batchId: "BATCH-20260422-002", itemId: "MAT-011", itemName: "Laminasi Doff 32cm", qtyInitial: 4, qtyRemaining: 0, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-31), pricePerUnit: 220000, status: "habis" },
     { batchId: "BATCH-20260405-003", itemId: "MAT-011", itemName: "Laminasi Doff 32cm", qtyInitial: 6, qtyRemaining: 0, unit: "roll", supplier: "UD Sumber Grafika", receivedDate: addDays(-48), pricePerUnit: 218000, status: "habis" },
+    { batchId: "BATCH-20260501-001", itemId: "MAT-014", itemName: "Rangka X-Banner 60x160", qtyInitial: 15, qtyRemaining: 9, unit: "pcs", supplier: "Toko Alat Reklame", receivedDate: addDays(-22), pricePerUnit: 42000, status: "aktif", specs: { type: "pack", isiPerPack: 1 } },
+    { batchId: "BATCH-20260428-001", itemId: "MAT-010", itemName: "Vinyl Outdoor Glossy", qtyInitial: 4, qtyRemaining: 2.5, unit: "roll", supplier: "PT Media Visual Prima", receivedDate: addDays(-25), pricePerUnit: 740000, status: "aktif", specs: { type: "roll", panjangRoll: 50, lebarRoll: 1.27, ketebalan: "Glossy outdoor", luasPerUnit: 63.5, kebutuhanPerM2: 0.0157 } },
   ];
 
   [...new Set(usageLog.map((entry) => entry.itemId))].forEach((itemId, index) => {

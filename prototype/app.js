@@ -50,6 +50,14 @@ const APP_STATE = {
   customerDetailTab: "orders",
   customerOrderFilter: "all",
   orderItems: [],
+  productsView: {
+    activeTab: "catalog",
+    search: "",
+    category: "all",
+    selectedProductId: null,
+    detailTab: "info",
+    previewQty: 5,
+  },
 };
 
 window.APP_STATE = APP_STATE;
@@ -77,6 +85,9 @@ const ROUTES = {
   settings: { page: "settings", title: "Pengaturan" },
   delivery: { page: "delivery", title: "Pengiriman", fullScreen: true },
   "portal-karyawan": { page: "portal-karyawan", title: "Portal Karyawan" },
+  "produk-bom": { page: "products", title: "Produk & BOM" },
+  products: { page: "products", title: "Produk & BOM" },
+  product: { page: "products", title: "Detail Produk" },
 };
 
 const MENU_ITEMS = [
@@ -86,6 +97,7 @@ const MENU_ITEMS = [
   { id: "order-new", label: "+ Pesanan Baru", hash: "#/order-new", roles: ["owner", "cashier"], icon: "plus" },
   { id: "production", label: "Produksi", hash: "#/production", roles: ["owner", "operator"], icon: "production" },
   { id: "queue", label: "Antrian", hash: "#/queue", roles: ["owner", "cashier"], icon: "queue" },
+  { id: "products", label: "Produk & BOM", hash: "#/produk-bom", roles: ["owner"], icon: "products" },
   { id: "inventory", label: "Inventaris", hash: "#/inventory", roles: ["owner", "warehouse"], icon: "inventory" },
   { id: "hr", label: "Karyawan", hash: "#/hr", roles: ["owner"], icon: "users" },
   { id: "finance", label: "Keuangan", hash: "#/finance", roles: ["owner"], icon: "finance" },
@@ -117,6 +129,14 @@ function parseHash() {
 
   if (route === "customer" && segments[1]) {
     return { route: "customer", params: { customerId: decodeURIComponent(segments[1]) } };
+  }
+
+  if (route === "product" && segments[1]) {
+    return { route: "product", params: { productId: decodeURIComponent(segments[1]) } };
+  }
+
+  if (route === "produk-bom" || route === "produk") {
+    return { route: "products", params: {} };
   }
 
   return { route, params: {} };
@@ -260,7 +280,7 @@ function applySidebarState() {
 
 function updateBreadcrumb(title, params = {}) {
   const breadcrumb = document.getElementById("breadcrumb");
-  const suffix = params.spkNumber ? ` / ${params.spkNumber}` : params.customerId ? ` / ${params.customerId}` : "";
+  const suffix = params.spkNumber ? ` / ${params.spkNumber}` : params.customerId ? ` / ${params.customerId}` : params.productId ? ` / ${params.productId}` : "";
   breadcrumb.textContent = `${title}${suffix}`;
   document.title = `${title} - Printeoo`;
 }
@@ -306,6 +326,7 @@ function updateSidebar(role) {
 function getActiveMenuId() {
   if (APP_STATE.currentRoute === "order") return "orders";
   if (APP_STATE.currentRoute === "customer") return "customers";
+  if (APP_STATE.currentRoute === "product") return "products";
   if (APP_STATE.currentRoute === "settings") return "settings";
   return APP_STATE.currentRoute;
 }
@@ -316,6 +337,7 @@ function canAccessRoute(route, role) {
   if (role === "display") return route === "display-production" || route === "display-queue";
   if (role === "courier") return route === "delivery" || route === "portal-karyawan";
   if (route === "delivery") return role === "courier" || role === "owner";
+  if (route === "products" || route === "product") return role === "owner";
   if (role === "warehouse") return ["inventory", "orders", "order", "portal-karyawan"].includes(route);
   if (route === "order") return role === "owner" || role === "cashier";
   if (route === "customer") return role === "owner" || role === "branch_manager" || role === "cashier";
@@ -392,6 +414,14 @@ function initPage(route, params = {}) {
 
   if (route === "portal-karyawan") {
     renderPortalKaryawanPage();
+  }
+
+  if (route === "products") {
+    renderProductsPage();
+  }
+
+  if (route === "product") {
+    renderProductDetailPage(params.productId);
   }
 }
 
@@ -930,7 +960,7 @@ function openCustomerModal(customerId = null) {
           <div class="modal-form">
             <div class="form-group">
               <label class="form-label">Tipe Pelanggan *</label>
-              <div class="flex gap-3 flex-wrap">
+              <div class="radio-row">
                 <label><input type="radio" name="type" value="individual" ${selectedType === "individual" ? "checked" : ""}> Individual</label>
                 <label><input type="radio" name="type" value="perusahaan" ${selectedType === "perusahaan" ? "checked" : ""}> Perusahaan</label>
                 <label><input type="radio" name="type" value="instansi" ${selectedType === "instansi" ? "checked" : ""}> Instansi</label>
@@ -3312,6 +3342,7 @@ function getAllBatches() {
     supplier: entry.supplier,
     receivedDate: entry.receivedDate,
     pricePerUnit: entry.pricePerUnit,
+    specs: entry.specs || {},
     status: entry.qty > 0 ? "aktif" : "habis",
   }));
 }
@@ -3942,7 +3973,7 @@ function openIncomingModal() {
 
   root.innerHTML = `
     <div class="modal-overlay" id="incoming-modal">
-      <div class="modal-box" style="max-width:560px">
+      <div class="modal-box" style="max-width:720px">
         <div class="modal-header">
           <h2 class="modal-title">Catat Penerimaan Barang</h2>
           <button class="modal-close" type="button" data-action="close-incoming-modal" aria-label="Tutup">×</button>
@@ -3972,6 +4003,18 @@ function openIncomingModal() {
                 <label class="form-label" for="incoming-unit">Satuan</label>
                 <input class="form-input" id="incoming-unit" type="text" readonly placeholder="(auto-fill)">
               </div>
+            </div>
+            <div class="incoming-specs-card">
+              <div class="incoming-specs-head">
+                <div>
+                  <h3>Spesifikasi Fisik Bahan</h3>
+                  <p class="text-muted">Opsional, tapi direkomendasikan. Data ini disimpan di level batch dan dipakai untuk estimasi BOM.</p>
+                </div>
+              </div>
+              <div id="incoming-specs-section">
+                <p class="text-muted text-sm">Pilih bahan untuk melihat field spesifikasi yang relevan.</p>
+              </div>
+              <div class="incoming-spec-preview" id="incoming-specs-preview">Preview spesifikasi akan muncul di sini.</div>
             </div>
             <div class="form-group">
               <label class="form-label" for="incoming-batch">Nomor Batch *</label>
@@ -4017,10 +4060,161 @@ function openIncomingModal() {
       if (!document.getElementById("incoming-supplier").value) {
         document.getElementById("incoming-supplier").value = opt.dataset.supplier || "";
       }
+      renderIncomingSpecsSection();
+      updateIncomingSpecsPreview();
     } else {
       document.getElementById("incoming-unit").value = "";
+      renderIncomingSpecsSection();
+      updateIncomingSpecsPreview();
     }
   });
+}
+
+function getPhysicalSpecKind(item = {}) {
+  const category = String(item.category || "").toLowerCase();
+  const unit = String(item.unit || "").toLowerCase();
+  if (unit === "roll" || ["media cetak", "sticker", "stiker", "finishing"].some((value) => category.includes(value))) return "roll";
+  if (unit === "rim" || category.includes("kertas")) return "paper";
+  if (["liter", "ml"].includes(unit) || category.includes("tinta")) return "ink";
+  return "pack";
+}
+
+function getIncomingSelectedItem() {
+  const itemId = document.getElementById("incoming-item")?.value;
+  return (window.APP_DATA?.inventory || []).find((item) => item.id === itemId) || null;
+}
+
+function renderIncomingSpecsSection() {
+  const section = document.getElementById("incoming-specs-section");
+  if (!section) return;
+  const item = getIncomingSelectedItem();
+  if (!item) {
+    section.innerHTML = `<p class="text-muted text-sm">Pilih bahan untuk melihat field spesifikasi yang relevan.</p>`;
+    return;
+  }
+  section.innerHTML = renderIncomingSpecsFields(item);
+}
+
+function renderIncomingSpecsFields(item) {
+  const kind = getPhysicalSpecKind(item);
+  if (kind === "roll") {
+    return `
+      <div class="content-grid">
+        <div class="col-4">
+          <label class="form-label" for="incoming-roll-length">Panjang Roll (m)</label>
+          <input class="form-input" id="incoming-roll-length" type="number" min="0" step="0.01" placeholder="50">
+        </div>
+        <div class="col-4">
+          <label class="form-label" for="incoming-roll-width">Lebar Roll (m)</label>
+          <input class="form-input" id="incoming-roll-width" type="number" min="0" step="0.01" placeholder="1.52">
+        </div>
+        <div class="col-4">
+          <label class="form-label" for="incoming-roll-thickness">Ketebalan</label>
+          <input class="form-input" id="incoming-roll-thickness" type="text" placeholder="340gr / 0.8mm">
+        </div>
+      </div>
+    `;
+  }
+  if (kind === "paper") {
+    return `
+      <div class="content-grid">
+        <div class="col-4">
+          <label class="form-label" for="incoming-rim-sheets">Isi per Rim</label>
+          <input class="form-input" id="incoming-rim-sheets" type="number" min="0" step="1" placeholder="500">
+        </div>
+        <div class="col-4">
+          <label class="form-label" for="incoming-paper-size">Ukuran Kertas</label>
+          <select class="form-select" id="incoming-paper-size">
+            <option value="A4">A4</option>
+            <option value="A3">A3</option>
+            <option value="F4">F4</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="col-4">
+          <label class="form-label" for="incoming-paper-custom">Custom (cm)</label>
+          <input class="form-input" id="incoming-paper-custom" type="text" placeholder="21 x 29.7">
+        </div>
+      </div>
+    `;
+  }
+  if (kind === "ink") {
+    return `
+      <div class="content-grid">
+        <div class="col-6">
+          <label class="form-label" for="incoming-package-volume">Volume per Kemasan</label>
+          <input class="form-input" id="incoming-package-volume" type="number" min="0" step="0.01" placeholder="1">
+        </div>
+        <div class="col-6">
+          <label class="form-label" for="incoming-ink-type">Jenis Tinta</label>
+          <input class="form-input" id="incoming-ink-type" type="text" placeholder="Dye / Pigment / Solvent">
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <div class="content-grid">
+      <div class="col-6">
+        <label class="form-label" for="incoming-pack-qty">Isi per Pack</label>
+        <input class="form-input" id="incoming-pack-qty" type="number" min="0" step="1" placeholder="100">
+      </div>
+    </div>
+  `;
+}
+
+function updateIncomingSpecsPreview() {
+  const preview = document.getElementById("incoming-specs-preview");
+  if (!preview) return;
+  const item = getIncomingSelectedItem();
+  if (!item) {
+    preview.textContent = "Preview spesifikasi akan muncul di sini.";
+    return;
+  }
+  const specs = collectIncomingSpecs(item);
+  const summary = formatPhysicalSpecsSummary(specs);
+  preview.textContent = summary || "Isi spesifikasi fisik untuk mendapatkan preview perhitungan.";
+}
+
+function collectIncomingSpecs(item) {
+  const kind = getPhysicalSpecKind(item);
+  if (kind === "roll") {
+    const panjangRoll = Number(document.getElementById("incoming-roll-length")?.value || 0);
+    const lebarRoll = Number(document.getElementById("incoming-roll-width")?.value || 0);
+    const ketebalan = document.getElementById("incoming-roll-thickness")?.value || "";
+    const luasPerUnit = panjangRoll > 0 && lebarRoll > 0 ? Math.round(panjangRoll * lebarRoll * 10000) / 10000 : 0;
+    return {
+      type: "roll",
+      panjangRoll,
+      lebarRoll,
+      ketebalan,
+      luasPerUnit,
+      kebutuhanPerM2: luasPerUnit > 0 ? Math.round((1 / luasPerUnit) * 10000) / 10000 : 0,
+    };
+  }
+  if (kind === "paper") {
+    const isiPerRim = Number(document.getElementById("incoming-rim-sheets")?.value || 0);
+    const ukuranKertas = document.getElementById("incoming-paper-size")?.value || "";
+    const customValue = document.getElementById("incoming-paper-custom")?.value || "";
+    const customParts = customValue.split(/[xX×]/).map((part) => Number(part.trim())).filter(Boolean);
+    return {
+      type: "paper",
+      isiPerRim,
+      ukuranKertas,
+      customWidthCm: customParts[0] || 0,
+      customHeightCm: customParts[1] || 0,
+      kebutuhanPerLembar: isiPerRim > 0 ? Math.round((1 / isiPerRim) * 10000) / 10000 : 0,
+    };
+  }
+  if (kind === "ink") {
+    return {
+      type: "ink",
+      volumePerKemasan: Number(document.getElementById("incoming-package-volume")?.value || 0),
+      volumeUnit: item.unit || "",
+      jenisTinta: document.getElementById("incoming-ink-type")?.value || "",
+    };
+  }
+  const isiPerPack = Number(document.getElementById("incoming-pack-qty")?.value || 0);
+  return { type: "pack", isiPerPack };
 }
 
 function generateBatchId() {
@@ -4044,6 +4238,7 @@ function submitIncomingForm(form) {
 
   const qty = parseFloat(data.qty);
   const pricePerUnit = parseFloat(data.pricePerUnit) || 0;
+  const specs = collectIncomingSpecs(item);
 
   item.stock = Math.round((item.stock + qty) * 100) / 100;
   if (item.stock > item.minStock) item.status = "safe";
@@ -4062,6 +4257,7 @@ function submitIncomingForm(form) {
     receivedDate: new Date(data.receivedDate).toISOString(),
     receivedBy: APP_STATE.currentUser.name,
     notes: data.notes || "",
+    specs,
   };
   window.APP_DATA.incomingLog.push(entry);
 
@@ -4076,6 +4272,7 @@ function submitIncomingForm(form) {
     supplier: data.supplier,
     receivedDate: new Date(data.receivedDate).toISOString(),
     pricePerUnit,
+    specs,
     status: "aktif",
   });
 
@@ -4086,10 +4283,34 @@ function submitIncomingForm(form) {
   localStorage.setItem("printeoo:inventory_stocks", JSON.stringify(stockMap));
 
   const root = document.getElementById("inventory-modal-root");
-  if (root) root.innerHTML = "";
+  if (root) {
+    root.innerHTML = `
+      <div class="modal-overlay" id="incoming-success-modal">
+        <div class="modal-box" style="max-width:520px">
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title">Penerimaan Tersimpan</h2>
+              <p class="text-muted mt-1" style="font-size:var(--text-sm)">Batch ${escapeHtml(data.batchId)} siap diberi label QR.</p>
+            </div>
+            <button class="modal-close" type="button" data-action="close-incoming-modal" aria-label="Tutup">×</button>
+          </div>
+          <div class="modal-form">
+            <div class="incoming-success-summary">
+              <strong>${escapeHtml(item.name)}</strong>
+              <span>${formatBomNumber(qty)} ${escapeHtml(item.unit)} dari ${escapeHtml(data.supplier)}</span>
+              ${formatPhysicalSpecsSummary(specs) ? `<span>${escapeHtml(formatPhysicalSpecsSummary(specs))}</span>` : ""}
+            </div>
+          </div>
+          <div class="modal-footer incoming-success-actions">
+            <button class="btn-secondary" type="button" data-action="close-incoming-modal">Tutup</button>
+            <button class="btn-primary" type="button" data-action="open-qr-label-batch" data-item-id="${escapeAttr(item.id)}" data-batch-id="${escapeAttr(data.batchId)}">Cetak Label QR</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
   showToast(`Penerimaan dicatat. Stok ${item.name} bertambah ${qty} ${item.unit}.`, "success");
-  renderInventoryPage("incoming");
 }
 
 function getInventoryStatus(item) {
@@ -4106,19 +4327,21 @@ function openQrLabelModal(itemId, prefillBatchId = null) {
   const item = inventory.find((i) => i.id === itemId);
   if (!item) return;
 
-  const batches = (window.APP_DATA?.materialBatches || []).filter((b) => b.materialId === itemId);
   const incomingEntries = (window.APP_DATA?.incomingLog || []).filter((e) => e.itemId === itemId);
-
-  // Build batch options: prefer materialBatches, fallback to incomingLog entries
-  const batchOptions = batches.length
-    ? batches.map((b) => ({ batchId: b.batchNumber, qty: b.initialQty, date: b.receivedAt }))
-    : incomingEntries.slice(0, 5).map((e) => ({ batchId: e.batchId, qty: e.qty, date: e.receivedDate }));
+  const batchOptions = getInventoryBatches(itemId).map((batch) => ({
+    batchId: batch.batchId,
+    qty: batch.qtyRemaining ?? batch.qtyInitial ?? batch.qty ?? 0,
+    date: batch.receivedDate,
+    supplier: batch.supplier || item.supplier || "-",
+    specs: batch.specs || incomingEntries.find((entry) => entry.batchId === batch.batchId)?.specs || {},
+  }));
 
   if (!batchOptions.length) {
-    batchOptions.push({ batchId: `BATCH-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-001`, qty: item.stock, date: new Date().toISOString() });
+    batchOptions.push({ batchId: `BATCH-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-001`, qty: item.stock, date: new Date().toISOString(), supplier: item.supplier || "-", specs: {} });
   }
 
   const selectedBatch = batchOptions.find((b) => b.batchId === prefillBatchId) || batchOptions[0];
+  const selectedSpecs = formatPhysicalSpecsSummary(selectedBatch.specs);
 
   root.innerHTML = `
     <div class="modal-overlay" id="qr-label-modal">
@@ -4133,7 +4356,7 @@ function openQrLabelModal(itemId, prefillBatchId = null) {
               <label class="form-label">Pilih Batch</label>
               <select class="form-select" id="qr-batch-select">
                 ${batchOptions.map((b) => `
-                  <option value="${b.batchId}" data-qty="${b.qty}" data-date="${b.date}"
+                  <option value="${escapeAttr(b.batchId)}" data-qty="${escapeAttr(b.qty)}" data-date="${escapeAttr(b.date)}" data-supplier="${escapeAttr(b.supplier)}" data-specs="${escapeAttr(formatPhysicalSpecsSummary(b.specs))}"
                     ${b.batchId === selectedBatch.batchId ? "selected" : ""}>
                     ${b.batchId} — ${b.qty} ${item.unit}
                   </option>
@@ -4153,10 +4376,12 @@ function openQrLabelModal(itemId, prefillBatchId = null) {
               <div class="qr-label-right">
                 <div class="qr-item-name">${item.name}</div>
                 <div class="qr-detail">Batch: <strong id="qr-batch-display">${selectedBatch.batchId.replace("BATCH-","").replace(/-/g," ").trim()}</strong></div>
-                <div class="qr-detail">Masuk: <strong>${formatDate(new Date(selectedBatch.date))}</strong></div>
+                <div class="qr-detail">Masuk: <strong id="qr-date-display">${formatDate(new Date(selectedBatch.date))}</strong></div>
                 <div class="qr-detail qty">
                   <strong id="qr-qty-display">${selectedBatch.qty}</strong> ${item.unit}
                 </div>
+                <div class="qr-detail">Supplier: <strong id="qr-supplier-display">${escapeHtml(selectedBatch.supplier)}</strong></div>
+                <div class="qr-detail" id="qr-spec-display">${selectedSpecs ? escapeHtml(selectedSpecs) : "Spesifikasi fisik belum dicatat"}</div>
               </div>
             </div>
           </div>
@@ -4185,7 +4410,10 @@ function openQrLabelModal(itemId, prefillBatchId = null) {
       const opt = e.target.selectedOptions[0];
       document.getElementById("qr-batch-display").textContent =
         opt.value.replace("BATCH-","").replace(/-/g," ").trim();
-      document.getElementById("qr-qty-display").textContent = opt.dataset.qty;
+      document.getElementById("qr-qty-display").textContent = formatBomNumber(opt.dataset.qty);
+      document.getElementById("qr-date-display").textContent = formatDate(new Date(opt.dataset.date));
+      document.getElementById("qr-supplier-display").textContent = opt.dataset.supplier || "-";
+      document.getElementById("qr-spec-display").textContent = opt.dataset.specs || "Spesifikasi fisik belum dicatat";
       generateQrCode(
         `printeoo://scan?b=${opt.value}&t=demo&item=${encodeURIComponent(item.name)}`,
         "qr-code-render"
@@ -6418,12 +6646,15 @@ function setupEventHandlers() {
     const orderRow = event.target.closest("[data-order-link]");
     const customerRow = event.target.closest("[data-customer-row]");
     const customerOption = event.target.closest(".autocomplete-option[data-customer-id]");
+    const productRow = event.target.closest("[data-product-row]");
     const productionFilterButton = event.target.closest("[data-production-filter]");
     const productionCard = event.target.closest("[data-production-spk]");
     const hrTabButton = event.target.closest("[data-hr-tab]");
     const settingsTabButton = event.target.closest("[data-settings-tab]");
     const invTabButton = event.target.closest("[data-inv-tab]");
     const portalTabButton = event.target.closest("[data-action='portal-tab']");
+    const productMainTabButton = event.target.closest("[data-action='products-main-tab']");
+    const productPanelTabButton = event.target.closest("[data-action='product-detail-tab']");
     const usagePeriodButton = event.target.closest("[data-usage-period]");
     const wastePeriodButton = event.target.closest("[data-waste-period]");
     const dashboardFilter = event.target.closest("[data-dashboard-filter]");
@@ -6451,6 +6682,52 @@ function setupEventHandlers() {
       const warnings = (window.APP_DATA?.portalWarnings || {})[user.name] || [];
       const announcements = window.APP_DATA?.portalAnnouncements || [];
       if (content) content.innerHTML = renderPortalTabContent(activeTab, { userName: user.name, emp, incentiveList, attendance, warnings, announcements });
+      return;
+    }
+
+    if (productMainTabButton) {
+      APP_STATE.productsView.activeTab = productMainTabButton.dataset.tab || "catalog";
+      renderProductsPage();
+      return;
+    }
+
+    if (productPanelTabButton) {
+      APP_STATE.productsView.detailTab = productPanelTabButton.dataset.tab || "info";
+      renderProductsPage();
+      return;
+    }
+
+    if (actionButton?.dataset.action === "open-add-bom") {
+      openAddMaterialModal();
+      return;
+    }
+
+    if (actionButton?.dataset.action === "save-product-bom-line") {
+      saveProductBomLine();
+      return;
+    }
+
+    if (actionButton?.dataset.action === "close-add-material-modal") {
+      closeAddMaterialModal();
+      return;
+    }
+
+    if (actionButton?.dataset.action === "open-product-panel") {
+      APP_STATE.productsView.selectedProductId = actionButton.dataset.productId || null;
+      APP_STATE.productsView.detailTab = "info";
+      renderProductsPage();
+      return;
+    }
+
+    if (actionButton?.dataset.action === "close-product-panel" || actionButton?.dataset.action === "close-product-modal") {
+      if (actionButton.id === "product-detail-modal" && event.target !== actionButton) return;
+      APP_STATE.productsView.selectedProductId = null;
+      renderProductsPage();
+      return;
+    }
+
+    if (actionButton?.dataset.action === "remove-bom-line") {
+      showToast("Mode demo: aksi hapus bahan belum menyimpan perubahan.", "info");
       return;
     }
 
@@ -6513,6 +6790,13 @@ function setupEventHandlers() {
 
     if (customerRow && !event.target.closest("a, button")) {
       window.location.hash = `#/customer/${customerRow.dataset.customerRow}`;
+      return;
+    }
+
+    if (productRow && !event.target.closest("button, a, input, select, textarea")) {
+      APP_STATE.productsView.selectedProductId = productRow.dataset.productRow || null;
+      APP_STATE.productsView.detailTab = "info";
+      renderProductsPage();
       return;
     }
 
@@ -6678,6 +6962,7 @@ function setupEventHandlers() {
       if (actionButton.dataset.action === "close-incoming-modal") {
         const root = document.getElementById("inventory-modal-root");
         if (root) root.innerHTML = "";
+        if (APP_STATE.currentRoute === "inventory") renderInventoryPage("incoming");
         return;
       }
 
@@ -7087,6 +7372,24 @@ function setupEventHandlers() {
     if (event.target.matches("[data-po-line-input]")) {
       updatePurchaseOrderTotals();
     }
+
+    if (event.target.matches("#product-search")) {
+      APP_STATE.productsView.search = event.target.value || "";
+      renderProductsPage();
+      return;
+    }
+
+    if (event.target.matches("#bom-preview-qty")) {
+      APP_STATE.productsView.previewQty = Math.max(1, Number(event.target.value) || 1);
+      renderProductDetailPanel();
+      return;
+    }
+
+    if (event.target.matches("#incoming-roll-length, #incoming-roll-width, #incoming-roll-thickness, #incoming-rim-sheets, #incoming-paper-custom, #incoming-pack-qty, #incoming-package-volume, #incoming-ink-type")) {
+      updateIncomingSpecsPreview();
+      return;
+    }
+
   });
 
   document.addEventListener("change", (event) => {
@@ -7103,6 +7406,26 @@ function setupEventHandlers() {
     if (event.target.id === "discount-type") {
       updateOrderCalculation();
       updateOrderTotals();
+    }
+
+    if (event.target.id === "product-category-filter") {
+      APP_STATE.productsView.category = event.target.value || "all";
+      renderProductsPage();
+    }
+
+    if (event.target.id === "bom-material-select") {
+      const option = event.target.selectedOptions[0];
+      const unitEl = document.getElementById("bom-material-unit");
+      if (unitEl) unitEl.value = option?.dataset.unit || "";
+    }
+
+    if (event.target.id === "incoming-item") {
+      renderIncomingSpecsSection();
+      updateIncomingSpecsPreview();
+    }
+
+    if (event.target.id === "incoming-paper-size") {
+      updateIncomingSpecsPreview();
     }
 
     // Multi-item form: product selection per item
@@ -7429,6 +7752,514 @@ function persistStoredOrders() {
   localStorage.setItem("printeoo:orders", JSON.stringify(localOrders));
 }
 
+// ── PRODUK & BOM ──
+
+function renderProductsPage() {
+  const container = document.getElementById("products-page");
+  if (!container) return;
+
+  const activeTab = APP_STATE.productsView.activeTab || "catalog";
+  const tabs = [
+    { id: "catalog", label: "Katalog Produk" },
+    { id: "materials", label: "Master Bahan" },
+  ];
+
+  container.innerHTML = `
+    <div class="page-header products-page-header">
+      <div>
+        <h1 class="page-title">Produk & BOM</h1>
+        <p class="text-muted" style="font-size:var(--text-sm)">Kelola katalog produk, formula BOM, dan referensi bahan baku dari inventaris yang sudah ada.</p>
+      </div>
+    </div>
+
+    <div class="tabs-scroll-wrapper mb-4">
+      <div class="tabs">
+        ${tabs.map((tab) => `
+          <button class="tab-button${activeTab === tab.id ? " active" : ""}" type="button" data-action="products-main-tab" data-tab="${tab.id}">
+            ${tab.label}
+          </button>
+        `).join("")}
+      </div>
+    </div>
+
+    <div id="products-workspace">
+      ${activeTab === "materials" ? renderMasterMaterialsTab() : renderProductCatalogTab()}
+    </div>
+  `;
+}
+
+function renderProductCatalogTab() {
+  const products = window.APP_DATA?.products || [];
+  const categories = [...new Set(products.map((product) => product.category))].sort();
+  const filteredProducts = getFilteredProducts();
+  const selectedStillVisible = filteredProducts.some((product) => product.id === APP_STATE.productsView.selectedProductId);
+
+  if (APP_STATE.productsView.selectedProductId && !selectedStillVisible) {
+    APP_STATE.productsView.selectedProductId = null;
+  }
+
+  const selectedProduct = getSelectedProduct();
+
+  return `
+    <div class="card">
+      <div class="products-toolbar">
+        <select class="form-select" id="product-category-filter">
+          <option value="all">Semua Kategori</option>
+          ${categories.map((category) => `
+            <option value="${escapeAttr(category)}" ${APP_STATE.productsView.category === category ? "selected" : ""}>
+              ${escapeHtml(category)}
+            </option>
+          `).join("")}
+        </select>
+        <input class="form-input" id="product-search" type="search" placeholder="Search produk..." value="${escapeAttr(APP_STATE.productsView.search || "")}">
+        <button class="btn-primary" type="button" data-action="open-add-bom">+ Tambah Produk</button>
+      </div>
+
+      <div class="products-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>NAMA PRODUK</th>
+              <th>KATEGORI</th>
+              <th>HARGA</th>
+              <th>SATUAN</th>
+              <th>STATUS BOM</th>
+              <th>AKSI</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${renderProductsTableRows(filteredProducts)}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ${selectedProduct ? renderProductDetailModal(selectedProduct) : ""}
+    ${renderAddMaterialModal()}
+  `;
+}
+
+function getFilteredProducts() {
+  const search = (APP_STATE.productsView.search || "").trim().toLowerCase();
+  const category = APP_STATE.productsView.category || "all";
+
+  return (window.APP_DATA?.products || []).filter((product) => {
+    const matchesSearch = !search || product.name.toLowerCase().includes(search) || product.category.toLowerCase().includes(search);
+    const matchesCategory = category === "all" || product.category === category;
+    return matchesSearch && matchesCategory;
+  });
+}
+
+function renderProductsTableRows(products) {
+  if (!products.length) {
+    return `<tr><td colspan="6" class="text-center text-muted" style="padding:32px">Tidak ada produk ditemukan.</td></tr>`;
+  }
+
+  return products.map((product) => {
+    const hasBom = Array.isArray(product.bom) && product.bom.length > 0;
+    return `
+      <tr class="product-row" data-product-row="${product.id}" tabindex="0">
+        <td><strong>${escapeHtml(product.name)}</strong></td>
+        <td><span class="text-muted">${escapeHtml(product.category)}</span></td>
+        <td>${formatCurrency(product.basePrice)}</td>
+        <td>${escapeHtml(product.unit)}</td>
+        <td>${hasBom ? `<span class="badge-bom badge-bom--set">BOM ✓</span>` : `<span class="badge-bom badge-bom--empty">Belum</span>`}</td>
+        <td><button class="btn-secondary btn-sm" type="button" data-action="open-product-panel" data-product-id="${product.id}">Detail</button></td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function renderProductDetailPage(productId) {
+  APP_STATE.productsView.activeTab = "catalog";
+  APP_STATE.productsView.selectedProductId = productId;
+  APP_STATE.productsView.detailTab = "info";
+  renderProductsPage();
+}
+
+function getSelectedProduct() {
+  const productId = APP_STATE.productsView.selectedProductId || null;
+  return (window.APP_DATA?.products || []).find((product) => product.id === productId) || null;
+}
+
+function renderProductInfoTab(product) {
+  return `
+    <div class="product-info-grid">
+      <div>
+        <label class="form-label">Nama Produk</label>
+        <div class="portal-info-value">${escapeHtml(product.name)}</div>
+      </div>
+      <div>
+        <label class="form-label">Kategori</label>
+        <div class="portal-info-value">${escapeHtml(product.category)}</div>
+      </div>
+      <div>
+        <label class="form-label">Harga</label>
+        <div class="portal-info-value">${formatCurrency(product.basePrice)}</div>
+      </div>
+      <div>
+        <label class="form-label">Satuan</label>
+        <div class="portal-info-value">${escapeHtml(product.unit)}</div>
+      </div>
+      <div class="product-info-grid__full">
+        <label class="form-label">Deskripsi</label>
+        <div class="portal-info-value">${escapeHtml(product.description || (product.specs || []).join(", ") || "Belum ada deskripsi.")}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderProductBomTab(product) {
+  const bom = product.bom || [];
+  const previewQty = Math.max(1, Number(APP_STATE.productsView.previewQty) || 1);
+
+  return `
+    <div class="product-bom-card">
+      <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">
+        <div>
+          <h3 class="card-title" style="margin:0">Bill of Materials — ${escapeHtml(product.name)}</h3>
+          <p class="text-muted mt-1" style="font-size:var(--text-sm)">Estimasi material otomatis per satuan produk.</p>
+        </div>
+        <button class="btn-secondary btn-sm ml-auto" type="button" data-action="open-add-bom">+ Tambah Bahan</button>
+      </div>
+
+      ${bom.length === 0 ? `
+        <div class="empty-state" style="padding:32px 0">
+          <p class="text-muted mt-2">Belum ada BOM dikonfigurasi untuk produk ini.</p>
+          <button class="btn-primary btn-sm mt-3" type="button" data-action="open-add-bom">+ Konfigurasi BOM</button>
+        </div>
+      ` : `
+        <table class="data-table mb-4">
+          <thead><tr>
+            <th>BAHAN</th>
+            <th>JUMLAH</th>
+            <th>SATUAN</th>
+            <th>WASTE</th>
+            <th>AKSI</th>
+          </tr></thead>
+          <tbody>
+            ${bom.map((item) => `
+              <tr>
+                <td><strong>${escapeHtml(item.material)}</strong></td>
+                <td>${formatBomNumber(item.qty ?? getBomBaseQuantity(item))}</td>
+                <td>${escapeHtml(item.unit)}</td>
+                <td><span class="badge badge-printing">${Math.round((item.wasteFactor || 0) * 100)}%</span></td>
+                <td><button class="btn-secondary btn-sm" type="button" data-action="remove-bom-line">Hapus</button></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+
+        <div class="product-bom-actions">
+          <button class="btn-secondary btn-sm" type="button" data-action="open-add-bom">+ Tambah Bahan</button>
+        </div>
+
+        <div class="bom-calculator">
+          <div class="bom-preview-head">
+            <div>
+              <h4>Preview Kalkulasi</h4>
+              <p class="text-muted" style="font-size:var(--text-sm)">Estimasi kebutuhan bahan berubah realtime saat qty order diubah.</p>
+            </div>
+            <label class="bom-preview-qty">
+              <span>Qty order:</span>
+              <input class="form-input" id="bom-preview-qty" type="number" min="1" value="${previewQty}">
+              <span>${escapeHtml(product.unit)}</span>
+            </label>
+          </div>
+          <div id="bom-calc-result" class="bom-calc-result">
+            ${renderBomPreviewResult(product, previewQty)}
+          </div>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function getBomBaseQuantity(item) {
+  if (typeof item.qty === "number") return item.qty;
+  if (typeof item.formulaValue === "number") return item.formulaValue;
+  return 0;
+}
+
+function calcBom(product, qtyOrder) {
+  return (product.bom || []).map((item) => {
+    const baseQty = getBomBaseQuantity(item);
+    const wasteFactor = item.wasteFactor || 0;
+    const batch = getLatestBatchWithSpecs(item.material);
+    let base = qtyOrder * baseQty;
+    let formula = `${formatBomNumber(baseQty)} ${escapeHtml(item.unit)}/${escapeHtml(product.unit)} × ${qtyOrder} ${escapeHtml(product.unit)} = ${formatBomNumber(base)} ${escapeHtml(item.unit)}`;
+    let batchReference = batch?.specs ? `${batch.batchId} (${formatPhysicalSpecsSummary(batch.specs)})` : "";
+
+    const wasteQty = base * wasteFactor;
+    return {
+      material: item.material,
+      unit: item.unit,
+      wasteFactor,
+      base,
+      wasteQty,
+      estimation: base + wasteQty,
+      formula,
+      batch,
+      batchReference,
+    };
+  });
+}
+
+function renderBomPreviewResult(product, qtyOrder) {
+  const calculations = calcBom(product, qtyOrder);
+  if (!calculations.length) return `<p class="text-muted">Belum ada data BOM untuk dihitung.</p>`;
+
+  return `
+    <div class="bom-calc-result-header">
+      <span>Estimasi untuk ${qtyOrder} ${escapeHtml(product.unit)}:</span>
+    </div>
+    <div class="bom-calc-items">
+      ${calculations.map((row) => `
+        <div class="bom-calc-breakdown">
+          <div class="bom-calc-breakdown__title">${escapeHtml(row.material)}</div>
+          ${row.batchReference ? `<div class="bom-batch-ref">Menggunakan spesifikasi: ${escapeHtml(row.batchReference)}</div>` : `
+            <div class="bom-missing-spec">
+              Spesifikasi fisik ${escapeHtml(row.material)} belum tersedia. Catat penerimaan barang dengan spesifikasi fisik untuk mengaktifkan estimasi berbasis batch.
+            </div>
+          `}
+          <div>Formula: ${row.formula}</div>
+          <div>+ Waste ${Math.round(row.wasteFactor * 100)}%: +${formatBomNumber(row.wasteQty)} ${escapeHtml(row.unit)}</div>
+          <strong>Total estimasi: ${formatBomNumber(row.estimation)} ${escapeHtml(row.unit)}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function getLatestBatchWithSpecs(materialName) {
+  const normalized = normalizeMaterialName(materialName);
+  return getAllBatches()
+    .filter((batch) => normalizeMaterialName(batch.itemName || "") === normalized || normalizeMaterialName(batch.itemName || "").includes(normalized) || normalized.includes(normalizeMaterialName(batch.itemName || "")))
+    .filter((batch) => batch.specs && Object.keys(batch.specs).length)
+    .sort((a, b) => new Date(b.receivedDate) - new Date(a.receivedDate))[0] || null;
+}
+
+function normalizeMaterialName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/stand x-banner/g, "rangka x-banner")
+    .replace(/tinta cmyk/g, "tinta cyan epson")
+    .replace(/x/g, "×")
+    .trim();
+}
+
+function formatPhysicalSpecsSummary(specs = {}) {
+  if (specs.luasPerUnit) return `${formatBomNumber(specs.panjangRoll)}m × ${formatBomNumber(specs.lebarRoll)}m = ${formatBomNumber(specs.luasPerUnit)} m²/roll`;
+  if (specs.isiPerRim) return `1 rim = ${formatBomNumber(specs.isiPerRim)} lembar ${specs.ukuranKertas || ""}`.trim();
+  if (specs.volumePerKemasan) return `${formatBomNumber(specs.volumePerKemasan)} ${specs.volumeUnit || ""} per kemasan`;
+  if (specs.isiPerPack) return `${formatBomNumber(specs.isiPerPack)} pcs/pack`;
+  return "";
+}
+
+function updateBomCalcResult(product) {
+  const result = document.getElementById("bom-calc-result");
+  if (!result) return;
+  const qty = Math.max(1, Number(document.getElementById("bom-preview-qty")?.value) || 1);
+  APP_STATE.productsView.previewQty = qty;
+  result.innerHTML = renderBomPreviewResult(product, qty);
+}
+
+function renderProductDetailPanel() {
+  const product = getSelectedProduct();
+  const modal = document.getElementById("product-detail-modal");
+  if (modal && product) modal.outerHTML = renderProductDetailModal(product);
+}
+
+function renderProductDetailModal(product) {
+  const activeTab = APP_STATE.productsView.detailTab || "info";
+  const hasBom = Array.isArray(product.bom) && product.bom.length > 0;
+  return `
+    <div class="modal-overlay" id="product-detail-modal" data-action="close-product-modal">
+      <div class="modal-box product-detail-modal">
+        <div class="modal-header">
+          <div>
+            <div class="text-muted" style="font-size:var(--text-xs);margin-bottom:4px">Detail Produk</div>
+            <h2 class="modal-title">${escapeHtml(product.name)}</h2>
+            <p class="text-muted mt-1" style="font-size:var(--text-sm)">${escapeHtml(product.category)} · ${formatCurrency(product.basePrice)} / ${escapeHtml(product.unit)}</p>
+          </div>
+          <button class="modal-close" type="button" data-action="close-product-modal" aria-label="Tutup">×</button>
+        </div>
+
+        <div class="tabs-scroll-wrapper mb-4">
+          <div class="tabs">
+            <button class="tab-button${activeTab === "info" ? " active" : ""}" type="button" data-action="product-detail-tab" data-tab="info">Info Produk</button>
+            <button class="tab-button${activeTab === "bom" ? " active" : ""}" type="button" data-action="product-detail-tab" data-tab="bom">Bill of Materials ${hasBom ? "✓" : ""}</button>
+          </div>
+        </div>
+
+        <div id="product-tab-content">
+          ${activeTab === "bom" ? renderProductBomTab(product) : renderProductInfoTab(product)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderProductPanelEmptyState() {
+  return `
+    <div class="card product-panel-empty">
+      <h3 class="card-title">Pilih produk</h3>
+      <p class="text-muted">Klik salah satu baris produk untuk melihat detail dan konfigurasi Bill of Materials di panel samping ini.</p>
+    </div>
+  `;
+}
+
+function renderMasterMaterialsTab() {
+  const inventory = window.APP_DATA?.inventory || [];
+  return `
+    <section class="card">
+      <div class="products-toolbar">
+        <div>
+          <h2 class="card-title" style="margin:0">Master Bahan</h2>
+          <p class="text-muted mt-1" style="font-size:var(--text-sm)">Data bahan diambil langsung dari inventaris aktif. Tidak ada duplikasi data master.</p>
+        </div>
+        <button class="btn-primary" type="button" data-action="open-add-bom">+ Tambah Bahan</button>
+      </div>
+
+      <div class="products-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>NAMA BAHAN</th>
+              <th>KATEGORI</th>
+              <th>SATUAN</th>
+              <th>STOK SAAT INI</th>
+              <th>HARGA BELI RATA²</th>
+              <th>AKSI</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${inventory.map((item) => `
+              <tr>
+                <td><strong>${escapeHtml(item.name)}</strong></td>
+                <td>${escapeHtml(item.category)}</td>
+                <td>${escapeHtml(item.unit)}</td>
+                <td>${formatBomNumber(item.stock)} ${escapeHtml(item.unit)}</td>
+                <td>${formatCurrency(item.avgCost)}/${escapeHtml(item.unit)}</td>
+                <td><button class="btn-secondary btn-sm" type="button">Detail</button></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      ${renderAddMaterialModal()}
+    </section>
+  `;
+}
+
+function renderAddMaterialModal() {
+  const selectedProduct = getSelectedProduct();
+  const isBomContext = selectedProduct && APP_STATE.productsView.detailTab === "bom";
+  const inventory = window.APP_DATA?.inventory || [];
+  return `
+    <div class="modal-overlay${document.body.dataset.productMaterialModal === "open" ? "" : " hidden"}" id="add-material-modal" data-action="close-add-material-modal">
+      <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <h3 class="modal-title">${isBomContext ? "Tambah Bahan ke BOM" : "Tambah Bahan Baru"}</h3>
+            <p class="text-muted" style="font-size:var(--text-sm);margin-top:4px">${isBomContext ? `Produk: ${escapeHtml(selectedProduct.name)}` : "Form demo ini belum menyimpan data, tapi tombol dan modal harus bisa dibuka tanpa error."}</p>
+          </div>
+          <button class="modal-close" type="button" data-action="close-add-material-modal" aria-label="Tutup">×</button>
+        </div>
+        <form class="modal-form">
+          ${isBomContext ? `
+            <div class="content-grid">
+              <div class="col-12">
+                <label class="form-label" for="bom-material-select">Bahan *</label>
+                <select class="form-select" id="bom-material-select">
+                  <option value="">Pilih dari Master Bahan</option>
+                  ${inventory.map((item) => `<option value="${item.name}" data-unit="${item.unit}">${item.name} (${item.category})</option>`).join("")}
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="bom-material-qty">Jumlah *</label>
+                <input class="form-input" id="bom-material-qty" type="number" min="0.0001" step="0.0001" placeholder="0.0132">
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="bom-material-unit">per satuan</label>
+                <input class="form-input" id="bom-material-unit" type="text" readonly placeholder="auto-fill">
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="bom-material-waste">Waste *</label>
+                <div class="input-suffix">
+                  <input class="form-input" id="bom-material-waste" type="number" min="0" step="0.1" value="8">
+                  <span>%</span>
+                </div>
+                <p class="form-helper">Persentase material yang biasanya terbuang dari pengalaman (gagal cetak, sisa potong, dll).</p>
+              </div>
+            </div>
+          ` : `
+            <div class="content-grid">
+              <div class="col-6">
+                <label class="form-label">Nama Bahan</label>
+                <input class="form-input" type="text" placeholder="Contoh: Flexi Korea 510gr">
+              </div>
+              <div class="col-6">
+                <label class="form-label">Kategori</label>
+                <input class="form-input" type="text" placeholder="Media Cetak">
+              </div>
+              <div class="col-6">
+                <label class="form-label">Satuan</label>
+                <input class="form-input" type="text" placeholder="roll">
+              </div>
+              <div class="col-6">
+                <label class="form-label">Harga Beli</label>
+                <input class="form-input" type="text" placeholder="Rp 0">
+              </div>
+            </div>
+          `}
+          <div class="modal-footer">
+            <button class="btn-secondary" type="button" data-action="close-add-material-modal">Batal</button>
+            <button class="btn-primary" type="button" data-action="${isBomContext ? "save-product-bom-line" : "close-add-material-modal"}">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function openAddMaterialModal() {
+  document.body.dataset.productMaterialModal = "open";
+  renderProductsPage();
+}
+
+function closeAddMaterialModal() {
+  document.body.dataset.productMaterialModal = "closed";
+  const modal = document.getElementById("add-material-modal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function saveProductBomLine() {
+  const product = getSelectedProduct();
+  if (!product) return;
+  const material = document.getElementById("bom-material-select")?.value;
+  const qty = Number(document.getElementById("bom-material-qty")?.value || 0);
+  const unit = document.getElementById("bom-material-unit")?.value || "";
+  const waste = Number(document.getElementById("bom-material-waste")?.value || 0);
+  if (!material || qty <= 0) {
+    showToast("Pilih bahan dan isi jumlah BOM.", "error");
+    return;
+  }
+  product.bom = product.bom || [];
+  product.bom.push({ material, qty, unit, wasteFactor: waste / 100 });
+  closeAddMaterialModal();
+  APP_STATE.productsView.detailTab = "bom";
+  showToast("Bahan ditambahkan ke BOM produk.", "success");
+  renderProductsPage();
+}
+
+function formatBomNumber(value) {
+  if (!Number.isFinite(Number(value))) return "0";
+  const number = Number(value);
+  if (Number.isInteger(number)) return String(number);
+  if (number < 1) return number.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+  return number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
 // ── PORTAL KARYAWAN ──
 
 function renderPortalKaryawanPage(activeTab = "ringkasan") {
@@ -7718,6 +8549,7 @@ function getIcon(name) {
     users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><path d="M8.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg>',
     finance: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>',
     settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6 1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.31.23.65.23 1H21a2 2 0 1 1 0 4h-1.37c0 .35-.09.69-.23 1Z"/></svg>',
+    products: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>',
   };
 
   return icons[name] || icons.dashboard;

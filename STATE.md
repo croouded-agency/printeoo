@@ -1,6 +1,6 @@
 # STATE.md — Printeoo Prototype Progress
-**Last Updated:** 2026-05-25 (v1.1 update TASK-110 — semua task selesai)
-**Status Keseluruhan:** ✅ Semua task selesai — prototype v1.1 complete  
+**Last Updated:** 2026-05-25 (TASK-112 — Produk & BOM modal detail + batch physical specs)
+**Status Keseluruhan:** ✅ Prototype v1.1 complete + TASK-112 selesai  
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
 > Ini adalah memori kerja AI antar sesi. Jangan hapus entry yang sudah selesai.
@@ -1486,6 +1486,7 @@ Final wrap-up: update STATE.md untuk mencerminkan seluruh task v1.1 sudah selesa
 | BUG-005 | Sesi 39 | Header "Lihat sebagai:" wrap ke 2 baris di header navbar | ✅ Fixed | Root cause: `.role-switcher` tidak punya `white-space: nowrap`. Fix: tambah `white-space: nowrap; flex-shrink: 0` ke class `.role-switcher` di style.css. |
 | BUG-006 | Sesi 39 | Filter Piutang dan Sort di halaman Pelanggan terlalu mepet (tidak ada gap) | ✅ Fixed | Root cause: filter grid pakai `.grid` (hanya `display:grid` tanpa template-columns dan gap). Fix: ganti ke `.content-grid` (12-col + gap), search diubah ke col-12, Tipe/Piutang/Sort masing-masing col-4 agar tersebar rapi dengan gap bawaan. |
 | BUG-007 | Post TASK-108 | Tab Portal Karyawan memakai class `.tab-bar` dan `.tab-btn` yang tidak konsisten dengan komponen tab lain di prototype (Inventaris dan Karyawan memakai `.tabs` dan `.tab-button`) | ✅ Fixed | Root cause: implementasi TASK-108 membuat class baru alih-alih menggunakan design system yang ada. Fix: (1) ubah markup portal ke `.tabs` + `.tab-button` + `.tabs-scroll-wrapper`, (2) tambah `cursor:pointer`, `hover:not(.active)`, dan `white-space:nowrap` ke `.tab-button` di style.css, (3) tambah `.tabs-scroll-wrapper` dengan `overflow-x:auto` untuk mobile. |
+| BUG-009 | Post TASK-110 | Radio button "Tipe Pelanggan" di modal Tambah/Edit Pelanggan berukuran ~40-50px (terlalu besar, tidak konsisten) | ✅ Fixed | Root cause: container div pakai `class="flex gap-3 flex-wrap"` — `.radio-row label` dan `.radio-row label input[type="radio"]` rules tidak ter-apply. Fix: ganti container ke `class="radio-row"`. Form pesanan baru (Walk-in/Online/Telepon dan Normal/Urgent/VIP) sudah benar pakai `.radio-row` sejak awal. |
 | BUG-008 | Post TASK-110 | Role Gudang/warehouse tidak muncul di dropdown "Lihat sebagai:" dan tidak punya sidebar yang sesuai | ✅ Fixed | Root cause: `warehouse` tidak didefinisikan di `ROLE_USERS`, `ROLE_DEFAULT_ROUTES`, `MENU_ITEMS`, `canAccessRoute`, dan tidak ada di `index.html`/`login.html`. Fix: (1) tambah `warehouse: Taufik Hidayat` ke `ROLE_USERS`, (2) landing page `#/inventory`, (3) `MENU_ITEMS` untuk orders dan inventory ditambah `warehouse`, (4) `canAccessRoute` guard warehouse hanya bisa akses `inventory`, `orders`, `order`, `portal-karyawan`, (5) option Gudang di index.html, (6) shortcut Gudang di login.html. |
 
 ---
@@ -1502,6 +1503,8 @@ Final wrap-up: update STATE.md untuk mencerminkan seluruh task v1.1 sudah selesa
 | Web Speech API untuk audio | Tidak butuh API eksternal, native browser | 2026-05-23 |
 | SVG/Canvas untuk chart | Tidak fetch library CDN, bisa offline | 2026-05-23 |
 | CSS custom properties | Konsistensi design system tanpa preprocessor | 2026-05-23 |
+| Spesifikasi fisik bahan disimpan di level batch, bukan master bahan | Dimensi roll, isi rim, volume tinta, dan isi pack bisa berbeda antar batch pembelian, sedangkan master bahan hanya identitas item | 2026-05-25 |
+| Kalkulasi estimasi BOM memakai rumus `qty_order × jumlah_per_satuan × (1 + waste_factor)` | BOM tetap predictable per produk; spesifikasi batch terbaru dipakai sebagai referensi traceability dan peringatan jika belum ada, bukan mengganti rumus dasar | 2026-05-25 |
 
 ---
 
@@ -1565,33 +1568,31 @@ Final wrap-up: update STATE.md untuk mencerminkan seluruh task v1.1 sudah selesa
 | 48 | 2026-05-25 | TASK-107 — Tambah Role Kurir: Navigation dan Interface | TASK-107 | Role courier terintegrasi penuh: ROLE_USERS + ROLE_DEFAULT_ROUTES + canAccessRoute, route delivery (fullScreen + NO_SIDEBAR), login shortcut di login.html, option di index.html, pages/delivery.html dibuat, 3 entry dummy deliveries di data.js, renderDeliveryPage/Card, updateDeliveryStatus, openDeliveryNoteModal, aksi konfirmasi diambil/terkirim, persist localStorage, CSS delivery. Semua 15 acceptance criteria pass. |
 | 49 | 2026-05-25 | TASK-108 — Tambah Portal Karyawan (Employee Self-Service) | TASK-108 | Portal karyawan selesai: route #/portal-karyawan, link Portal Saya di sidebar footer (semua role kecuali display), pages/portal-karyawan.html, renderPortalKaryawanPage + 4 tab (Ringkasan/Insentif/Informasi/Teguran), data dummy incentives/portalAnnouncements/portalWarnings/portalAttendance, insentif per-user, CSS portal. 15/15 checks pass. |
 | 50 | 2026-05-25 | TASK-110 — Update STATE.md (final wrap-up) | TASK-110 | STATE.md diupdate: semua task ditandai selesai, progress 43/43 = 100%, status ✅ complete, session log lengkap, keputusan teknis v1.1 dicatat. |
+| 51 | 2026-05-25 | TASK-111 — BOM Configuration halaman Produk | TASK-111 | Route `#/products` + `#/product/{id}`, menu "Produk & BOM" di sidebar (owner only), tabel produk dengan badge BOM, halaman detail produk dengan 2 tab (Info & BOM), kalkulator BOM interaktif realtime (lebar×tinggi untuk per_m2, qty untuk per_pcs/flat), 6 produk dengan data BOM, pages/products.html, CSS BOM (~140 baris). Input handler `.bom-calc-input` terhubung ke updateBomCalcResult(). Syntax check pass. |
+| 52 | 2026-05-25 | BUG-010 — Fix blank page Produk & BOM + rebuild halaman sesuai spec baru | BUG-010 | Root cause: `pages/products.html` hanya punya `.products-page`, sedangkan `renderProductsPage()` mencari `#products-page`, sehingga route blank. Fix: tambah mount id, alias route `#/produk-bom`, ubah menu sidebar ke hash baru, bangun ulang halaman menjadi 2 tab (Katalog Produk / Master Bahan), side panel detail produk, BOM preview realtime berbasis `qty × jumlah × (1 + waste)`, modal tambah bahan non-blocking, dan seed BOM minimal 5 produk. `prototype/app.js` dan `prototype/data.js` lolos `node --check`. |
+
+| 53 | 2026-05-25 | TASK-112 — Produk & BOM modal + physical specs batch | TASK-112 | Detail Produk & BOM diubah dari side panel ke modal tengah 600px dengan close overlay/X dan clear selection. Tombol Detail membuka produk benar, form tambah BOM memakai dropdown Master Bahan + qty/unit/waste helper, preview BOM menampilkan formula, waste, total, referensi batch specs atau warning. Modal penerimaan barang punya field spesifikasi fisik dinamis per tipe bahan dan menyimpan specs ke batch. QR label menampilkan supplier dan spesifikasi fisik batch. Syntax check `app.js` dan `data.js` pass. |
 
 ---
 
 ## NEXT TASK
 
-**Semua task selesai. Prototype v1.1 complete (43/43).**
+**Semua task selesai. Prototype v1.1 complete (43/43) + TASK-112.**
 
-Recheck terakhir (sesi 50, 2026-05-25):
+Recheck terakhir (sesi 53, 2026-05-25):
 - Semua task TASK-001 s/d TASK-033 (prototype v1.0) ✅
-- Semua task TASK-101 s/d TASK-110 (update v1.1) ✅
+- Semua task TASK-101 s/d TASK-112 (update v1.1 + tambahan) ✅
 - `app.js` dan `data.js` lolos syntax check
 - Tidak ada task yang tertinggal
 
 Instruksi untuk AI:
-> Prototype v1.1 sudah complete. Jangan mulai task baru tanpa instruksi eksplisit dari user. Baca CLAUDE.md dan STATE.md lebih dulu setiap sesi baru.
+> Prototype sudah complete. Jangan mulai task baru tanpa instruksi eksplisit dari user. Baca CLAUDE.md dan STATE.md lebih dulu setiap sesi baru.
 
 Recheck terakhir (sesi 37, 2026-05-23) mengkonfirmasi:
 - 33/33 task selesai, tidak ada yang tertinggal
 - `app.js` dan `data.js` lolos syntax check
 - Tidak ada teks placeholder / Lorem ipsum yang visible
 - Data dummy lengkap dan konsisten antar modul
-
-**Backlog yang perlu didiskusikan dengan user sebelum dikerjakan:**
-- BUG-003 — Route Pengaturan → Pricing (low priority, lihat BUGS & ISSUES)
-- Modul HR & Payroll functional (saat ini masih preview/locked)
-- Modul Finance functional (saat ini masih preview/locked)
-- Halaman Settings yang sesungguhnya
 
 Instruksi untuk AI:
 > Prototype sudah complete. Jangan mulai task baru tanpa instruksi eksplisit dari user. Baca CLAUDE.md dan STATE.md lebih dulu setiap sesi baru.
