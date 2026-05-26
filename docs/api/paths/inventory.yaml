@@ -1,0 +1,601 @@
+# M07 — Inventory & Gudang
+
+paths:
+
+  # ─── Daftar Bahan (M07.1) ───────────────────────────────────────────────────
+
+  /inventory/items:
+    get:
+      tags: [Inventory]
+      summary: List daftar bahan
+      description: >
+        Nama modul: "Daftar Bahan" (bukan Master Bahan) (AC-098).
+        Bahan dengan current_stock = 0 menampilkan flag has_stock = false (AC-102).
+        Bahan dengan current_stock < min_stock menampilkan is_low_stock = true.
+      operationId: listInventoryItems
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/InventoryCategory'
+        - name: low_stock_only
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Daftar bahan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Inventory]
+      summary: Tambah bahan baru (Daftar Bahan)
+      description: >
+        Form tidak punya field Harga Beli — harga masuk lewat Catat Penerimaan (AC-099).
+        Field Stok Minimum wajib ada (AC-100).
+        Juga digunakan untuk inline create dari dropdown BOM dan Catat Penerimaan (AC-103).
+      operationId: createInventoryItem
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, category, unit]
+              properties:
+                name:
+                  type: string
+                  example: Flexi China 340gr
+                category:
+                  $ref: '#/components/schemas/InventoryCategory'
+                unit:
+                  type: string
+                  example: roll
+                min_stock:
+                  type: number
+                  format: decimal
+                  default: 0
+      responses:
+        '201':
+          description: Bahan berhasil didaftarkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          # Nama bahan sudah ada di branch ini
+
+  /inventory/items/{item_id}:
+    parameters:
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+
+    get:
+      tags: [Inventory]
+      summary: Detail bahan + riwayat batch
+      operationId: getInventoryItem
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Detail bahan.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/InventoryItem'
+                  - type: object
+                    properties:
+                      batches:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MaterialBatch'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Inventory]
+      summary: Update data bahan
+      operationId: updateInventoryItem
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                min_stock:
+                  type: number
+                  format: decimal
+      responses:
+        '200':
+          description: Bahan diupdate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Inventory]
+      summary: Hapus bahan (soft delete)
+      description: >
+        Bahan yang sudah punya riwayat penerimaan → soft delete, data historis tetap ada (AC-104).
+        Bahan tanpa riwayat → hard delete.
+      operationId: deleteInventoryItem
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Catat Penerimaan / Batches (M07.2) ─────────────────────────────────────
+
+  /inventory/batches:
+    post:
+      tags: [Inventory]
+      summary: Catat penerimaan bahan (incoming)
+      description: >
+        Nomor batch auto-generate: BATCH-{YYYYMMDD}-{3digit}, atau input manual (AC-048).
+        Spesifikasi fisik tersimpan di level batch, bukan item (AC-108).
+        Setelah submit: current_stock bertambah (AC-109).
+        QR label bisa di-generate dari response batch_id (AC-110).
+      operationId: createMaterialBatch
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inventory_item_id, qty_received, price_per_unit, received_date, supplier]
+              properties:
+                inventory_item_id:
+                  $ref: '#/components/schemas/UUID'
+                qty_received:
+                  type: number
+                  format: decimal
+                price_per_unit:
+                  $ref: '#/components/schemas/Money'
+                supplier:
+                  type: string
+                received_date:
+                  type: string
+                  format: date
+                batch_code:
+                  type: string
+                  nullable: true
+                  description: Null → auto-generate
+                notes:
+                  type: string
+                # Spesifikasi fisik (sesuai kategori bahan)
+                spec_length_m:
+                  type: number
+                  format: decimal
+                  nullable: true
+                spec_width_m:
+                  type: number
+                  format: decimal
+                  nullable: true
+                spec_thickness_mm:
+                  type: number
+                  format: decimal
+                  nullable: true
+                spec_sheets_per_rim:
+                  type: integer
+                  nullable: true
+                spec_paper_size:
+                  type: string
+                  nullable: true
+                  enum: [A4, A3, F4, Custom]
+                spec_volume_ml:
+                  type: integer
+                  nullable: true
+                spec_ink_type:
+                  type: string
+                  nullable: true
+                spec_pcs_per_pack:
+                  type: integer
+                  nullable: true
+                spec_notes:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Penerimaan berhasil dicatat.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/MaterialBatch'
+                  - type: object
+                    properties:
+                      qr_label_url:
+                        type: string
+                        description: URL untuk preview dan print QR label
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /inventory/batches/{batch_id}:
+    parameters:
+      - name: batch_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    get:
+      tags: [Inventory]
+      summary: Detail batch
+      operationId: getMaterialBatch
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Detail batch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialBatch'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /inventory/batches/{batch_id}/qr-label:
+    parameters:
+      - name: batch_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    get:
+      tags: [Inventory]
+      summary: Data QR label batch
+      description: >
+        Returns data untuk render QR label 50×30mm.
+        QR content: printeoo://scan?batch={batch_code}&item={item_name}&tenant={tenant_id}
+        Label mencantumkan spesifikasi fisik batch (AC-126).
+      operationId: getBatchQRLabel
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Data QR label.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  qr_content:
+                    type: string
+                    example: "printeoo://scan?batch=BATCH-20260525-001&item=Flexi+China+340gr&tenant=abc123"
+                  label:
+                    type: object
+                    properties:
+                      item_name:
+                        type: string
+                      batch_code:
+                        type: string
+                      received_date:
+                        type: string
+                        format: date
+                      current_stock:
+                        type: number
+                      unit:
+                        type: string
+                      spec_summary:
+                        type: string
+                        example: "50m × 1.52m = 76m²/roll"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Material Usage (M07.3) ──────────────────────────────────────────────────
+
+  /inventory/usage:
+    post:
+      tags: [Inventory]
+      summary: Input pemakaian material aktual (Layer 2 traceability)
+      description: >
+        Operator scan QR batch atau input manual batch_code (AC-112).
+        Qty_remaining batch berkurang.
+        Deviasi dari estimasi dihitung dan ditampilkan (AC-113).
+      operationId: recordMaterialUsage
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_item_id, batch_id, qty_used]
+              properties:
+                order_item_id:
+                  $ref: '#/components/schemas/UUID'
+                batch_id:
+                  $ref: '#/components/schemas/UUID'
+                qty_used:
+                  type: number
+                  format: decimal
+                qty_waste:
+                  type: number
+                  format: decimal
+                  default: 0
+                waste_category:
+                  type: string
+                  nullable: true
+                  example: misprint
+      responses:
+        '201':
+          description: Pemakaian material dicatat.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/MaterialUsage'
+                  - type: object
+                    properties:
+                      deviation:
+                        type: object
+                        properties:
+                          estimated_qty:
+                            type: number
+                          actual_qty:
+                            type: number
+                          deviation_pct:
+                            type: number
+                          is_alert:
+                            type: boolean
+                            description: True jika deviasi > threshold (default 30%)
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+          # Stok batch tidak cukup
+
+  # ─── Stok Opname (M07.4) ────────────────────────────────────────────────────
+
+  /inventory/opname:
+    post:
+      tags: [Inventory]
+      summary: Mulai sesi stok opname
+      description: Flow 4 langkah: Mulai → Input → Review → Approve (AC-115).
+      operationId: startStockOpname
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Sesi opname dimulai.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    $ref: '#/components/schemas/UUID'
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        inventory_item_id:
+                          $ref: '#/components/schemas/UUID'
+                        name:
+                          type: string
+                        unit:
+                          type: string
+                        system_stock:
+                          type: number
+                        physical_qty:
+                          type: number
+                          nullable: true
+                        difference:
+                          type: number
+                          nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /inventory/opname/{session_id}/approve:
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Inventory]
+      summary: Approve stok opname dan apply adjustments
+      description: >
+        Alasan wajib diisi jika ada selisih (AC-117).
+        Setelah approve: stok di-update, adjustment_log dibuat (AC-118).
+      operationId: approveStockOpname
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [inventory_item_id, physical_qty]
+                    properties:
+                      inventory_item_id:
+                        $ref: '#/components/schemas/UUID'
+                      physical_qty:
+                        type: number
+                        format: decimal
+                      reason:
+                        type: string
+                        description: Wajib jika ada selisih (physical_qty ≠ system_stock)
+      responses:
+        '200':
+          description: Opname di-approve, stok diupdate.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  adjusted_count:
+                    type: integer
+                  session_id:
+                    $ref: '#/components/schemas/UUID'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          # Alasan tidak diisi padahal ada selisih
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ─── Purchase Order (M07.5) ──────────────────────────────────────────────────
+
+  /inventory/purchase-orders:
+    get:
+      tags: [Inventory]
+      summary: List Purchase Order
+      operationId: listPurchaseOrders
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/POStatus'
+      responses:
+        '200':
+          description: Daftar PO.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PurchaseOrder'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Inventory]
+      summary: Buat PO baru
+      description: >
+        Nomor PO auto: PO-{YYYYMMDD}-{3digit} (AC-120).
+        Warehouse hanya bisa submit, tidak bisa approve (AC-122).
+        Warehouse tidak bisa lihat kolom harga di PO (AC-125) — filter di response berdasarkan role.
+      operationId: createPurchaseOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [supplier, items]
+              properties:
+                supplier:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [inventory_item_id, qty_ordered]
+                    properties:
+                      inventory_item_id:
+                        $ref: '#/components/schemas/UUID'
+                      qty_ordered:
+                        type: number
+                        format: decimal
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: PO dibuat (status: draft).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /inventory/purchase-orders/{po_id}/approve:
+    parameters:
+      - name: po_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Inventory]
+      summary: Approve PO (status draft → dikirim)
+      description: Hanya owner/branch_manager yang bisa approve.
+      operationId: approvePurchaseOrder
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: PO di-approve, status menjadi dikirim.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'

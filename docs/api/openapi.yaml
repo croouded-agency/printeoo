@@ -1,0 +1,154 @@
+openapi: "3.0.3"
+
+info:
+  title: Printeoo API
+  version: "1.0.0"
+  description: |
+    # Printeoo API Documentation
+
+    API untuk sistem manajemen print shop Printeoo — multi-tenant, multi-branch, berbasis peran (RBAC).
+
+    ## Autentikasi
+
+    Semua endpoint (kecuali yang ditandai `security: []`) membutuhkan JWT Bearer token.
+    Token diperoleh dari `POST /auth/login` atau `POST /auth/magic-link/verify`.
+
+    Endpoint Web-to-Print (`/api/v1/...`) menggunakan API Key via header `X-API-Key`.
+
+    ## Row-Level Security
+
+    Semua query di database otomatis difilter berdasarkan `tenant_id` dan `branch_id` dari JWT claims.
+    User tidak bisa mengakses data tenant lain meskipun mereka tahu UUID-nya.
+
+    ## Nilai Moneter
+
+    Semua nilai moneter dinyatakan dalam **sen (rupiah terkecil)** sebagai integer.
+    Contoh: `85000` = Rp 850,00. Lakukan konversi di sisi client.
+
+    ## Pagination
+
+    Endpoint yang mengembalikan list menggunakan cursor-based atau offset pagination.
+    Meta pagination ada di field `meta` pada response object.
+
+    ## Rate Limiting
+
+    - API internal (BearerAuth): 500 req/menit per user
+    - Login endpoint: lock setelah 5 percobaan gagal dalam 15 menit
+    - Web-to-Print API (ApiKeyAuth): 100 req/menit per API key
+
+    ## WebSocket
+
+    Beberapa fitur real-time menggunakan WebSocket:
+    - `/ws/production` — Production board live updates (M05)
+    - `/ws/queue` — Queue display sync (M03)
+
+    Koneksi putus → client harus fallback ke polling 500ms dengan endpoint REST biasa.
+
+    ## Timezone
+
+    Semua timestamp dalam ISO 8601 dengan timezone info (UTC+7/WIB untuk operasional Indonesia).
+    Field `deadline` selalu disimpan dan dikembalikan dengan timezone offset.
+
+  contact:
+    name: Printeoo Engineering
+    email: hi@crooud.com
+
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.printeoo.com/v1
+    description: Production
+  - url: https://api-staging.printeoo.com/v1
+    description: Staging
+  - url: http://localhost:8787/v1
+    description: Local development (Cloudflare Workers wrangler dev)
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Auth
+    description: Registrasi, login, session management (M01.1, M01.2)
+  - name: Tenant
+    description: Pengaturan tenant dan cabang (M01.3)
+  - name: Users
+    description: Manajemen pengguna dan role (M02)
+  - name: Queue
+    description: Sistem antrian customer (M03)
+  - name: Orders
+    description: SPK — order management lengkap (M04)
+  - name: Tracking
+    description: Halaman tracking publik tanpa auth (M04.6)
+  - name: Production
+    description: Production board dan display TV (M05, M06)
+  - name: Inventory
+    description: Daftar Bahan, penerimaan, traceability, stok opname, PO (M07)
+  - name: Finance
+    description: Job costing dan laporan keuangan (M08, M11)
+  - name: POS
+    description: Kasir dan pembayaran (M09)
+  - name: HR
+    description: Karyawan, absensi, insentif, portal karyawan (M10)
+  - name: Products
+    description: Katalog produk dan BOM (M15)
+  - name: Customers
+    description: CRM pelanggan (M17)
+  - name: Delivery
+    description: Manajemen pengiriman dan kurir (M19)
+  - name: Notifications
+    description: Notification center (M14)
+  - name: Dashboard
+    description: Owner dashboard metrics (M13)
+  - name: WebToPrint
+    description: "Web-to-Print public API, webhook, dan API key management (M12)"
+
+components:
+  securitySchemes:
+    $ref: './components/security.yaml#/securitySchemes'
+
+  schemas:
+    $ref: './components/schemas.yaml#/schemas'
+
+  responses:
+    $ref: './components/responses.yaml#/responses'
+
+paths:
+  # M01 — Auth & Tenant | M02 — Users
+  $ref: './paths/auth.yaml#/paths'
+
+  # M03 — Queue & Antrian
+  $ref: './paths/queue.yaml#/paths'
+
+  # M04 — Order Management (SPK)
+  $ref: './paths/spk.yaml#/paths'
+
+  # M05 — Production Board | M06 — Production Display
+  $ref: './paths/production.yaml#/paths'
+
+  # M07 — Inventory & Gudang
+  $ref: './paths/inventory.yaml#/paths'
+
+  # M08 — Job Costing | M11 — Finance Reports
+  $ref: './paths/finance.yaml#/paths'
+
+  # M09 — POS & Kasir
+  $ref: './paths/pos.yaml#/paths'
+
+  # M10 — HR & Payroll
+  $ref: './paths/hr.yaml#/paths'
+
+  # M12 — Web-to-Print API | M13 — Dashboard
+  $ref: './paths/webhooks.yaml#/paths'
+
+  # M14 — Notification Center
+  $ref: './paths/notifications.yaml#/paths'
+
+  # M15 — Product & BOM Catalog
+  $ref: './paths/products.yaml#/paths'
+
+  # M17 — CRM Pelanggan
+  $ref: './paths/customers.yaml#/paths'
+
+  # M19 — Manajemen Pengiriman
+  $ref: './paths/delivery.yaml#/paths'

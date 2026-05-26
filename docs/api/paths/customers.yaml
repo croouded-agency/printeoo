@@ -1,0 +1,219 @@
+# M17 — CRM Pelanggan
+
+paths:
+
+  /customers:
+    get:
+      tags: [Customers]
+      summary: List pelanggan
+      description: Search by nama atau nomor HP (AC-183).
+      operationId: listCustomers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Cari berdasarkan nama atau nomor HP
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [individu, perusahaan, instansi]
+        - name: is_vip
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 25
+      responses:
+        '200':
+          description: Daftar pelanggan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Customer'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Customers]
+      summary: Tambah pelanggan baru
+      description: >
+        Juga digunakan untuk inline create dari form order (customer_new).
+        Nomor HP di-format +62xxx-xxxx-xxxx.
+      operationId: createCustomer
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, phone]
+              properties:
+                name:
+                  type: string
+                  example: Budi Santoso
+                phone:
+                  type: string
+                  example: "081234567890"
+                email:
+                  type: string
+                  format: email
+                  nullable: true
+                type:
+                  type: string
+                  enum: [individu, perusahaan, instansi]
+                  default: individu
+                notes:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Pelanggan berhasil ditambahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          # Nomor HP sudah terdaftar
+
+  /customers/{customer_id}:
+    parameters:
+      - name: customer_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+
+    get:
+      tags: [Customers]
+      summary: Detail pelanggan + riwayat SPK
+      description: >
+        Customer page: ringkasan + tabel riwayat SPK (AC-184).
+        Label VIP otomatis jika total revenue > threshold dari Settings (AC-185).
+      operationId: getCustomer
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: spk_status
+          in: query
+          schema:
+            type: string
+        - name: spk_page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Detail pelanggan.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Customer'
+                  - type: object
+                    properties:
+                      active_orders:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/OrderSummary'
+                      order_history:
+                        type: object
+                        properties:
+                          data:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/OrderSummary'
+                          meta:
+                            $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Customers]
+      summary: Update data pelanggan
+      operationId: updateCustomer
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                type:
+                  type: string
+                  enum: [individu, perusahaan, instansi]
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Pelanggan diupdate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /customers/export:
+    get:
+      tags: [Customers]
+      summary: Export data pelanggan ke Excel
+      description: Export daftar pelanggan (AC-186).
+      operationId: exportCustomers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [xlsx, csv]
+            default: xlsx
+      responses:
+        '200':
+          description: File export pelanggan.
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'

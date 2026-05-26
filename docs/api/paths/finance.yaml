@@ -1,0 +1,307 @@
+# M11 — Akuntansi & Laporan Keuangan
+# M08 — Job Costing per Item
+
+paths:
+
+  # ─── Job Costing (M08) ──────────────────────────────────────────────────────
+
+  /finance/job-costing/{order_item_id}:
+    parameters:
+      - name: order_item_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    get:
+      tags: [Finance]
+      summary: Job cost per item
+      description: >
+        Job cost dihitung per item, bukan per SPK keseluruhan (AC-130).
+        Material cost menggunakan harga dari batch yang di-scan (bukan average) (AC-131).
+        Jika material belum di-input: tampilkan estimasi dari BOM + harga batch terbaru (AC-132).
+        Deviasi material > 20%: highlight (AC-133).
+        Item yang di-cancel: job cost di-mark cancelled (AC-135).
+      operationId: getJobCost
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Job cost detail per item.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_item_id:
+                    $ref: '#/components/schemas/UUID'
+                  product_name:
+                    type: string
+                  spk_number:
+                    type: string
+                  revenue:
+                    $ref: '#/components/schemas/Money'
+                  material_cost:
+                    $ref: '#/components/schemas/Money'
+                  material_cost_estimated:
+                    type: boolean
+                    description: True jika masih menggunakan estimasi (actual usage belum diinput)
+                  labor_cost_design:
+                    $ref: '#/components/schemas/Money'
+                  labor_cost_print:
+                    $ref: '#/components/schemas/Money'
+                  gross_profit:
+                    $ref: '#/components/schemas/Money'
+                  gross_margin_pct:
+                    type: number
+                    format: decimal
+                  material_deviation_pct:
+                    type: number
+                    format: decimal
+                    nullable: true
+                  is_deviation_alert:
+                    type: boolean
+                  status:
+                    type: string
+                    enum: [calculating, final, cancelled]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Laporan Keuangan (M11) ──────────────────────────────────────────────────
+
+  /finance/reports/pl:
+    get:
+      tags: [Finance]
+      summary: Laporan Laba Rugi (P&L)
+      description: >
+        Tersedia mulai tier Business (AC-159).
+        Jurnal otomatis dari semua transaksi SPK, payroll, inventory.
+        Export ke Excel dan PDF (AC-160).
+      operationId: getPLReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: period_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [monthly, quarterly, yearly]
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+            example: 2026
+        - name: month
+          in: query
+          schema:
+            type: integer
+            description: Wajib jika period_type = monthly
+        - name: quarter
+          in: query
+          schema:
+            type: integer
+            enum: [1, 2, 3, 4]
+            description: Wajib jika period_type = quarterly
+      responses:
+        '200':
+          description: Laporan P&L.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period:
+                    type: string
+                    example: "Mei 2026"
+                  revenue:
+                    $ref: '#/components/schemas/Money'
+                  cogs:
+                    $ref: '#/components/schemas/Money'
+                  gross_profit:
+                    $ref: '#/components/schemas/Money'
+                  operating_expenses:
+                    type: object
+                    properties:
+                      salary:
+                        $ref: '#/components/schemas/Money'
+                      other:
+                        $ref: '#/components/schemas/Money'
+                  net_profit:
+                    $ref: '#/components/schemas/Money'
+                  gross_margin_pct:
+                    type: number
+                  net_margin_pct:
+                    type: number
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          # Tier tidak mencukupi
+
+  /finance/reports/cashflow:
+    get:
+      tags: [Finance]
+      summary: Laporan Arus Kas
+      operationId: getCashflowReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Laporan arus kas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period:
+                    type: string
+                  inflow:
+                    $ref: '#/components/schemas/Money'
+                  outflow:
+                    $ref: '#/components/schemas/Money'
+                  net_cashflow:
+                    $ref: '#/components/schemas/Money'
+                  transactions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          format: date
+                        type:
+                          type: string
+                          enum: [inflow, outflow]
+                        category:
+                          type: string
+                          example: payment_received
+                        description:
+                          type: string
+                        amount:
+                          $ref: '#/components/schemas/Money'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /finance/reports/job-costing:
+    get:
+      tags: [Finance]
+      summary: Job Costing Summary — profitabilitas per produk/kategori
+      description: Dashboard owner — top 5 produk berdasarkan gross margin (bukan revenue) (AC-134).
+      operationId: getJobCostingReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: group_by
+          in: query
+          schema:
+            type: string
+            enum: [product, category]
+            default: product
+      responses:
+        '200':
+          description: Ringkasan profitabilitas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        revenue:
+                          $ref: '#/components/schemas/Money'
+                        material_cost:
+                          $ref: '#/components/schemas/Money'
+                        labor_cost:
+                          $ref: '#/components/schemas/Money'
+                        gross_profit:
+                          $ref: '#/components/schemas/Money'
+                        gross_margin_pct:
+                          type: number
+                        order_count:
+                          type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /finance/reports/export:
+    post:
+      tags: [Finance]
+      summary: Export laporan ke Excel/PDF
+      description: Export semua laporan keuangan (AC-160).
+      operationId: exportFinanceReport
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [report_type, format]
+              properties:
+                report_type:
+                  type: string
+                  enum: [pl, cashflow, job_costing]
+                format:
+                  type: string
+                  enum: [xlsx, pdf]
+                date_from:
+                  type: string
+                  format: date
+                date_to:
+                  type: string
+                  format: date
+      responses:
+        '200':
+          description: File laporan.
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'

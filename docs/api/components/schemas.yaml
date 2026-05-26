@@ -1,0 +1,946 @@
+schemas:
+
+  # ─── Primitives & Enums ─────────────────────────────────────────────────────
+
+  UUID:
+    type: string
+    format: uuid
+    example: "550e8400-e29b-41d4-a716-446655440000"
+
+  Money:
+    type: integer
+    description: Nilai moneter dalam sen (rupiah terkecil). Contoh: 85000 = Rp 850,00.
+    example: 85000
+
+  Error:
+    type: object
+    required: [code, message]
+    properties:
+      code:
+        type: string
+        example: VALIDATION_ERROR
+      message:
+        type: string
+        example: "Field 'deadline' wajib diisi."
+      details:
+        type: array
+        items:
+          type: object
+          properties:
+            field:
+              type: string
+            message:
+              type: string
+      request_id:
+        type: string
+        example: "req_abc123"
+
+  SubscriptionTier:
+    type: string
+    enum: [solo, studio, pro, business, enterprise]
+
+  UserRole:
+    type: string
+    enum: [owner, branch_manager, cashier, designer, operator, warehouse, courier, hr_admin, accountant, display]
+
+  OrderItemStatus:
+    type: string
+    enum: [confirmed, design_queue, in_design, production_queue, printing, finishing, ready]
+
+  OrderStatus:
+    type: string
+    enum: [active, ready, delivered, closed, cancelled]
+
+  PricingType:
+    type: string
+    enum: [large_format, flat, tiered]
+
+  InventoryCategory:
+    type: string
+    enum: [media_cetak, kertas, tinta, finishing, aksesoris, lainnya]
+
+  Priority:
+    type: string
+    enum: [normal, urgent, vip]
+
+  PaymentMethod:
+    type: string
+    enum: [cash, transfer, qris]
+
+  ContractType:
+    type: string
+    enum: [bulanan, harian, freelance, borongan]
+
+  POStatus:
+    type: string
+    enum: [draft, dikirim, partial, diterima, dibatalkan]
+
+  DeliveryStatus:
+    type: string
+    enum: [assigned, dalam_perjalanan, terkirim, gagal_kirim]
+
+  NotificationChannel:
+    type: string
+    enum: [in_app, whatsapp, email]
+
+  # ─── Tenant & Auth ──────────────────────────────────────────────────────────
+
+  Tenant:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      slug:
+        type: string
+        example: titaniumprint
+      name:
+        type: string
+        example: Titaniumprint Surabaya
+      subscription_tier:
+        $ref: '#/components/schemas/SubscriptionTier'
+      trial_ends_at:
+        type: string
+        format: date-time
+        nullable: true
+      settings:
+        $ref: '#/components/schemas/TenantSettings'
+      created_at:
+        type: string
+        format: date-time
+
+  TenantSettings:
+    type: object
+    properties:
+      logo_url:
+        type: string
+        nullable: true
+      wa_number:
+        type: string
+        example: "+6281234567890"
+      address:
+        type: string
+      footer_text:
+        type: string
+        example: "Barang yang sudah diambil tidak dapat dikembalikan."
+      queue_reset_time:
+        type: string
+        example: "08:00"
+        description: Waktu reset nomor antrian otomatis (HH:MM format WIB)
+      incentive_config:
+        type: object
+        description: Konfigurasi insentif global
+
+  Branch:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      tenant_id:
+        $ref: '#/components/schemas/UUID'
+      name:
+        type: string
+        example: Surabaya Pusat
+      code:
+        type: string
+        example: SBY
+      address:
+        type: string
+      is_active:
+        type: boolean
+      created_at:
+        type: string
+        format: date-time
+
+  User:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      tenant_id:
+        $ref: '#/components/schemas/UUID'
+      branch_id:
+        $ref: '#/components/schemas/UUID'
+        nullable: true
+      name:
+        type: string
+        example: Ahmad Fauzi
+      email:
+        type: string
+        format: email
+      role:
+        $ref: '#/components/schemas/UserRole'
+      is_active:
+        type: boolean
+      created_at:
+        type: string
+        format: date-time
+
+  TokenPair:
+    type: object
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+      expires_in:
+        type: integer
+        description: Detik hingga access token expire
+        example: 28800
+      user:
+        $ref: '#/components/schemas/User'
+
+  # ─── Customer ───────────────────────────────────────────────────────────────
+
+  Customer:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      tenant_id:
+        $ref: '#/components/schemas/UUID'
+      name:
+        type: string
+        example: Budi Santoso
+      phone:
+        type: string
+        example: "+628123456789"
+      email:
+        type: string
+        format: email
+        nullable: true
+      type:
+        type: string
+        enum: [individu, perusahaan, instansi]
+      notes:
+        type: string
+        nullable: true
+      stats:
+        type: object
+        properties:
+          total_orders:
+            type: integer
+          total_revenue:
+            $ref: '#/components/schemas/Money'
+          avg_order_value:
+            $ref: '#/components/schemas/Money'
+          is_vip:
+            type: boolean
+      created_at:
+        type: string
+        format: date-time
+
+  # ─── Product & BOM ──────────────────────────────────────────────────────────
+
+  Product:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      tenant_id:
+        $ref: '#/components/schemas/UUID'
+      name:
+        type: string
+        example: Banner Flexi China 340gr
+      pricing_type:
+        $ref: '#/components/schemas/PricingType'
+      base_price:
+        $ref: '#/components/schemas/Money'
+        description: Harga per m² (large_format), per pcs (flat), atau null (tiered)
+      price_tiers:
+        type: array
+        nullable: true
+        items:
+          $ref: '#/components/schemas/PriceTier'
+      default_needs_design:
+        type: boolean
+      is_active:
+        type: boolean
+      has_bom:
+        type: boolean
+        description: Apakah produk ini sudah punya BOM yang didefinisikan
+      created_at:
+        type: string
+        format: date-time
+
+  PriceTier:
+    type: object
+    properties:
+      min_qty:
+        type: integer
+        example: 100
+      max_qty:
+        type: integer
+        nullable: true
+        example: 499
+      price_per_unit:
+        $ref: '#/components/schemas/Money'
+
+  BOMEntry:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      product_id:
+        $ref: '#/components/schemas/UUID'
+      inventory_item_id:
+        $ref: '#/components/schemas/UUID'
+      inventory_item_name:
+        type: string
+        example: Flexi China 340gr
+      formula_type:
+        type: string
+        enum: [flat, per_m2, per_qty]
+      qty_formula:
+        type: number
+        format: decimal
+        example: 0.014
+        description: Qty bahan per unit formula (per m², per pcs, atau flat)
+      bom_unit:
+        type: string
+        example: roll
+        description: Satuan logis di BOM (m², lembar, ml) — lihat ADR-0001
+      waste_pct:
+        type: number
+        format: decimal
+        example: 5.0
+        description: Waste factor dalam persen. Wajib ada, default 5.
+      created_at:
+        type: string
+        format: date-time
+
+  # ─── Order / SPK ────────────────────────────────────────────────────────────
+
+  Order:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      spk_number:
+        type: string
+        example: SPK-SBY-20260525-0042
+      branch_id:
+        $ref: '#/components/schemas/UUID'
+      customer_id:
+        $ref: '#/components/schemas/UUID'
+      customer_name:
+        type: string
+        example: Budi Santoso
+      customer_phone:
+        type: string
+        example: "+628123456789"
+      status:
+        $ref: '#/components/schemas/OrderStatus'
+      priority:
+        $ref: '#/components/schemas/Priority'
+      deadline:
+        type: string
+        format: date-time
+      subtotal:
+        $ref: '#/components/schemas/Money'
+      discount_spk:
+        $ref: '#/components/schemas/Money'
+      total:
+        $ref: '#/components/schemas/Money'
+      dp_amount:
+        $ref: '#/components/schemas/Money'
+      dp_method:
+        $ref: '#/components/schemas/PaymentMethod'
+        nullable: true
+      remaining:
+        $ref: '#/components/schemas/Money'
+      is_paid:
+        type: boolean
+      is_delivered:
+        type: boolean
+      tracking_token:
+        type: string
+        example: abc123def456
+      operator_notes:
+        type: string
+        nullable: true
+      source:
+        type: string
+        enum: [walk_in, online, telepon, referral]
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/OrderItem'
+      timeline:
+        type: array
+        items:
+          $ref: '#/components/schemas/TimelineEvent'
+      created_by:
+        $ref: '#/components/schemas/UUID'
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+
+  OrderItem:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      order_id:
+        $ref: '#/components/schemas/UUID'
+      product_id:
+        $ref: '#/components/schemas/UUID'
+      product_name:
+        type: string
+        example: Banner Flexi China 340gr
+      specs:
+        type: object
+        description: Spesifikasi dinamis sesuai tipe produk
+        example:
+          width_cm: 300
+          height_cm: 100
+      finishing:
+        type: array
+        items:
+          type: string
+        example: [laminasi_doff]
+      qty:
+        type: integer
+        example: 1
+      unit_price:
+        $ref: '#/components/schemas/Money'
+      discount:
+        $ref: '#/components/schemas/Money'
+      subtotal:
+        $ref: '#/components/schemas/Money'
+      needs_design:
+        type: boolean
+      status:
+        $ref: '#/components/schemas/OrderItemStatus'
+      assigned_designer_id:
+        $ref: '#/components/schemas/UUID'
+        nullable: true
+      assigned_operator_id:
+        $ref: '#/components/schemas/UUID'
+        nullable: true
+      notes:
+        type: string
+        nullable: true
+      material_estimate:
+        type: array
+        nullable: true
+        items:
+          $ref: '#/components/schemas/MaterialEstimate'
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+
+  TimelineEvent:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      event_type:
+        type: string
+        example: item_status_changed
+      description:
+        type: string
+        example: "Item 'Banner 3×1m' dipindahkan ke Sedang Cetak"
+      user_id:
+        $ref: '#/components/schemas/UUID'
+      user_name:
+        type: string
+        example: Budi Operator
+      metadata:
+        type: object
+        nullable: true
+      created_at:
+        type: string
+        format: date-time
+
+  OrderSummary:
+    type: object
+    description: Ringkasan SPK untuk tabel daftar (tanpa items detail)
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      spk_number:
+        type: string
+      customer_name:
+        type: string
+      item_count:
+        type: integer
+      first_item_name:
+        type: string
+      total:
+        $ref: '#/components/schemas/Money'
+      deadline:
+        type: string
+        format: date-time
+      status:
+        $ref: '#/components/schemas/OrderStatus'
+      priority:
+        $ref: '#/components/schemas/Priority'
+      is_overdue:
+        type: boolean
+      created_at:
+        type: string
+        format: date-time
+
+  # ─── Inventory ──────────────────────────────────────────────────────────────
+
+  InventoryItem:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      tenant_id:
+        $ref: '#/components/schemas/UUID'
+      branch_id:
+        $ref: '#/components/schemas/UUID'
+      name:
+        type: string
+        example: Flexi China 340gr
+      category:
+        $ref: '#/components/schemas/InventoryCategory'
+      unit:
+        type: string
+        example: roll
+      min_stock:
+        type: number
+        format: decimal
+        example: 5
+      current_stock:
+        type: number
+        format: decimal
+        example: 12
+      is_low_stock:
+        type: boolean
+      deleted_at:
+        type: string
+        format: date-time
+        nullable: true
+      created_at:
+        type: string
+        format: date-time
+
+  MaterialBatch:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      inventory_item_id:
+        $ref: '#/components/schemas/UUID'
+      batch_code:
+        type: string
+        example: BATCH-20260525-001
+      supplier:
+        type: string
+        example: CV Bahan Cetak Makmur
+      price_per_unit:
+        $ref: '#/components/schemas/Money'
+      qty_received:
+        type: number
+        format: decimal
+      qty_remaining:
+        type: number
+        format: decimal
+      received_date:
+        type: string
+        format: date
+      received_by:
+        $ref: '#/components/schemas/UUID'
+      spec_length_m:
+        type: number
+        format: decimal
+        nullable: true
+        description: Roll — panjang dalam meter
+      spec_width_m:
+        type: number
+        format: decimal
+        nullable: true
+        description: Roll — lebar dalam meter
+      spec_thickness_mm:
+        type: number
+        format: decimal
+        nullable: true
+      spec_sheets_per_rim:
+        type: integer
+        nullable: true
+        description: Kertas — lembar per rim
+      spec_paper_size:
+        type: string
+        nullable: true
+        enum: [A4, A3, F4, Custom]
+      spec_volume_ml:
+        type: integer
+        nullable: true
+        description: Tinta — volume per kemasan (ml)
+      spec_ink_type:
+        type: string
+        nullable: true
+        example: Eco-Solvent
+      spec_pcs_per_pack:
+        type: integer
+        nullable: true
+        description: Aksesoris — isi per pack
+      spec_notes:
+        type: string
+        nullable: true
+      spec_coverage_per_unit:
+        type: number
+        format: decimal
+        nullable: true
+        description: >
+          Derived field (ADR-0001): coverage area/qty per satuan pembelian.
+          Contoh: 1 roll 50m × 1.52m → coverage_per_unit = 76 m²/roll.
+      created_at:
+        type: string
+        format: date-time
+
+  MaterialEstimate:
+    type: object
+    description: Snapshot BOM estimasi saat SPK dibuat (immutable)
+    properties:
+      inventory_item_id:
+        $ref: '#/components/schemas/UUID'
+      inventory_item_name:
+        type: string
+      bom_entry_id:
+        $ref: '#/components/schemas/UUID'
+      estimated_qty:
+        type: number
+        format: decimal
+      unit:
+        type: string
+      actual_qty:
+        type: number
+        format: decimal
+        nullable: true
+      deviation_pct:
+        type: number
+        format: decimal
+        nullable: true
+
+  MaterialUsage:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      order_item_id:
+        $ref: '#/components/schemas/UUID'
+      batch_id:
+        $ref: '#/components/schemas/UUID'
+      batch_code:
+        type: string
+      qty_used:
+        type: number
+        format: decimal
+      qty_waste:
+        type: number
+        format: decimal
+      waste_category:
+        type: string
+        nullable: true
+        example: misprint
+      operator_id:
+        $ref: '#/components/schemas/UUID'
+      created_at:
+        type: string
+        format: date-time
+
+  # ─── Queue ──────────────────────────────────────────────────────────────────
+
+  QueueTicket:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      branch_id:
+        $ref: '#/components/schemas/UUID'
+      number:
+        type: string
+        example: A-015
+      prefix:
+        type: string
+        example: A
+      sequence:
+        type: integer
+        example: 15
+      status:
+        type: string
+        enum: [waiting, called, serving, done, skipped]
+      counter:
+        type: string
+        nullable: true
+        example: Counter 1
+      called_at:
+        type: string
+        format: date-time
+        nullable: true
+      served_at:
+        type: string
+        format: date-time
+        nullable: true
+      created_at:
+        type: string
+        format: date-time
+
+  # ─── HR & Payroll ───────────────────────────────────────────────────────────
+
+  Employee:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      user_id:
+        $ref: '#/components/schemas/UUID'
+      tenant_id:
+        $ref: '#/components/schemas/UUID'
+      branch_id:
+        $ref: '#/components/schemas/UUID'
+      name:
+        type: string
+        example: Siti Rahayu
+      nik:
+        type: string
+        description: Nomor Induk Kependudukan (encrypted at rest)
+      phone:
+        type: string
+      position:
+        type: string
+        example: Operator Cetak
+      contract_type:
+        $ref: '#/components/schemas/ContractType'
+      base_salary:
+        $ref: '#/components/schemas/Money'
+      bank_account:
+        type: string
+        description: Nomor rekening (encrypted at rest)
+      status:
+        type: string
+        enum: [aktif, non_aktif, cuti]
+      joined_at:
+        type: date
+      created_at:
+        type: string
+        format: date-time
+
+  IncentiveRecord:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      order_item_id:
+        $ref: '#/components/schemas/UUID'
+      user_id:
+        $ref: '#/components/schemas/UUID'
+      amount:
+        $ref: '#/components/schemas/Money'
+      status:
+        type: string
+        enum: [pending, confirmed, paid, revoked]
+      calculated_at:
+        type: string
+        format: date-time
+      product_name:
+        type: string
+      spk_number:
+        type: string
+
+  # ─── Delivery ───────────────────────────────────────────────────────────────
+
+  DeliveryAssignment:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      order_id:
+        $ref: '#/components/schemas/UUID'
+      spk_number:
+        type: string
+      courier_id:
+        $ref: '#/components/schemas/UUID'
+      courier_name:
+        type: string
+      status:
+        $ref: '#/components/schemas/DeliveryStatus'
+      pickup_time:
+        type: string
+        format: date-time
+        nullable: true
+      delivery_time:
+        type: string
+        format: date-time
+        nullable: true
+      proof_photo_url:
+        type: string
+        nullable: true
+      fail_reason:
+        type: string
+        nullable: true
+      customer_address:
+        type: string
+        nullable: true
+      created_at:
+        type: string
+        format: date-time
+
+  # ─── Notification ───────────────────────────────────────────────────────────
+
+  Notification:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      user_id:
+        $ref: '#/components/schemas/UUID'
+      event_type:
+        type: string
+        example: order.ready
+      title:
+        type: string
+        example: "Pesanan Siap Diambil"
+      body:
+        type: string
+        example: "SPK-SBY-20260525-0042 sudah siap diambil."
+      resource_type:
+        type: string
+        example: order
+      resource_id:
+        $ref: '#/components/schemas/UUID'
+      is_read:
+        type: boolean
+      created_at:
+        type: string
+        format: date-time
+
+  # ─── Purchase Order ─────────────────────────────────────────────────────────
+
+  PurchaseOrder:
+    type: object
+    properties:
+      id:
+        $ref: '#/components/schemas/UUID'
+      po_number:
+        type: string
+        example: PO-20260525-001
+      branch_id:
+        $ref: '#/components/schemas/UUID'
+      supplier:
+        type: string
+      status:
+        $ref: '#/components/schemas/POStatus'
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/POItem'
+      notes:
+        type: string
+        nullable: true
+      submitted_by:
+        $ref: '#/components/schemas/UUID'
+      approved_by:
+        $ref: '#/components/schemas/UUID'
+        nullable: true
+      created_at:
+        type: string
+        format: date-time
+
+  POItem:
+    type: object
+    properties:
+      inventory_item_id:
+        $ref: '#/components/schemas/UUID'
+      inventory_item_name:
+        type: string
+      qty_ordered:
+        type: number
+        format: decimal
+      unit:
+        type: string
+      qty_received:
+        type: number
+        format: decimal
+        nullable: true
+
+  # ─── Dashboard ──────────────────────────────────────────────────────────────
+
+  DashboardMetrics:
+    type: object
+    properties:
+      orders_today:
+        type: integer
+      orders_today_trend_pct:
+        type: number
+        format: decimal
+        description: Persen naik/turun vs kemarin
+      revenue_today:
+        $ref: '#/components/schemas/Money'
+      revenue_today_trend_pct:
+        type: number
+        format: decimal
+      completed_today:
+        type: integer
+      completion_rate_pct:
+        type: number
+        format: decimal
+      overdue_count:
+        type: integer
+      low_stock_count:
+        type: integer
+      revenue_chart:
+        type: array
+        description: Revenue 7 hari terakhir
+        items:
+          type: object
+          properties:
+            date:
+              type: string
+              format: date
+            revenue:
+              $ref: '#/components/schemas/Money'
+      top_products:
+        type: array
+        items:
+          type: object
+          properties:
+            product_name:
+              type: string
+            revenue:
+              $ref: '#/components/schemas/Money'
+            share_pct:
+              type: number
+              format: decimal
+      production_stages:
+        type: object
+        description: Count SPK per stage produksi
+        properties:
+          design_queue:
+            type: integer
+          in_design:
+            type: integer
+          production_queue:
+            type: integer
+          printing:
+            type: integer
+          finishing:
+            type: integer
+
+  # ─── Pagination ─────────────────────────────────────────────────────────────
+
+  PaginationMeta:
+    type: object
+    properties:
+      total:
+        type: integer
+        example: 243
+      page:
+        type: integer
+        example: 1
+      per_page:
+        type: integer
+        example: 25
+      total_pages:
+        type: integer
+        example: 10

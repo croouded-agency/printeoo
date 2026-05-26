@@ -1,0 +1,644 @@
+# M04 — Order Management (SPK Digital)
+
+paths:
+
+  /orders:
+    get:
+      tags: [Orders]
+      summary: List SPK
+      description: >
+        Filter state tersimpan di URL query params (AC-061).
+        Pagination 25 per halaman (AC-060).
+        Row overdue: is_overdue = true (AC-058, AC-059).
+      operationId: listOrders
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, ready, delivered, closed, cancelled, overdue]
+          description: >
+            'overdue' adalah shortcut filter: deadline < now AND status NOT IN (closed, cancelled)
+        - name: priority
+          in: query
+          schema:
+            $ref: '#/components/schemas/Priority'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Full-text search — nomor SPK, nama customer, nama produk
+        - name: date_range
+          in: query
+          schema:
+            type: string
+            enum: [today, this_week, this_month]
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [deadline, created_at, total, status]
+            default: deadline
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 25
+            maximum: 100
+      responses:
+        '200':
+          description: Daftar SPK.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrderSummary'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Orders]
+      summary: Buat SPK baru
+      description: >
+        Nomor SPK auto-increment per branch menggunakan DB sequence (AC-043).
+        Format: SPK-{BRANCH_CODE}-{YYYYMMDD}-{4digit}.
+        Customer baru bisa dibuat inline via customer_new (AC-044).
+        Submit → redirect ke detail SPK (AC-045).
+        Jika produk tidak punya BOM → warning di response (AC-047, tidak block submit).
+      operationId: createOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, deadline, priority]
+              properties:
+                customer_id:
+                  $ref: '#/components/schemas/UUID'
+                  nullable: true
+                customer_new:
+                  type: object
+                  nullable: true
+                  description: Buat customer baru inline (mutually exclusive dengan customer_id)
+                  required: [name, phone]
+                  properties:
+                    name:
+                      type: string
+                    phone:
+                      type: string
+                    type:
+                      type: string
+                      enum: [individu, perusahaan, instansi]
+                      default: individu
+                source:
+                  type: string
+                  enum: [walk_in, online, telepon, referral]
+                  default: walk_in
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [product_id, qty, unit_price]
+                    properties:
+                      product_id:
+                        $ref: '#/components/schemas/UUID'
+                      specs:
+                        type: object
+                        example:
+                          width_cm: 300
+                          height_cm: 100
+                      finishing:
+                        type: array
+                        items:
+                          type: string
+                        example: [laminasi_doff]
+                      qty:
+                        type: integer
+                        minimum: 1
+                      unit_price:
+                        $ref: '#/components/schemas/Money'
+                      discount:
+                        $ref: '#/components/schemas/Money'
+                        default: 0
+                      needs_design:
+                        type: boolean
+                      notes:
+                        type: string
+                deadline:
+                  type: string
+                  format: date-time
+                priority:
+                  $ref: '#/components/schemas/Priority'
+                discount_spk:
+                  $ref: '#/components/schemas/Money'
+                  default: 0
+                dp_amount:
+                  $ref: '#/components/schemas/Money'
+                  default: 0
+                dp_method:
+                  $ref: '#/components/schemas/PaymentMethod'
+                  nullable: true
+                operator_notes:
+                  type: string
+      responses:
+        '201':
+          description: SPK berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  spk_id:
+                    $ref: '#/components/schemas/UUID'
+                  spk_number:
+                    type: string
+                    example: SPK-SBY-20260525-0042
+                  tracking_token:
+                    type: string
+                    example: abc123def456
+                  warnings:
+                    type: array
+                    description: Non-blocking warnings (misal produk tanpa BOM)
+                    items:
+                      type: object
+                      properties:
+                        code:
+                          type: string
+                          example: NO_BOM
+                        message:
+                          type: string
+                        item_index:
+                          type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /orders/{order_id}:
+    parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+
+    get:
+      tags: [Orders]
+      summary: Detail SPK
+      description: >
+        Termasuk semua items, timeline, info keuangan, dan file.
+        Customer yang sudah di-delete → tampilkan dengan label "(Dihapus)" (AC-057).
+      operationId: getOrder
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Detail SPK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Orders]
+      summary: Update header SPK
+      description: Update deadline, prioritas, catatan operator, atau diskon SPK.
+      operationId: updateOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deadline:
+                  type: string
+                  format: date-time
+                priority:
+                  $ref: '#/components/schemas/Priority'
+                operator_notes:
+                  type: string
+                discount_spk:
+                  $ref: '#/components/schemas/Money'
+      responses:
+        '200':
+          description: SPK diupdate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{order_id}/cancel:
+    parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Orders]
+      summary: Batalkan SPK
+      description: >
+        Harus disertai alasan (AC-052).
+        Tombol cancel harus outline/secondary style di UI, bukan solid merah.
+        Semua items di-cancel, data historis tetap ada.
+      operationId: cancelOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  minLength: 5
+      responses:
+        '200':
+          description: SPK dibatalkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+          # SPK sudah closed, tidak bisa dibatalkan
+
+  /orders/{order_id}/duplicate:
+    parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Orders]
+      summary: Duplikasi SPK
+      description: Buat SPK baru dengan data yang sama (produk, customer, items). Nomor SPK baru.
+      operationId: duplicateOrder
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: SPK duplikat dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  spk_id:
+                    $ref: '#/components/schemas/UUID'
+                  spk_number:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{order_id}/mark-delivered:
+    parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Orders]
+      summary: Tandai SPK diambil
+      description: >
+        Dua tombol terpisah — Tandai Diambil dan Tandai Lunas — bisa dilakukan dalam urutan apapun (AC-053).
+        SPK closed hanya setelah keduanya done.
+      operationId: markOrderDelivered
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Status diambil dicatat. SPK closed jika sudah lunas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+          # Belum semua item ready
+
+  /orders/{order_id}/mark-paid:
+    parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Orders]
+      summary: Tandai SPK lunas
+      operationId: markOrderPaid
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, method]
+              properties:
+                amount:
+                  $ref: '#/components/schemas/Money'
+                method:
+                  $ref: '#/components/schemas/PaymentMethod'
+      responses:
+        '200':
+          description: Status lunas dicatat. SPK closed jika sudah diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Order Items ────────────────────────────────────────────────────────────
+
+  /orders/{order_id}/items/{item_id}/status:
+    parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Orders]
+      summary: Update status item produksi
+      description: >
+        State machine: confirmed → design_queue → in_design → production_queue → printing → finishing → ready.
+        Tidak bisa skip stage (AC-064).
+        Push-back ke in_design wajib disertai catatan (AC-051).
+        Saat item → ready: hitung insentif operator (AC-065) + trigger notif jika semua item ready (AC-066).
+      operationId: updateItemStatus
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to_status]
+              properties:
+                to_status:
+                  $ref: '#/components/schemas/OrderItemStatus'
+                push_back_reason:
+                  type: string
+                  description: Wajib diisi jika to_status = in_design dari status setelahnya
+                assign_to:
+                  $ref: '#/components/schemas/UUID'
+                  nullable: true
+                  description: Assign designer (ke in_design) atau operator (ke printing)
+      responses:
+        '200':
+          description: Status item diupdate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          # Transisi status tidak valid
+
+  # ─── Tracking Publik (no auth) ──────────────────────────────────────────────
+
+  /track/{tracking_token}:
+    parameters:
+      - name: tracking_token
+        in: path
+        required: true
+        schema:
+          type: string
+          example: abc123def456
+    get:
+      tags: [Tracking]
+      summary: Tracking publik SPK (tanpa auth)
+      description: >
+        Publik, tanpa login, tanpa cookie (AC-074).
+        Gunakan tracking_token UUID bukan nomor SPK sequential — cegah enumerasi (AC-075).
+        Tidak tampilkan harga atau informasi internal (AC-077).
+        Mobile-first, readable di 320px (AC-078).
+      operationId: getPublicTracking
+      security: []
+      responses:
+        '200':
+          description: Status publik SPK.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  business_name:
+                    type: string
+                  business_logo_url:
+                    type: string
+                    nullable: true
+                  business_wa:
+                    type: string
+                  spk_number:
+                    type: string
+                  customer_name:
+                    type: string
+                  deadline:
+                    type: string
+                    format: date-time
+                  milestone:
+                    type: string
+                    enum: [terkonfirmasi, desain, produksi, finishing, siap_ambil, selesai, dibatalkan]
+                  milestone_updated_at:
+                    type: string
+                    format: date-time
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        qty:
+                          type: integer
+        '404':
+          description: Token tidak valid — halaman 404 friendly (AC-080).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ─── Nota ───────────────────────────────────────────────────────────────────
+
+  /orders/{order_id}/nota:
+    parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    get:
+      tags: [Orders]
+      summary: Data nota pesanan
+      description: Data terstruktur untuk render halaman nota cetak (AC-068).
+      operationId: getOrderNota
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Data nota.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  business:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      logo_url:
+                        type: string
+                        nullable: true
+                      address:
+                        type: string
+                      wa_number:
+                        type: string
+                      footer_text:
+                        type: string
+                  order:
+                    $ref: '#/components/schemas/Order'
+                  tracking_url:
+                    type: string
+                    example: "https://app.printeoo.com/track/abc123"
+                  wa_message:
+                    type: string
+                    description: Pesan WA pre-filled (AC-071)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Export ─────────────────────────────────────────────────────────────────
+
+  /orders/export:
+    get:
+      tags: [Orders]
+      summary: Export daftar SPK ke Excel/CSV
+      description: Export SPK untuk period yang dipilih (AC-062).
+      operationId: exportOrders
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [xlsx, csv]
+            default: xlsx
+        - name: date_from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File export.
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'

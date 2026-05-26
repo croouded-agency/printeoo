@@ -1,0 +1,385 @@
+# M15 — Product & Pricing Catalog + BOM
+
+paths:
+
+  /products:
+    get:
+      tags: [Products]
+      summary: List produk
+      description: Produk non-aktif tersembunyi dari form order (AC-176).
+      operationId: listProducts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+            default: true
+        - name: pricing_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/PricingType'
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Daftar produk.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Products]
+      summary: Tambah produk ke katalog
+      description: >
+        Setiap produk punya tipe pricing yang menentukan field di form order (AC-175).
+        Tipe: large_format (per m²), flat (per pcs), tiered (qty-based).
+      operationId: createProduct
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, pricing_type]
+              properties:
+                name:
+                  type: string
+                  example: Banner Flexi China 340gr
+                pricing_type:
+                  $ref: '#/components/schemas/PricingType'
+                base_price:
+                  $ref: '#/components/schemas/Money'
+                  nullable: true
+                  description: Harga per m² (large_format) atau per pcs (flat). Null untuk tiered.
+                price_tiers:
+                  type: array
+                  nullable: true
+                  description: Wajib untuk pricing_type = tiered
+                  items:
+                    $ref: '#/components/schemas/PriceTier'
+                default_needs_design:
+                  type: boolean
+                  default: false
+      responses:
+        '201':
+          description: Produk ditambahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /products/{product_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+
+    get:
+      tags: [Products]
+      summary: Detail produk + BOM
+      operationId: getProduct
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Detail produk.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Product'
+                  - type: object
+                    properties:
+                      bom_entries:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BOMEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Products]
+      summary: Update produk
+      operationId: updateProduct
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                base_price:
+                  $ref: '#/components/schemas/Money'
+                price_tiers:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PriceTier'
+                is_active:
+                  type: boolean
+                default_needs_design:
+                  type: boolean
+      responses:
+        '200':
+          description: Produk diupdate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── BOM (M15.6) ─────────────────────────────────────────────────────────────
+
+  /products/{product_id}/bom:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+
+    get:
+      tags: [Products]
+      summary: List BOM entries produk
+      operationId: listBOMEntries
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: BOM entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BOMEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags: [Products]
+      summary: Tambah BOM entry ke produk
+      description: >
+        BOM bisa punya multiple bahan per produk (AC-178).
+        Field waste wajib ada, tidak boleh kosong (default 5%) (AC-179).
+        Inline create bahan baru dari dropdown — cukup kirim inventory_item_new (AC-181).
+      operationId: createBOMEntry
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [formula_type, qty_formula, waste_pct]
+              properties:
+                inventory_item_id:
+                  $ref: '#/components/schemas/UUID'
+                  nullable: true
+                  description: Null jika membuat bahan baru inline
+                inventory_item_new:
+                  type: object
+                  nullable: true
+                  description: Inline create bahan baru (AC-181)
+                  required: [name, category, unit]
+                  properties:
+                    name:
+                      type: string
+                    category:
+                      $ref: '#/components/schemas/InventoryCategory'
+                    unit:
+                      type: string
+                formula_type:
+                  type: string
+                  enum: [flat, per_m2, per_qty]
+                qty_formula:
+                  type: number
+                  format: decimal
+                bom_unit:
+                  type: string
+                  description: Satuan logis di BOM (lihat ADR-0001)
+                waste_pct:
+                  type: number
+                  format: decimal
+                  default: 5
+                  minimum: 0
+                  maximum: 100
+      responses:
+        '201':
+          description: BOM entry ditambahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BOMEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /products/{product_id}/bom/{entry_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: entry_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+
+    patch:
+      tags: [Products]
+      summary: Update BOM entry
+      operationId: updateBOMEntry
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                qty_formula:
+                  type: number
+                  format: decimal
+                waste_pct:
+                  type: number
+                  format: decimal
+      responses:
+        '200':
+          description: BOM entry diupdate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BOMEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Products]
+      summary: Hapus BOM entry
+      operationId: deleteBOMEntry
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /products/{product_id}/bom/preview:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Products]
+      summary: Preview kalkulasi BOM (realtime)
+      description: >
+        Hitung estimasi material berdasarkan input dimensi/qty (AC-180).
+        Menggunakan spek batch terbaru untuk konversi (ADR-0001).
+        Jika belum ada batch dengan spesifikasi: warning di response (AC-182).
+      operationId: previewBOMCalc
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                width_cm:
+                  type: number
+                  nullable: true
+                height_cm:
+                  type: number
+                  nullable: true
+                qty:
+                  type: integer
+                  nullable: true
+      responses:
+        '200':
+          description: Estimasi material.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  estimates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        inventory_item_name:
+                          type: string
+                        formula_breakdown:
+                          type: string
+                          example: "0.014 roll/m² × 3m² × (1 + 5%) = 0.044 roll"
+                        estimated_qty:
+                          type: number
+                        unit:
+                          type: string
+                        batch_spec_used:
+                          type: string
+                          nullable: true
+                          example: "BATCH-20260525-001: 50m × 1.52m = 76m²/roll"
+                  warnings:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code:
+                          type: string
+                          example: NO_BATCH_SPEC
+                        message:
+                          type: string
+                        inventory_item_id:
+                          $ref: '#/components/schemas/UUID'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'

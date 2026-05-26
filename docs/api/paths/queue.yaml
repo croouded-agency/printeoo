@@ -1,0 +1,255 @@
+# M03 — Queue & Antrian
+
+paths:
+
+  /queue/tickets:
+    get:
+      tags: [Queue]
+      summary: List tiket antrian aktif
+      description: Ambil semua tiket antrian branch yang aktif hari ini.
+      operationId: listQueueTickets
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [waiting, called, serving, done, skipped]
+        - name: prefix
+          in: query
+          schema:
+            type: string
+            example: A
+      responses:
+        '200':
+          description: Daftar tiket antrian.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueueTicket'
+                  current_by_counter:
+                    type: object
+                    description: Nomor yang sedang dilayani per counter
+                    additionalProperties:
+                      $ref: '#/components/schemas/QueueTicket'
+                  waiting_count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Queue]
+      summary: Tambah tiket antrian baru
+      description: Customer baru datang — generate nomor antrian berikutnya.
+      operationId: createQueueTicket
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prefix:
+                  type: string
+                  default: A
+                  description: Prefix antrian (A, B, C — lihat Open Question #7)
+      responses:
+        '201':
+          description: Tiket antrian dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueTicket'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /queue/call-next:
+    post:
+      tags: [Queue]
+      summary: Panggil nomor berikutnya
+      description: >
+        Satu tap langsung advance queue ke nomor berikutnya (AC-026).
+        Jika antrian kosong → 422 dengan code QUEUE_EMPTY (AC-032).
+        Trigger TTS di layar antrian via WebSocket.
+      operationId: callNextQueue
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [counter]
+              properties:
+                counter:
+                  type: string
+                  example: Counter 1
+                prefix:
+                  type: string
+                  default: A
+      responses:
+        '200':
+          description: Nomor dipanggil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueTicket'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+          # code: QUEUE_EMPTY jika tidak ada tiket waiting
+
+  /queue/recall:
+    post:
+      tags: [Queue]
+      summary: Panggil ulang nomor yang sama
+      description: Recall nomor tanpa advance queue (AC-029). Trigger TTS ulang.
+      operationId: recallQueue
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [counter]
+              properties:
+                counter:
+                  type: string
+                  example: Counter 1
+      responses:
+        '200':
+          description: Nomor dipanggil ulang.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueTicket'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /queue/skip:
+    post:
+      tags: [Queue]
+      summary: Skip nomor yang tidak hadir
+      description: >
+        Tiket dipindah ke status 'skipped', masuk log "Tidak Hadir" (AC-030).
+        Queue otomatis advance ke nomor berikutnya.
+      operationId: skipQueue
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket_id, counter]
+              properties:
+                ticket_id:
+                  $ref: '#/components/schemas/UUID'
+                counter:
+                  type: string
+      responses:
+        '200':
+          description: Tiket di-skip, nomor berikutnya dipanggil (atau null jika antrian habis).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skipped:
+                    $ref: '#/components/schemas/QueueTicket'
+                  next:
+                    $ref: '#/components/schemas/QueueTicket'
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /queue/reset:
+    post:
+      tags: [Queue]
+      summary: Reset nomor antrian
+      description: >
+        Manual reset oleh kasir (dengan konfirmasi), atau otomatis dari scheduler (AC-028).
+        Semua tiket hari ini di-archive, counter kembali ke 001.
+      operationId: resetQueue
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prefix:
+                  type: string
+                  nullable: true
+                  description: Null = reset semua prefix
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /queue/display:
+    get:
+      tags: [Queue]
+      summary: State untuk layar antrian (display mode)
+      description: >
+        Endpoint yang di-poll oleh display-queue setiap 500ms (AC-038).
+        Juga bisa di-stream via WebSocket ke /ws/queue.
+        Tidak butuh auth khusus — cukup valid tenant context dari query param.
+      operationId: getQueueDisplay
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: State antrian untuk tampilan layar besar.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  branch_name:
+                    type: string
+                  counters:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        counter:
+                          type: string
+                        current_ticket:
+                          $ref: '#/components/schemas/QueueTicket'
+                          nullable: true
+                        last_called_at:
+                          type: string
+                          format: date-time
+                          nullable: true
+                  waiting_count:
+                    type: integer
+                  running_text:
+                    type: string
+                    description: Dari TenantSettings (jam buka, tagline)
+                  server_time:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'

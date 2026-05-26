@@ -1,0 +1,561 @@
+# M01 — Auth & Tenant Management
+# M02 — User & Role Management
+
+paths:
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Daftar tenant baru
+      description: >
+        Registrasi tenant baru. Setelah submit, email verifikasi dikirim dalam 60 detik.
+        Setelah verifikasi, user langsung masuk dashboard tanpa login ulang (AC-004).
+      operationId: registerTenant
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [business_name, email, password]
+              properties:
+                business_name:
+                  type: string
+                  example: Titaniumprint Surabaya
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '201':
+          description: Tenant berhasil didaftarkan, email verifikasi terkirim.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenant_id:
+                    $ref: '#/components/schemas/UUID'
+                  slug:
+                    type: string
+                    example: titaniumprint
+                  message:
+                    type: string
+                    example: "Email verifikasi dikirim ke hi@example.com"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          # code: CONFLICT — email sudah digunakan
+
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: Verifikasi email dengan token
+      operationId: verifyEmail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: Email terverifikasi, session aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+          # Token tidak valid atau expired
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login dengan email & password
+      description: >
+        Login gagal setelah 5 percobaan dalam 15 menit → lock 30 menit + notif email (AC-007).
+        Session token expire: 8 jam untuk web, 30 hari untuk remember_me (AC-008).
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                remember_me:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Login berhasil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+          # Rate limit login: lock setelah 5 percobaan
+
+  /auth/magic-link:
+    post:
+      tags: [Auth]
+      summary: Request magic link login via email
+      description: Kirim magic link ke email. Link expire 15 menit.
+      operationId: requestMagicLink
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Magic link dikirim (response selalu 200 untuk cegah user enumeration).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Jika email terdaftar, magic link sudah dikirim."
+
+  /auth/magic-link/verify:
+    post:
+      tags: [Auth]
+      summary: Verifikasi magic link token
+      operationId: verifyMagicLink
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: Login berhasil via magic link.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: Refresh token rotate on use. Refresh token expire 90 hari.
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token baru.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout session aktif
+      operationId: logout
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                all_devices:
+                  type: boolean
+                  default: false
+                  description: Jika true, revoke semua session aktif user ini (AC-009)
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Info user yang sedang login
+      operationId: getMe
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Data user aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── Tenant Settings ────────────────────────────────────────────────────────
+
+  /tenant/settings:
+    get:
+      tags: [Tenant]
+      summary: Ambil settings tenant
+      operationId: getTenantSettings
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantSettings'
+          description: Settings tenant.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      tags: [Tenant]
+      summary: Update settings tenant
+      description: Hanya role owner yang bisa update settings tenant.
+      operationId: updateTenantSettings
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantSettings'
+      responses:
+        '200':
+          description: Settings diupdate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantSettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ─── Branch ─────────────────────────────────────────────────────────────────
+
+  /branches:
+    get:
+      tags: [Tenant]
+      summary: List cabang
+      operationId: listBranches
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Daftar cabang.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Branch'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Tenant]
+      summary: Tambah cabang baru
+      description: Hanya tersedia untuk tier Business & Enterprise.
+      operationId: createBranch
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, code]
+              properties:
+                name:
+                  type: string
+                code:
+                  type: string
+                  maxLength: 5
+                address:
+                  type: string
+      responses:
+        '201':
+          description: Cabang dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+          # Tenant belum di tier Business/Enterprise
+
+  # ─── Users (M02) ────────────────────────────────────────────────────────────
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List pengguna tenant
+      operationId: listUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: branch_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/UserRole'
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Daftar pengguna.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/invite:
+    post:
+      tags: [Users]
+      summary: Undang pengguna baru
+      description: >
+        Kirim email undangan. Link expire 72 jam (AC-017).
+        Satu user hanya bisa punya satu role per tenant (AC-019).
+      operationId: inviteUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role, branch_id]
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  $ref: '#/components/schemas/UserRole'
+                branch_id:
+                  $ref: '#/components/schemas/UUID'
+      responses:
+        '201':
+          description: Undangan terkirim.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          # Email sudah terdaftar
+
+  /users/{user_id}:
+    parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+
+    get:
+      tags: [Users]
+      summary: Detail pengguna
+      operationId: getUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Data pengguna.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Users]
+      summary: Update role atau branch pengguna
+      operationId: updateUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  $ref: '#/components/schemas/UserRole'
+                branch_id:
+                  $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Pengguna diupdate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{user_id}/deactivate:
+    parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Users]
+      summary: Nonaktifkan pengguna
+      description: >
+        Soft deactivate — data historis tetap ada, user tidak bisa login (AC-023).
+        Session aktif langsung di-revoke (AC-011).
+        Owner tidak bisa deactivate dirinya sendiri (AC-025).
+      operationId: deactivateUser
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+          # Owner mencoba deactivate dirinya sendiri
+
+  /users/invitations/{token}/resend:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Users]
+      summary: Kirim ulang undangan
+      operationId: resendInvitation
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Undangan dikirim ulang.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/invitations/{token}/revoke:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Users]
+      summary: Batalkan undangan yang belum diterima
+      operationId: revokeInvitation
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '404':
+          $ref: '#/components/responses/NotFound'

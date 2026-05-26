@@ -1,0 +1,174 @@
+# M05 — Production Board
+# M06 — Production Display Mode
+
+paths:
+
+  /production/board:
+    get:
+      tags: [Production]
+      summary: Data kanban board produksi
+      description: >
+        6 kolom: Antrian Desain | Sedang Desain | Antrian Cetak | Sedang Cetak | Finishing | Siap Ambil.
+        Role-based column visibility di-enforce di backend (AC-086).
+        Filter 'mine' hanya tampilkan card yang assigned ke user yang login.
+        Real-time update via WebSocket /ws/production (AC-081).
+      operationId: getProductionBoard
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: filter
+          in: query
+          schema:
+            type: string
+            enum: [all, urgent, overdue, mine]
+            default: all
+      responses:
+        '200':
+          description: Data semua kolom board.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  columns:
+                    type: object
+                    properties:
+                      design_queue:
+                        $ref: '#/components/schemas/BoardColumn'
+                      in_design:
+                        $ref: '#/components/schemas/BoardColumn'
+                      production_queue:
+                        $ref: '#/components/schemas/BoardColumn'
+                      printing:
+                        $ref: '#/components/schemas/BoardColumn'
+                      finishing:
+                        $ref: '#/components/schemas/BoardColumn'
+                      ready:
+                        $ref: '#/components/schemas/BoardColumn'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /production/display:
+    get:
+      tags: [Production]
+      summary: Data untuk layar TV produksi (M06)
+      description: >
+        Endpoint untuk Production Display Mode.
+        3 panel: Antrian Cetak | Sedang Dikerjakan | Finishing.
+        Item "Sedang Dikerjakan" bisa multiple — client rotate setiap 10 detik (AC-096).
+      operationId: getProductionDisplay
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: State produksi untuk layar TV.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  branch_name:
+                    type: string
+                  server_time:
+                    type: string
+                    format: date-time
+                  production_queue:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductionCard'
+                  printing:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductionCard'
+                  finishing:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductionCard'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+# ─── Inline schemas khusus Production ────────────────────────────────────────
+# (didefinisikan di sini sebagai extension untuk clarity, di-merge ke components/schemas.yaml saat generate)
+
+x-schemas:
+  BoardColumn:
+    type: object
+    properties:
+      column_id:
+        type: string
+        enum: [design_queue, in_design, production_queue, printing, finishing, ready]
+      label:
+        type: string
+        example: Antrian Desain
+      count:
+        type: integer
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/BoardCard'
+
+  BoardCard:
+    type: object
+    properties:
+      item_id:
+        $ref: '#/components/schemas/UUID'
+      order_id:
+        $ref: '#/components/schemas/UUID'
+      spk_number:
+        type: string
+        example: SPK-SBY-20260525-0042
+      product_name:
+        type: string
+        example: Banner Flexi China 340gr
+      spec_summary:
+        type: string
+        example: 300×100cm
+      customer_name:
+        type: string
+      deadline:
+        type: string
+        format: date-time
+      deadline_label:
+        type: string
+        description: Human-readable relative deadline
+        example: "Hari ini 14:00"
+      is_overdue:
+        type: boolean
+      priority:
+        $ref: '#/components/schemas/Priority'
+      assigned_to:
+        type: object
+        nullable: true
+        properties:
+          user_id:
+            $ref: '#/components/schemas/UUID'
+          name:
+            type: string
+          initials:
+            type: string
+            example: BS
+
+  ProductionCard:
+    type: object
+    properties:
+      item_id:
+        $ref: '#/components/schemas/UUID'
+      spk_number:
+        type: string
+      product_name:
+        type: string
+      customer_name:
+        type: string
+      spec_summary:
+        type: string
+      priority:
+        $ref: '#/components/schemas/Priority'
+      is_overdue:
+        type: boolean
+      deadline_label:
+        type: string
+      started_at:
+        type: string
+        format: date-time
+        nullable: true
+        description: Kapan item masuk ke stage ini (untuk timer elapsed)

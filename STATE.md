@@ -1,6 +1,58 @@
 # STATE.md — Printeoo Prototype Progress
-**Last Updated:** 2026-05-25 (TASK-117 — Fix Sidebar Branch Manager)
-**Status Keseluruhan:** ✅ Prototype v1.1 complete + TASK-117 selesai  
+**Last Updated:** 2026-05-25 (PRD v2.0 — Full rewrite industry-standard)
+**Status Keseluruhan:** ✅ Prototype v1.1 complete + TASK-117 selesai + PRD v2.0 selesai
+
+## DOKUMEN AKTIF
+- PRD: `docs/printeoo-prd-v2.md` (v2.0 — 2026-05-25) ← GUNAKAN INI untuk development
+- Architecture: `docs/printeoo-architecture-v0.3.md` (v0.3 — 2026-05-25)
+- PRD lama: `docs/printeoo-prd-v1.2.md` (deprecated, referensi historis saja)
+
+## ADR (Architecture Decision Records)
+- `docs/adr/README.md` — index semua ADR
+- `docs/adr/0001-unit-conversion-strategy.md` — Strategi konversi satuan BOM vs batch (accepted)
+
+## DIAGRAMS (Excalidraw)
+- `docs/diagrams/arsitektur-sistem.excalidraw` — Tech stack, semua layer (client → CDN → frontend → backend → data → external)
+- `docs/diagrams/spk-lifecycle.excalidraw` — SPK & item lifecycle, state machine, role transitions, mapping ke kanban
+- `docs/diagrams/database-erd.excalidraw` — ERD lengkap 41 tabel, 9 domain groups, 29 relasi FK (202KB, 426 elements)
+
+## API DOCUMENTATION (OpenAPI 3.0)
+- `docs/api/openapi.yaml` — Master file, entry point semua endpoint
+- `docs/api/components/schemas.yaml` — Semua data model (Order, OrderItem, InventoryItem, dll)
+- `docs/api/components/responses.yaml` — Reusable HTTP responses
+- `docs/api/components/security.yaml` — BearerAuth (JWT) + ApiKeyAuth
+- `docs/api/paths/auth.yaml` — M01 Auth, M02 Users (18 endpoint)
+- `docs/api/paths/queue.yaml` — M03 Queue & Antrian (6 endpoint)
+- `docs/api/paths/spk.yaml` — M04 Order Management (12 endpoint)
+- `docs/api/paths/production.yaml` — M05 Production Board, M06 Display (2 endpoint)
+- `docs/api/paths/inventory.yaml` — M07 Inventory lengkap (14 endpoint)
+- `docs/api/paths/finance.yaml` — M08 Job Costing, M11 Laporan (5 endpoint)
+- `docs/api/paths/pos.yaml` — M09 POS & Kasir (3 endpoint)
+- `docs/api/paths/hr.yaml` — M10 HR, Absensi, Insentif, Portal (8 endpoint)
+- `docs/api/paths/webhooks.yaml` — M12 Web-to-Print API, M13 Dashboard (8 endpoint)
+- `docs/api/paths/notifications.yaml` — M14 Notification Center (4 endpoint)
+- `docs/api/paths/products.yaml` — M15 Product Catalog + BOM (8 endpoint)
+- `docs/api/paths/customers.yaml` — M17 CRM Pelanggan (4 endpoint)
+- `docs/api/paths/delivery.yaml` — M19 Manajemen Pengiriman (6 endpoint)
+**Completed:** 2026-05-26 | Total ~120 endpoint, semua modul M01–M19 terdokumentasi
+
+## DATABASE SCHEMA
+- `docs/database-schema.md` — Full schema design, 41 tabel, production-ready
+  - Section 4: Core (tenants, branches, users, sessions, invitations)
+  - Section 5: Orders (customers, orders, order_items, timeline, files)
+  - Section 6: Products + BOM (products, price_tiers, bom_entries, bom_snapshots immutable)
+  - Section 7: Inventory (items, batches + spec fisik ADR-0001, usage, opname, PO)
+  - Section 8: Queue (sessions, tickets)
+  - Section 9: POS (payments)
+  - Section 10: HR (employees, contracts history, attendance, incentives, payroll)
+  - Section 11: Delivery
+  - Section 12: Notifications + audit_logs (immutable)
+  - Section 13: API keys + webhooks
+  - Section 14: Indexes (semua query kritis)
+  - Section 15: Row-Level Security policies
+  - Section 16: Custom ENUM types (21 types)
+  - Section 17: Migration strategy + triggers (updated_at, stock update, incentive auto-calc, SPK sequence)
+**Completed:** 2026-05-26
 
 > Update file ini setiap kali memulai atau menyelesaikan task.  
 > Ini adalah memori kerja AI antar sesi. Jangan hapus entry yang sudah selesai.

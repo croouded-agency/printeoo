@@ -1,0 +1,198 @@
+# M09 — POS & Kasir
+
+paths:
+
+  /pos/payment:
+    post:
+      tags: [POS]
+      summary: Proses pembayaran SPK
+      description: >
+        Payment flow: pilih SPK (status ready/delivered) → input jumlah → pilih metode
+        → kalkulasi kembalian → konfirmasi → update status (AC-136 – AC-139).
+        Jika jumlah bayar kurang dari sisa tagihan → 422 dengan code PARTIAL_PAYMENT,
+        kasir bisa konfirmasi pembayaran parsial (AC-142).
+      operationId: processPayment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id, amount, method]
+              properties:
+                order_id:
+                  $ref: '#/components/schemas/UUID'
+                amount:
+                  $ref: '#/components/schemas/Money'
+                  description: Jumlah yang dibayarkan customer
+                method:
+                  $ref: '#/components/schemas/PaymentMethod'
+                confirm_partial:
+                  type: boolean
+                  default: false
+                  description: Set true untuk konfirmasi pembayaran parsial
+      responses:
+        '200':
+          description: Pembayaran berhasil diproses.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment_id:
+                    $ref: '#/components/schemas/UUID'
+                  amount_paid:
+                    $ref: '#/components/schemas/Money'
+                  change:
+                    $ref: '#/components/schemas/Money'
+                    description: Kembalian (0 jika transfer/QRIS)
+                  remaining:
+                    $ref: '#/components/schemas/Money'
+                    description: Sisa tagihan setelah pembayaran ini
+                  order_status:
+                    $ref: '#/components/schemas/OrderStatus'
+                  receipt_url:
+                    type: string
+                    description: URL halaman receipt untuk cetak
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+          # code: PARTIAL_PAYMENT — jumlah bayar kurang, butuh konfirmasi explicit
+          # code: ORDER_NOT_PAYABLE — SPK belum siap (status belum ready/delivered)
+
+  /pos/payment-history/{order_id}:
+    parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    get:
+      tags: [POS]
+      summary: Riwayat pembayaran SPK
+      description: Tampilkan history bayar jika customer pernah bayar sebagian (AC-141).
+      operationId: getPaymentHistory
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Riwayat pembayaran.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    $ref: '#/components/schemas/UUID'
+                  spk_number:
+                    type: string
+                  total:
+                    $ref: '#/components/schemas/Money'
+                  total_paid:
+                    $ref: '#/components/schemas/Money'
+                  remaining:
+                    $ref: '#/components/schemas/Money'
+                  payments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        payment_id:
+                          $ref: '#/components/schemas/UUID'
+                        amount:
+                          $ref: '#/components/schemas/Money'
+                        method:
+                          $ref: '#/components/schemas/PaymentMethod'
+                        cashier_name:
+                          type: string
+                        paid_at:
+                          type: string
+                          format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /pos/receipt/{payment_id}:
+    parameters:
+      - name: payment_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    get:
+      tags: [POS]
+      summary: Data receipt untuk cetak
+      description: >
+        Data terstruktur untuk render receipt.
+        Format: thermal 80mm atau A4 (AC-140).
+        Tanpa sidebar/header navigasi — print-ready.
+      operationId: getReceipt
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Data receipt.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  business:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      address:
+                        type: string
+                      wa_number:
+                        type: string
+                  spk_number:
+                    type: string
+                  cashier_name:
+                    type: string
+                  customer_name:
+                    type: string
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        product_name:
+                          type: string
+                        specs:
+                          type: string
+                        qty:
+                          type: integer
+                        unit_price:
+                          $ref: '#/components/schemas/Money'
+                        subtotal:
+                          $ref: '#/components/schemas/Money'
+                  subtotal:
+                    $ref: '#/components/schemas/Money'
+                  discount:
+                    $ref: '#/components/schemas/Money'
+                  total:
+                    $ref: '#/components/schemas/Money'
+                  amount_paid:
+                    $ref: '#/components/schemas/Money'
+                  change:
+                    $ref: '#/components/schemas/Money'
+                  method:
+                    $ref: '#/components/schemas/PaymentMethod'
+                  paid_at:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'

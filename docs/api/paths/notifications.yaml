@@ -1,0 +1,154 @@
+# M14 — Notification Center
+
+paths:
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: List notifikasi user yang login
+      description: >
+        Bell icon menampilkan badge count yang belum dibaca (AC-171).
+        Notifikasi difilter per role secara otomatis di backend — user hanya terima notif yang relevan.
+      operationId: listNotifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: is_read
+          in: query
+          schema:
+            type: boolean
+          description: Filter berdasarkan status baca
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Daftar notifikasi.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  unread_count:
+                    type: integer
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      summary: Tandai semua notifikasi sudah dibaca
+      description: Mark all as read (AC-173).
+      operationId: markAllNotificationsRead
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/{notification_id}/read:
+    parameters:
+      - name: notification_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Notifications]
+      summary: Tandai satu notifikasi sudah dibaca
+      description: Klik notifikasi → navigate ke resource + mark as read (AC-172).
+      operationId: markNotificationRead
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Notifikasi ditandai dibaca.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications/preferences:
+    get:
+      tags: [Notifications]
+      summary: Ambil preferensi notifikasi user
+      description: User bisa konfigurasi channel per event dari Settings (AC-174).
+      operationId: getNotificationPreferences
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Preferensi notifikasi.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preferences:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        event_type:
+                          type: string
+                          example: order.ready
+                        in_app:
+                          type: boolean
+                        whatsapp:
+                          type: boolean
+                        email:
+                          type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      tags: [Notifications]
+      summary: Update preferensi notifikasi
+      operationId: updateNotificationPreferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                preferences:
+                  type: array
+                  items:
+                    type: object
+                    required: [event_type]
+                    properties:
+                      event_type:
+                        type: string
+                      in_app:
+                        type: boolean
+                      whatsapp:
+                        type: boolean
+                      email:
+                        type: boolean
+      responses:
+        '200':
+          description: Preferensi diupdate.
+        '401':
+          $ref: '#/components/responses/Unauthorized'

@@ -1,0 +1,103 @@
+responses:
+
+  # ─── Success ────────────────────────────────────────────────────────────────
+
+  NoContent:
+    description: Berhasil, tidak ada body yang dikembalikan.
+
+  # ─── Client Errors ──────────────────────────────────────────────────────────
+
+  BadRequest:
+    description: Request tidak valid. Periksa body atau query parameter.
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/Error'
+        example:
+          code: VALIDATION_ERROR
+          message: "Field 'deadline' wajib diisi."
+          details:
+            - field: deadline
+              message: Required
+
+  Unauthorized:
+    description: Token tidak ada, expired, atau tidak valid.
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/Error'
+        example:
+          code: UNAUTHORIZED
+          message: "Token tidak valid atau sudah kedaluwarsa."
+
+  Forbidden:
+    description: Token valid tapi role tidak punya izin untuk aksi ini.
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/Error'
+        example:
+          code: FORBIDDEN
+          message: "Role 'operator' tidak punya izin untuk aksi ini."
+
+  NotFound:
+    description: Resource tidak ditemukan.
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/Error'
+        example:
+          code: NOT_FOUND
+          message: "SPK tidak ditemukan."
+
+  Conflict:
+    description: Konflik dengan state resource yang ada.
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/Error'
+        example:
+          code: CONFLICT
+          message: "Transisi status tidak valid: dari 'ready' tidak bisa ke 'printing'."
+
+  UnprocessableEntity:
+    description: Request valid secara struktur tapi tidak bisa diproses (misal validasi bisnis gagal).
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/Error'
+        example:
+          code: UNPROCESSABLE
+          message: "Stok bahan tidak cukup untuk estimasi ini."
+
+  TooManyRequests:
+    description: Rate limit terlampaui.
+    headers:
+      Retry-After:
+        schema:
+          type: integer
+        description: Detik hingga limit reset.
+      X-RateLimit-Limit:
+        schema:
+          type: integer
+      X-RateLimit-Remaining:
+        schema:
+          type: integer
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/Error'
+        example:
+          code: RATE_LIMIT_EXCEEDED
+          message: "Terlalu banyak request. Coba lagi dalam 60 detik."
+
+  InternalServerError:
+    description: Kesalahan internal server.
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/Error'
+        example:
+          code: INTERNAL_ERROR
+          message: "Terjadi kesalahan internal. Tim kami sudah diberitahu."
+          request_id: "req_abc123"

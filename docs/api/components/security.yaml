@@ -1,0 +1,37 @@
+securitySchemes:
+  BearerAuth:
+    type: http
+    scheme: bearer
+    bearerFormat: JWT
+    description: |
+      JWT token diperoleh dari endpoint `POST /auth/login` atau `POST /auth/magic-link`.
+
+      **Payload claims:**
+      ```json
+      {
+        "sub": "user-uuid",
+        "tenant_id": "tenant-uuid",
+        "branch_id": "branch-uuid",
+        "role": "owner|branch_manager|cashier|designer|operator|warehouse|courier|hr_admin|accountant|display",
+        "name": "Nama User",
+        "exp": 1234567890,
+        "iat": 1234567890,
+        "jti": "token-uuid"
+      }
+      ```
+
+      **Expiry:**
+      - Web session: 8 jam
+      - "Ingat saya": 30 hari
+      - Refresh token: 90 hari (rotate on use)
+
+      **Row-Level Security:** Semua query di database otomatis difilter berdasarkan `tenant_id` dan `branch_id` dari token.
+
+  ApiKeyAuth:
+    type: apiKey
+    in: header
+    name: X-API-Key
+    description: |
+      API key untuk integrasi Web-to-Print (M12). Digenerate dari Settings → Integrasi.
+      Hanya valid untuk endpoint `/api/v1/` (public API tier).
+      Rate limit: 100 request/menit per key.

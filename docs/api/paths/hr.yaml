@@ -1,0 +1,437 @@
+# M10 — HR & Payroll
+
+paths:
+
+  # ─── Data Karyawan (M10.1) ──────────────────────────────────────────────────
+
+  /hr/employees:
+    get:
+      tags: [HR]
+      summary: List karyawan
+      operationId: listEmployees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: branch_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [aktif, non_aktif, cuti]
+        - name: contract_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/ContractType'
+      responses:
+        '200':
+          description: Daftar karyawan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Employee'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [HR]
+      summary: Tambah karyawan baru
+      description: >
+        Tipe kontrak menentukan cara hitung payroll: bulanan (flat), harian (× hari kerja),
+        freelance/borongan (manual) (AC-143).
+        Riwayat perubahan kontrak tersimpan, tidak overwrite (AC-144).
+        NIK dan nomor rekening di-encrypt at rest.
+      operationId: createEmployee
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, position, contract_type, branch_id]
+              properties:
+                name:
+                  type: string
+                nik:
+                  type: string
+                  description: Nomor Induk Kependudukan (encrypted at rest)
+                address:
+                  type: string
+                phone:
+                  type: string
+                position:
+                  type: string
+                  example: Operator Cetak
+                branch_id:
+                  $ref: '#/components/schemas/UUID'
+                contract_type:
+                  $ref: '#/components/schemas/ContractType'
+                base_salary:
+                  $ref: '#/components/schemas/Money'
+                bank_account:
+                  type: string
+                  description: Nomor rekening (encrypted at rest)
+                joined_at:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: Karyawan berhasil ditambahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /hr/employees/{employee_id}:
+    parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+
+    get:
+      tags: [HR]
+      summary: Detail karyawan
+      description: >
+        Owner bisa lihat data karyawan siapapun.
+        Karyawan hanya bisa lihat data miliknya sendiri (via /hr/me) (AC-157).
+      operationId: getEmployee
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Detail karyawan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [HR]
+      summary: Update data karyawan
+      operationId: updateEmployee
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                position:
+                  type: string
+                status:
+                  type: string
+                  enum: [aktif, non_aktif, cuti]
+                contract_type:
+                  $ref: '#/components/schemas/ContractType'
+                base_salary:
+                  $ref: '#/components/schemas/Money'
+                branch_id:
+                  $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Karyawan diupdate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Absensi (M10.2) ────────────────────────────────────────────────────────
+
+  /hr/attendance:
+    get:
+      tags: [HR]
+      summary: List absensi
+      description: Laporan rekap absensi bulanan (AC-149).
+      operationId: listAttendance
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+            example: 2026
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: Rekap absensi.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        employee_id:
+                          $ref: '#/components/schemas/UUID'
+                        employee_name:
+                          type: string
+                        date:
+                          type: string
+                          format: date
+                        status:
+                          type: string
+                          enum: [hadir, izin, sakit, alpha, cuti]
+                        check_in:
+                          type: string
+                          format: time
+                          nullable: true
+                        check_out:
+                          type: string
+                          format: time
+                          nullable: true
+                        overtime_hours:
+                          type: number
+                          nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [HR]
+      summary: Input absensi
+      description: >
+        Input manual oleh HR atau self-service karyawan via Portal Karyawan (AC-146).
+        Status per hari: Hadir / Izin / Sakit / Alpha / Cuti (AC-147).
+        Jam masuk dan keluar bisa diinput untuk kalkulasi lembur (AC-148).
+      operationId: recordAttendance
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_id, date, status]
+              properties:
+                employee_id:
+                  $ref: '#/components/schemas/UUID'
+                date:
+                  type: string
+                  format: date
+                status:
+                  type: string
+                  enum: [hadir, izin, sakit, alpha, cuti]
+                check_in:
+                  type: string
+                  format: time
+                  nullable: true
+                check_out:
+                  type: string
+                  format: time
+                  nullable: true
+      responses:
+        '201':
+          description: Absensi dicatat.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── Insentif (M10.9) ───────────────────────────────────────────────────────
+
+  /hr/incentive-config:
+    get:
+      tags: [HR]
+      summary: List konfigurasi insentif
+      description: Konfigurasi insentif per produk atau per kategori produk (AC-150).
+      operationId: listIncentiveConfig
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Konfigurasi insentif.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          $ref: '#/components/schemas/UUID'
+                        target_type:
+                          type: string
+                          enum: [product, category]
+                        target_id:
+                          $ref: '#/components/schemas/UUID'
+                          nullable: true
+                        target_name:
+                          type: string
+                        rate_type:
+                          type: string
+                          enum: [per_pcs, pct_revenue]
+                        rate_value:
+                          type: number
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [HR]
+      summary: Set konfigurasi insentif
+      operationId: setIncentiveConfig
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_type, rate_type, rate_value]
+              properties:
+                target_type:
+                  type: string
+                  enum: [product, category]
+                target_id:
+                  $ref: '#/components/schemas/UUID'
+                  nullable: true
+                  description: product_id atau category enum value
+                rate_type:
+                  type: string
+                  enum: [per_pcs, pct_revenue]
+                rate_value:
+                  type: number
+                  description: Rp per pcs, atau pct (0–100)
+      responses:
+        '201':
+          description: Konfigurasi insentif disimpan.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /hr/incentives:
+    get:
+      tags: [HR]
+      summary: List insentif karyawan
+      description: >
+        Filter per employee atau per bulan.
+        Insentif bisa dilihat karyawan di Portal Karyawan — breakdown per item (AC-153).
+        Insentif item yang di-cancel setelah ready → status revoked (AC-155).
+      operationId: listIncentives
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, confirmed, paid, revoked]
+      responses:
+        '200':
+          description: Daftar insentif.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/IncentiveRecord'
+                  total_amount:
+                    $ref: '#/components/schemas/Money'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── Portal Karyawan (M10.10) ───────────────────────────────────────────────
+
+  /hr/me:
+    get:
+      tags: [HR]
+      summary: Portal karyawan — data milik sendiri
+      description: >
+        Accessible via ikon user di header untuk semua role kecuali 'display' (AC-156).
+        Karyawan hanya bisa lihat data miliknya sendiri (AC-157).
+      operationId: getMyEmployeePortal
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Ringkasan data karyawan yang sedang login.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profile:
+                    $ref: '#/components/schemas/Employee'
+                  this_month:
+                    type: object
+                    properties:
+                      work_days:
+                        type: integer
+                      total_incentive:
+                        $ref: '#/components/schemas/Money'
+                      estimated_salary:
+                        $ref: '#/components/schemas/Money'
+                  recent_incentives:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/IncentiveRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'

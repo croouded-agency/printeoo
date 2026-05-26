@@ -1,0 +1,348 @@
+# M12 — Web-to-Print API (Public API Tier)
+# M13 — Owner Dashboard
+
+paths:
+
+  # ─── Web-to-Print Public API (M12) ──────────────────────────────────────────
+  # Endpoint ini menggunakan ApiKeyAuth (X-API-Key header), bukan BearerAuth.
+  # Tersedia mulai tier Pro. Rate limit: 100 req/menit per API key.
+
+  /api/v1/orders:
+    post:
+      tags: [WebToPrint]
+      summary: Buat SPK via Web-to-Print API
+      description: >
+        API key per tenant, bisa di-generate dan di-revoke dari Settings (AC-162).
+        Format request sama dengan POST /orders (AC-163).
+        Tersedia mulai tier Pro.
+      operationId: webToPrintCreateOrder
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customer, items, deadline]
+              properties:
+                customer:
+                  type: object
+                  required: [name, phone]
+                  properties:
+                    name:
+                      type: string
+                    phone:
+                      type: string
+                    email:
+                      type: string
+                      nullable: true
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [product_id, qty, unit_price]
+                    properties:
+                      product_id:
+                        $ref: '#/components/schemas/UUID'
+                      specs:
+                        type: object
+                      qty:
+                        type: integer
+                      unit_price:
+                        $ref: '#/components/schemas/Money'
+                      needs_design:
+                        type: boolean
+                      notes:
+                        type: string
+                deadline:
+                  type: string
+                  format: date-time
+                priority:
+                  $ref: '#/components/schemas/Priority'
+                external_order_id:
+                  type: string
+                  description: ID order dari sistem eksternal (untuk referensi cross-system)
+      responses:
+        '201':
+          description: SPK berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  spk_id:
+                    $ref: '#/components/schemas/UUID'
+                  spk_number:
+                    type: string
+                  tracking_token:
+                    type: string
+                  tracking_url:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/v1/orders/{spk_number}:
+    parameters:
+      - name: spk_number
+        in: path
+        required: true
+        schema:
+          type: string
+          example: SPK-SBY-20260525-0042
+    get:
+      tags: [WebToPrint]
+      summary: Status SPK via API (read-only)
+      description: Cek status SPK dari sistem eksternal menggunakan nomor SPK.
+      operationId: webToPrintGetOrder
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Status SPK.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  spk_number:
+                    type: string
+                  status:
+                    $ref: '#/components/schemas/OrderStatus'
+                  milestone:
+                    type: string
+                  tracking_url:
+                    type: string
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        product_name:
+                          type: string
+                        status:
+                          $ref: '#/components/schemas/OrderItemStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  # ─── Webhook Configuration (M12) ────────────────────────────────────────────
+
+  /settings/webhooks:
+    get:
+      tags: [WebToPrint]
+      summary: List konfigurasi webhook tenant
+      operationId: listWebhooks
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Konfigurasi webhook.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          $ref: '#/components/schemas/UUID'
+                        url:
+                          type: string
+                          format: uri
+                        events:
+                          type: array
+                          items:
+                            type: string
+                            enum: [order.created, item.status_changed, order.ready]
+                        is_active:
+                          type: boolean
+                        secret:
+                          type: string
+                          description: Webhook secret untuk validasi signature
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [WebToPrint]
+      summary: Daftarkan webhook URL
+      description: >
+        Webhook ke URL tenant: event order.created, item.status_changed, order.ready (AC-164).
+        Payload dikirim dengan header X-Printeoo-Signature untuk validasi HMAC.
+      operationId: createWebhook
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+                    enum: [order.created, item.status_changed, order.ready]
+      responses:
+        '201':
+          description: Webhook terdaftar.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /settings/api-keys:
+    get:
+      tags: [WebToPrint]
+      summary: List API keys tenant
+      operationId: listAPIKeys
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Daftar API keys.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          $ref: '#/components/schemas/UUID'
+                        name:
+                          type: string
+                        key_prefix:
+                          type: string
+                          description: Prefix saja (pk_live_xxxx...) — key penuh hanya ditampilkan sekali saat generate
+                        created_at:
+                          type: string
+                          format: date-time
+                        last_used_at:
+                          type: string
+                          format: date-time
+                          nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [WebToPrint]
+      summary: Generate API key baru
+      description: Key penuh hanya ditampilkan sekali saat generate. Simpan segera.
+      operationId: generateAPIKey
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  example: "Website Titaniumprint.id"
+      responses:
+        '201':
+          description: API key dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    $ref: '#/components/schemas/UUID'
+                  name:
+                    type: string
+                  key:
+                    type: string
+                    description: Full API key — hanya tampil sekali ini
+                    example: "pk_live_abc123def456..."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /settings/api-keys/{key_id}/revoke:
+    parameters:
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [WebToPrint]
+      summary: Revoke API key
+      operationId: revokeAPIKey
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Dashboard (M13) ────────────────────────────────────────────────────────
+
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Owner dashboard metrics
+      description: >
+        Semua angka real-time dari database (AC-169).
+        Alert overdue hanya muncul jika ada SPK overdue (AC-167).
+        Klik metric card → navigate ke halaman terkait dengan filter aktif (AC-168).
+      operationId: getDashboard
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Default hari ini. Range untuk semua metric (AC-170).
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Dashboard metrics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardMetrics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'

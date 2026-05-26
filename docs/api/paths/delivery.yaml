@@ -1,0 +1,219 @@
+# M19 — Manajemen Pengiriman
+
+paths:
+
+  /delivery/assignments:
+    get:
+      tags: [Delivery]
+      summary: List delivery assignments
+      description: >
+        Tabel semua SPK status ready yang belum di-assign kurir (AC-193).
+        Filter: Belum Assign / Dalam Perjalanan / Selesai (AC-194).
+        Role courier hanya melihat assignment miliknya sendiri (AC-192).
+      operationId: listDeliveryAssignments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [unassigned, assigned, dalam_perjalanan, terkirim, gagal_kirim]
+        - name: courier_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/UUID'
+          description: Filter per kurir. Role courier otomatis difilter ke ID sendiri.
+      responses:
+        '200':
+          description: Daftar delivery assignments.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DeliveryAssignment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Delivery]
+      summary: Assign kurir ke SPK
+      description: >
+        Assign dari detail SPK atau halaman Pengiriman (AC-187).
+        Kurir terima notif in-app + WA saat di-assign (AC-188).
+        Pilih kurir dari list karyawan role courier (AC-195).
+      operationId: createDeliveryAssignment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id, courier_id]
+              properties:
+                order_id:
+                  $ref: '#/components/schemas/UUID'
+                courier_id:
+                  $ref: '#/components/schemas/UUID'
+                customer_address:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Kurir berhasil di-assign.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+          # SPK belum status ready, atau kurir bukan role courier
+
+  /delivery/assignments/{assignment_id}:
+    parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+
+    get:
+      tags: [Delivery]
+      summary: Detail delivery assignment
+      operationId: getDeliveryAssignment
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Detail assignment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryAssignment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /delivery/assignments/{assignment_id}/depart:
+    parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Delivery]
+      summary: Kurir berangkat (status → dalam_perjalanan)
+      description: Role courier update status saat berangkat (AC-189).
+      operationId: departDelivery
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Status diupdate ke dalam_perjalanan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryAssignment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /delivery/assignments/{assignment_id}/complete:
+    parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Delivery]
+      summary: Tandai terkirim + upload bukti
+      description: >
+        Upload foto bukti saat Terkirim (opsional tapi disarankan) (AC-190).
+        SPK diupdate ke status delivered.
+      operationId: completeDelivery
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                proof_photo:
+                  type: string
+                  format: binary
+                  description: Foto bukti pengiriman (max 5MB, JPEG/PNG)
+      responses:
+        '200':
+          description: Pengiriman selesai.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryAssignment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /delivery/assignments/{assignment_id}/fail:
+    parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    post:
+      tags: [Delivery]
+      summary: Tandai gagal kirim
+      description: >
+        Alasan wajib diisi (AC-191).
+        SPK kembali ke status ready (Siap Ambil) setelah gagal kirim.
+      operationId: failDelivery
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fail_reason]
+              properties:
+                fail_reason:
+                  type: string
+                  minLength: 5
+      responses:
+        '200':
+          description: Gagal kirim dicatat. SPK kembali ke ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
